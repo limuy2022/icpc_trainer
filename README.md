@@ -6,13 +6,13 @@ React + TypeScript 前端、Node.js 服务、SQLite 持久化。支持管理员�
 
 ## 本地快速开始
 
-需要 Node.js >= 22.13 和 npm。
+需要 Node.js >= 22.13 和 pnpm 12.17.0（由 `packageManager` 固定）。如果环境提供 Corepack，可用 `corepack enable` 后执行下面的命令。
 
 ```bash
 git clone git@github.com:limuy2022/icpc_trainer.git
 cd icpc_trainer
-npm ci
-npm run build:standalone
+pnpm install --frozen-lockfile
+pnpm run build:standalone
 mkdir -p data
 cp .env.example .env.local
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
@@ -30,7 +30,7 @@ node --env-file=../.env.local server.mjs
 
 打开 <http://127.0.0.1:5182>，使用 `data/initial-admin.txt` 中的凭据登录，按页面提示设置密码。没有公开注册入口，也没有内置默认密码。管理员初始化只运行一次。
 
-前端热更新开发时，将 `.env.local` 中的 `PORT` 改为 `5180`、`APP_ORIGIN` 改为 `http://127.0.0.1:5174`，重新启动后端，再在项目根目录另开终端运行 `npm run dev:standalone`，访问 `http://127.0.0.1:5174`。Vite 会将 `/api` 代理到本地 5180 端口。生产环境使用下面的独立部署方式。
+前端热更新开发时，将 `.env.local` 中的 `PORT` 改为 `5180`、`APP_ORIGIN` 改为 `http://127.0.0.1:5174`，重新启动后端，再在项目根目录另开终端运行 `pnpm run dev:standalone`，访问 `http://127.0.0.1:5174`。Vite 会将 `/api` 代理到本地 5180 端口。生产环境使用下面的独立部署方式。
 
 
 ## 账号与管理
@@ -47,11 +47,11 @@ node --env-file=../.env.local server.mjs
 
 ## 独立部署构建
 
-需要 Node.js >=22.13（推荐当前 LTS）。生产发布包没有额外 npm 运行依赖。
+需要 Node.js >=22.13（推荐当前 LTS）。生产发布包没有额外包管理器运行依赖。
 
 ```bash
-npm install
-npm run build:standalone
+pnpm install --frozen-lockfile
+pnpm run build:standalone
 node server/integration.test.mjs
 node server/statement.test.mjs
 node server/sync-translation.test.mjs
@@ -184,3 +184,8 @@ Markdown 代码块支持 C/C++、Python、Java、JavaScript/TypeScript、Rust、
 陪练与翻译都使用所选推理等级，翻译缓存也按等级隔离。显式开启推理时增大输出上限以留出推理空间，实际用量按接口返回记录；高等级可能增加耗时和 Token。应用仅显示最终回答，不把模型内部推理内容拼入聊天。验证：`node server/reasoning.test.mjs`、`node server/metadata-ai.test.mjs`、`node server/integration.test.mjs`。
 
 用时趋势图采用协调交互布局：图表置于统计页首屏，集中显示当前中位数、此前中位数与变化；曲线使用主题配色和轻量面积填充。切换难度或解出方式时同步更新数字与图表，点击曲线可以固定查看一条记录，上一条/下一条按钮便于手机和键盘逐题浏览；明细与统计口径可展开。首次显示不动画，筛选切换的过渡尊重系统减少动态效果设置。计算口径与账号数据来源保持一致，无需调用模型或第三方绘图服务。
+
+
+## 包管理器
+
+项目统一使用 pnpm，提交 `pnpm-lock.yaml`，不再维护 npm 锁文件。安装依赖使用 `pnpm install --frozen-lockfile`；添加依赖使用 `pnpm add` / `pnpm add -D`。构建、开发、CI 安装入口和部署脚本均使用 pnpm。`pnpm-workspace.yaml` 保留依赖覆盖与明确允许的原生构建脚本。服务器仍直接运行构建后的 Node.js 程序，不需要安装 pnpm 或在线下载运行依赖。

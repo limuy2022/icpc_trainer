@@ -54,3 +54,6 @@ yarn-error.log*
 *.db
 *.db-*
 *.key
+
+# pnpm is the project package manager.
+/package-lock.json

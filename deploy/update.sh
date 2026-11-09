@@ -7,7 +7,7 @@ ssh_options=(-o BatchMode=yes -o ConnectTimeout=15 -o ControlMaster=auto -o Cont
 archive="$(mktemp /tmp/icpc-upload.XXXXXX.tar.gz)"
 trap 'rm -f -- "$archive"' EXIT
 cd "$project_dir"
-npm run build:standalone
+pnpm run build:standalone
 tar -czf "$archive" -C release .
 remote_archive="$(ssh "${ssh_options[@]}" "$server_host" 'mktemp /tmp/icpc-upload.XXXXXX.tar.gz')"
 scp "${ssh_options[@]}" "$archive" "$server_host:$remote_archive"

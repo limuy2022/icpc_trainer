@@ -560,6 +560,7 @@ function Workspace({
         outcome === "independent" && session.hints > 0 ? "assisted" : outcome,
       takeaway,
       elapsed,
+      completedAt: outcome === "review" ? undefined : new Date().toISOString(),
       startedAt: null,
     });
     setFinish(false);

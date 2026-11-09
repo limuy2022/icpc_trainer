@@ -24,6 +24,7 @@ export type Session = {
   elapsed: number;
   startedAt: number | null;
   createdAt: string;
+  completedAt?: string;
   outcome: "training" | "independent" | "assisted" | "review";
   takeaway: string;
   recoveredVersions?: { field: string; value: unknown; savedAt: string }[];

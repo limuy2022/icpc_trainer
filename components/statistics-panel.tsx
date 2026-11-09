@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { RefreshCw, Target, MessageCircle, Zap, Clock3, CheckCircle2, BarChart3 } from "lucide-react";
 import { api } from "./account-gate";
+const TimeTrend = lazy(()=>import("./time-trend-chart"));
 const number = (n: number) => Number(n || 0).toLocaleString("zh-CN");
 const kindName: Record<string,string> = { coach: "思维陪练", translation: "题面翻译", legacy: "历史调用（未分类）" };
 export default function StatisticsPanel({ save }: {save: () => Promise<void>}) {
@@ -25,6 +26,7 @@ export default function StatisticsPanel({ save }: {save: () => Promise<void>}) {
     {error && <div className="form-error" role="alert">{error}</div>}
     <section className="usage-cards">{cards.map(card=><article key={card.label}><div><card.icon size={17}/><span>{card.label}</span></div><strong>{data?number(card.value):"—"}<small>{card.unit}</small></strong><p>{data?card.note:"正在读取统计…"}</p></article>)}</section>
     {data && <>
+      <Suspense fallback={<div className="usage-empty">正在加载用时趋势…</div>}><TimeTrend trend={data.trend || {points:[],excluded:0}} /></Suspense>
       <p className="usage-note">仅累计模型接口已返回的用量；{number(totals.unknownUsageCalls)} 次调用未报告完整用量，不按 0 Token 解读。翻译命中缓存或复用同一在途请求，不重复计为模型调用。历史数据按现有日志回溯，早期未记录的网络失败无法补齐。</p>
       <section className="admin-section"><div className="panel-heading"><h2>按模型统计 · 全部时间</h2></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>模型</th><th>调用 / 接口成功</th><th>输入 Token</th><th>输出 Token</th><th>已记录总 Token</th><th>用量未报告</th></tr></thead><tbody>{data.models.map((row:any)=><tr key={row.modelId+row.model}><td>{row.model}</td><td>{number(row.calls)} / {number(row.successfulCalls)}</td><td>{number(row.inputTokens)}</td><td>{number(row.outputTokens)}</td><td>{number(row.totalTokens)}</td><td>{number(row.unknownUsageCalls)} 次</td></tr>)}</tbody></table>{!data.models.length&&<p className="usage-empty">还没有模型调用记录。</p>}</div></section>
       <section className="admin-section"><div className="panel-heading"><h2>按用途统计 · 全部时间</h2></div><div className="usage-kinds">{data.kinds.map((row:any)=><div key={row.kind}><span>{kindName[row.kind]||row.kind}</span><strong>{number(row.calls)} 次</strong><span>{number(row.totalTokens)} Token</span></div>)}{!data.kinds.length&&<p className="usage-empty">讨论和翻译发生后，会显示在这里。</p>}</div></section>

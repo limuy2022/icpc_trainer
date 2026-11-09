@@ -45,7 +45,7 @@ try{
  const seedDb=new DatabaseSync(env.DATABASE_PATH);
  assert.equal(seedDb.prepare("SELECT cf_rating FROM users WHERE username='admin'").get().cf_rating,1600);
  const adminId=seedDb.prepare("SELECT id FROM users WHERE username='admin'").get().id;
- const statsRecords=[{...record,outcome:'independent',elapsed:120,messages:[{role:'user',content:'think'}]},{...record,id:'repeat',outcome:'assisted',elapsed:60},{...record,id:'review',problem:{id:'2A'},outcome:'review',elapsed:30}];
+ const statsRecords=[{...record,problem:{id:'1A',name:'Fixture',rating:1600},outcome:'independent',elapsed:120,messages:[{role:'user',content:'think'}]},{...record,id:'repeat',problem:{id:'1A',name:'Fixture',rating:1600},outcome:'assisted',elapsed:60},{...record,id:'review',problem:{id:'2A'},outcome:'review',elapsed:30}];
  seedDb.prepare('UPDATE training_data SET payload=?,revision=revision+1 WHERE user_id=?').run(JSON.stringify(statsRecords),adminId);
  const insertUsage=seedDb.prepare('INSERT INTO usage_log(user_id,model_id,status,input_tokens,output_tokens,total_tokens,usage_reported,kind,model_name,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)');
  insertUsage.run(adminId,'old-model',200,100,50,180,1,'coach','fixture-model',new Date().toISOString());
@@ -59,6 +59,7 @@ try{
  for(let i=0;i<2;i++){const cached=await call('/api/translate',{cookie:admin,body:{text:cacheText,problemId:'1A'}});assert.equal(cached.status,200);assert.equal(cached.data.cached,true);}
  const stats=(await call('/api/stats',{cookie:admin})).data;
  assert.equal(stats.totals.completedProblems,1);assert.equal(stats.totals.completedSessions,2);assert.equal(stats.totals.independentProblems,1);assert.equal(stats.totals.pendingSessions,1);assert.equal(stats.totals.thinkingSeconds,210);assert.equal(stats.totals.discussionRounds,1);
+ assert.equal(stats.trend.points.length,2);assert.equal(stats.trend.points[0].rating,1600);assert.equal((await call('/api/stats',{cookie:member})).data.trend.points.length,0);
  assert.equal(stats.totals.calls,3);assert.equal(stats.totals.successfulCalls,2);assert.equal(stats.totals.totalTokens,180);assert.equal(stats.totals.inputTokens,100);assert.equal(stats.totals.outputTokens,50);assert.equal(stats.totals.unknownUsageCalls,2);assert.equal(stats.models[0].model,'fixture-model');assert.equal(stats.daily.length,1);
  assert.equal((await call('/api/stats',{cookie:member})).data.totals.calls,0);assert.equal((await call('/api/stats',{cookie:member})).data.totals.completedProblems,0);
  const adminStats=(await call('/api/admin/status',{cookie:admin})).data.userStats;

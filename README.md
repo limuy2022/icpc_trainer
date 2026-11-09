@@ -164,3 +164,7 @@ Markdown 代码块支持 C/C++、Python、Java、JavaScript/TypeScript、Rust、
 编辑/撤回创建新的对话分支版本。跨页面同步时，旧分支不会重新追加到新分支；并发修改选择较新分支，另一份内容保存在历史版本。提示暴露等级与已发生的模型调用/Token 用量不回退。当前训练统计中的讨论轮数只统计当前分支。验证：`node server/conversation.test.mjs`、`node server/sync-translation.test.mjs`。
 
 个人 CF 等级分可从导航或题库筛选区设置，保存到账号的 `users.cf_rating`，跨刷新和设备生效。下次加载默认按 `rating−100` 到 `rating+300` 筛选（按题库 800–3500 边界截取），非整百等级分保持精确范围。保存等级分立即应用新范围；手动筛选在当前页面保留，并提供“应用个人预设”按钮。留空恢复未设置状态与默认 1400–1800。`/api/profile` 只允许读取和修改当前账号的等级分，支持 0–5000 的整数。验证：`node server/rating-range.test.mjs` 与 `node server/integration.test.mjs`。
+
+“训练统计”新增同难度用时曲线：选择精确 CF 题目评分与独立/提示后解出方式，查看单题用时、近 5 题滚动中位数和记录明细。默认排除同题重做，只取该题首次有效解出记录；可手动包含重做。未完成、待重练、非正用时、无有效日期的记录不进入图表。累计至少 6 条符合筛选的记录时，使用最近 N 题与此前 N 题中位数比较（N=min(5, floor(样本数/2))），少量样本不生成变化百分比。
+
+新完成训练保存 `completedAt`；旧记录没有完成日期时使用 `createdAt` 并标明。图表使用训练计时器的累计时长（含讨论），不是 CF 提交耗时；曲线仅反映已解出样本，不能单独作为能力结论。图表按需加载，不增加题库首屏的图表代码开销。验证：`node server/time-trend.test.mjs`、`node server/integration.test.mjs`。

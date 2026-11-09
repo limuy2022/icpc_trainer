@@ -1,79 +1,111 @@
 "use client";
 import { useState, useRef, useEffect, useCallback } from "react";
 import type { Session } from "@/lib/types";
-function snapshot(sessions: Session[]) {
-  return sessions.map((s) => ({
-    ...s,
-    elapsed:
-      s.elapsed +
-      (s.startedAt
-        ? Math.max(0, Math.floor((Date.now() - s.startedAt) / 1000))
-        : 0),
-    startedAt: null,
-  }));
-}
+import { mergeTraining, snapshotTraining } from "@/lib/training-merge";
+type Checkpoint = {
+  sessions: Session[];
+  base?: Session[];
+  revision: number;
+  pending: boolean;
+};
 export function useTrainingSync(userId: string) {
   const [sessions, setSessions] = useState<Session[]>([]),
     [loaded, setLoaded] = useState(false),
-    [syncState, setSyncState] = useState("正在加载云端记录…"),
-    [conflict, setConflict] = useState(false);
-  const refs = useRef({
+    [syncState, setSyncState] = useState("正在加载服务器记录…");
+  const state = useRef({
     sessions,
+    base: [] as Session[],
     revision: 0,
-    lastSaved: "[]",
     busy: false,
     queued: false,
-    blocked: false,
     ready: false,
   });
-  refs.current.sessions = sessions;
-  const cacheKey = "icpc-account-v2:" + userId;
+  state.current.sessions = sessions;
+  const key = "icpc-account-v2:" + userId;
+  const checkpoint = useCallback(() => {
+    const r = state.current;
+    if (!r.ready) return;
+    const data = snapshotTraining(r.sessions);
+    try {
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          sessions: data,
+          base: r.base,
+          revision: r.revision,
+          pending: JSON.stringify(data) !== JSON.stringify(r.base),
+        } satisfies Checkpoint),
+      );
+    } catch {}
+  }, [key]);
   const save = useCallback(async () => {
-    const r = refs.current;
-    if (!r.ready || r.blocked) return;
+    const r = state.current;
+    if (!r.ready) return;
     if (r.busy) {
       r.queued = true;
       return;
     }
-    const data = snapshot(r.sessions),
-      payload = JSON.stringify(data);
-    if (payload === r.lastSaved) return;
-    try {
-      localStorage.setItem(
-        cacheKey,
-        JSON.stringify({ sessions: data, revision: r.revision, pending: true }),
-      );
-    } catch {}
     r.busy = true;
-    setSyncState("正在保存到服务器…");
     try {
-      const response = await fetch("/api/sessions", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessions: data, revision: r.revision }),
-      });
-      const result = (await response.json()) as any;
-      if (response.status === 409) {
-        r.blocked = true;
-        setConflict(true);
-        throw Error(result.error);
-      }
-      if (!response.ok) throw Error(result.error || "保存失败");
-      r.revision = result.revision;
-      r.lastSaved = payload;
-      setSyncState("已保存到服务器");
-      try {
-        localStorage.setItem(
-          cacheKey,
-          JSON.stringify({
-            sessions: snapshot(r.sessions),
-            revision: r.revision,
-            pending: JSON.stringify(snapshot(r.sessions)) !== payload,
-          }),
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const data = snapshotTraining(r.sessions);
+        if (JSON.stringify(data) === JSON.stringify(r.base)) {
+          setSyncState("已保存到服务器");
+          return;
+        }
+        checkpoint();
+        setSyncState("正在保存到服务器…");
+        const response = await fetch("/api/sessions", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessions: data, revision: r.revision }),
+        });
+        const result = (await response.json()) as {
+          error?: string;
+          revision: number;
+          sessions?: Session[];
+        };
+        if (response.status === 409) {
+          let latest = result;
+          if (!Array.isArray(latest.sessions)) {
+            const res = await fetch("/api/sessions");
+            if (!res.ok) throw Error("读取最新记录失败");
+            latest = (await res.json()) as typeof result;
+          }
+          const raw = r.sessions,
+            now = Date.now();
+          const merged = mergeTraining(
+            r.base,
+            snapshotTraining(raw, now),
+            latest.sessions || [],
+          );
+          const active = new Set(
+            raw.filter((s) => s.startedAt).map((s) => s.id),
+          );
+          r.sessions = merged.map((s) =>
+            active.has(s.id) ? { ...s, startedAt: now } : s,
+          );
+          r.base = latest.sessions || [];
+          r.revision = latest.revision;
+          setSessions(r.sessions);
+          checkpoint();
+          setSyncState("已合并另一页面的记录，正在保存…");
+          continue;
+        }
+        if (!response.ok) throw Error(result.error || "保存失败");
+        r.base = data;
+        r.revision = result.revision;
+        checkpoint();
+        setSyncState(
+          JSON.stringify(snapshotTraining(r.sessions)) === JSON.stringify(data)
+            ? "已保存到服务器"
+            : "正在保存新改动…",
         );
-      } catch {}
+        return;
+      }
+      setSyncState("已保留本机改动，稍后自动重试同步");
     } catch (e) {
-      setSyncState((e as Error).message + " · 本机备份保留");
+      setSyncState((e as Error).message + " · 本机备份保留，将自动重试");
     } finally {
       r.busy = false;
       if (r.queued) {
@@ -81,98 +113,70 @@ export function useTrainingSync(userId: string) {
         void save();
       }
     }
-  }, [cacheKey]);
+  }, [checkpoint]);
   useEffect(() => {
     let cancelled = false;
     fetch("/api/sessions")
       .then(async (response) => {
-        const data = (await response.json()) as any;
-        if (!response.ok) throw Error(data.error);
+        const data = (await response.json()) as {
+          error?: string;
+          sessions: Session[];
+          revision: number;
+        };
+        if (!response.ok) throw Error(data.error || "读取记录失败");
         if (cancelled) return;
-        const server = (data.sessions || []) as Session[];
-        let initial = server;
-        let pending: any;
+        let pending: Checkpoint | undefined;
         try {
-          pending = JSON.parse(localStorage.getItem(cacheKey) || "null");
+          pending = JSON.parse(localStorage.getItem(key) || "null");
         } catch {}
-        const r = refs.current;
+        const remote = snapshotTraining(data.sessions || []);
+        let initial = remote;
+        if (pending?.pending && Array.isArray(pending.sessions))
+          initial = mergeTraining(
+            pending.base || [],
+            snapshotTraining(pending.sessions),
+            remote,
+          );
+        const r = state.current;
+        r.base = remote;
         r.revision = data.revision;
-        r.lastSaved = JSON.stringify(snapshot(server));
-        if (pending?.pending && Array.isArray(pending.sessions)) {
-          initial = pending.sessions;
-          if (pending.revision !== data.revision) {
-            r.blocked = true;
-            setConflict(true);
-            setSyncState("本机未保存记录与云端版本冲突，请先导出再刷新");
-          } else setSyncState("正在恢复本机未同步记录…");
-        } else setSyncState("已保存到服务器");
+        r.sessions = initial;
         r.ready = true;
-        setSessions(initial.map((s) => ({ ...s, startedAt: null })));
+        setSessions(initial);
         setLoaded(true);
+        checkpoint();
+        setSyncState(
+          JSON.stringify(initial) === JSON.stringify(remote)
+            ? "已保存到服务器"
+            : "已恢复本机改动，正在同步…",
+        );
       })
       .catch((e) => {
         if (!cancelled)
-          setSyncState(e.message + " · 请刷新重试，未覆盖本机记录");
+          setSyncState(e.message + " · 请刷新重试，本机记录未被覆盖");
       });
     return () => {
       cancelled = true;
     };
-  }, [cacheKey]);
+  }, [key, checkpoint]);
   useEffect(() => {
     if (!loaded) return;
-    try {
-      const data = snapshot(sessions);
-      localStorage.setItem(
-        cacheKey,
-        JSON.stringify({
-          sessions: data,
-          revision: refs.current.revision,
-          pending: JSON.stringify(data) !== refs.current.lastSaved,
-        }),
-      );
-    } catch {}
-    const timer = setTimeout(() => void save(), 1000);
+    checkpoint();
+    const timer = setTimeout(() => void save(), 800);
     return () => clearTimeout(timer);
-  }, [sessions, loaded, save]);
+  }, [sessions, loaded, checkpoint, save]);
   useEffect(() => {
     const timer = setInterval(() => void save(), 10000);
     const flush = () => {
       if (document.visibilityState === "hidden") void save();
     };
-    const cacheOnExit = () => {
-      const r = refs.current;
-      if (!r.ready) return;
-      try {
-        const data = snapshot(r.sessions);
-        localStorage.setItem(
-          cacheKey,
-          JSON.stringify({
-            sessions: data,
-            revision: r.revision,
-            pending: JSON.stringify(data) !== r.lastSaved,
-          }),
-        );
-      } catch {}
-    };
-    window.addEventListener("pagehide", cacheOnExit);
+    window.addEventListener("pagehide", checkpoint);
     document.addEventListener("visibilitychange", flush);
     return () => {
-      window.removeEventListener("pagehide", cacheOnExit);
       clearInterval(timer);
+      window.removeEventListener("pagehide", checkpoint);
       document.removeEventListener("visibilitychange", flush);
     };
-  }, [save]);
-  function useServerVersion() {
-    localStorage.removeItem(cacheKey);
-    window.location.reload();
-  }
-  return {
-    sessions,
-    setSessions,
-    loaded,
-    syncState,
-    conflict,
-    save,
-    useServerVersion,
-  };
+  }, [checkpoint, save]);
+  return { sessions, setSessions, loaded, syncState, save };
 }

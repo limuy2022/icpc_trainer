@@ -1,0 +1,32 @@
+import {build} from 'esbuild';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import assert from 'node:assert/strict';
+const temp=await mkdtemp(join(tmpdir(),'icpc-sync-regression-'));
+try{
+ await build({entryPoints:['lib/training-merge.ts'],bundle:true,platform:'node',format:'esm',outfile:join(temp,'merge.mjs')});
+ await build({entryPoints:['lib/translation-format.ts'],bundle:true,platform:'node',format:'esm',outfile:join(temp,'format.mjs')});
+ const {mergeTraining,snapshotTraining}=await import(join(temp,'merge.mjs'));
+ const {protectStatement,restoreStatement,compactStatementMetadata}=await import(join(temp,'format.mjs'));
+ const base={id:'a',problem:{id:'279B'},messages:[],statement:'original',notes:'old',hints:0,elapsed:10,startedAt:null,createdAt:'2026-11-09',outcome:'training',takeaway:''};
+ const local={...base,notes:'new draft'};
+ assert.deepEqual(mergeTraining([base],[local],[local]),[local]);
+ assert.deepEqual(mergeTraining([],[local],[local]),[local]);
+ let merged=mergeTraining([base],[local],[{...base,elapsed:25,messages:[{role:'assistant',content:'remote reply'}]}])[0];
+ assert.equal(merged.notes,'new draft');assert.equal(merged.elapsed,25);assert.equal(merged.messages[0].content,'remote reply');assert.equal(merged.recoveredVersions,undefined);
+ merged=mergeTraining([base],[local],[{...base,notes:'remote draft',statement:'remote statement'}])[0];
+ assert.ok(merged.notes.includes('new draft')&&merged.notes.includes('remote draft'));assert.equal(merged.statement,'remote statement');assert.ok(merged.recoveredVersions.some(v=>v.field==='notes'));
+ merged=mergeTraining([base],[{...base,statement:'local edit'}],[{...base,statement:'remote edit'}])[0];assert.equal(merged.statement,'local edit');assert.ok(merged.recoveredVersions.some(v=>v.value==='remote edit'));
+ merged=mergeTraining([base],[{...base,messages:[{role:'user',content:'my question'}]}],[{...base,messages:[{role:'user',content:'another question'}]}])[0];assert.equal(merged.messages.length,2);
+ assert.equal(mergeTraining([], [base], [{...base,id:'b'}]).length,2);
+ assert.equal(snapshotTraining([{...base,elapsed:5,startedAt:1000}],4000)[0].elapsed,8);
+ const statement='Given $a_i \\le 10^9$.\n\n```text\n4 5\n3 1 2 1\n```\n\n$$\\sum a_i$$\n\n![figure](https://example.com/a.png)';
+ const {masked,kept}=protectStatement(statement);assert.equal(kept.length,4);assert.equal(restoreStatement(masked,kept),statement);
+ const translated=restoreStatement(masked.replace('Given','给定'),kept);assert.ok(translated.includes('4 5\n3 1 2 1'));assert.ok(translated.includes('$a_i \\le 10^9$'));
+ assert.throws(()=>restoreStatement(masked.replace('⟦ICPC_KEEP_0⟧',''),kept));
+ assert.throws(()=>restoreStatement(masked+'⟦ICPC_KEEP_0⟧',kept));
+ const originalHeader='### B. Test\n\ntime limit per test\n\n2 seconds\n\nmemory limit per test\n\n256 MB\n\ninput\n\nstdin\n\noutput\n\nstdout\n\nProblem body';
+ assert.ok(compactStatementMetadata(originalHeader).includes('**Time limit** 2 seconds'));assert.ok(compactStatementMetadata(originalHeader).endsWith('Problem body'));assert.equal(compactStatementMetadata('Normal problem body'),'Normal problem body');
+ console.log('PASS: stale checkpoints, lost acknowledgements, independent changes, timer merge, concurrent notes/history, preserved versions and exact formula/sample restoration.');
+}finally{await rm(temp,{recursive:true,force:true});}

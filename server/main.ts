@@ -20,6 +20,7 @@ import {
 import { GET as problems } from "../app/api/problems/route";
 import { statement } from "./statements";
 import { POST as coach } from "./coach";
+import { translate } from "./translate";
 initModels();
 const root = resolve("public");
 const mime: Record<string, string> = {
@@ -97,6 +98,11 @@ const server = createServer(async (req, res) => {
         case "/api/statement":
           if (req.method !== "GET") fail(405, "不支持的操作");
           response = await statement(request);
+          break;
+        case "/api/translate":
+          if (req.method !== "POST") fail(405, "不支持的操作");
+          throttle("translate:" + user.id, 30, 3600000);
+          response = await translate(request);
           break;
         case "/api/coach":
           if (req.method !== "POST") fail(405, "不支持的操作");

@@ -27,6 +27,8 @@ try{
  assert.equal((await call('/api/sessions',{cookie:admin,method:'PUT',origin:'https://evil.example',body:{sessions:[],revision:0}})).status,403);
  const record={id:'record-1',problem:{id:'1A'},messages:[],notes:'private notes',statement:'test',hints:0,elapsed:0,startedAt:null,createdAt:new Date().toISOString(),outcome:'training',takeaway:''};
  assert.equal((await call('/api/sessions',{cookie:admin,method:'PUT',body:{sessions:[record],revision:0}})).status,200);
+ const retried=await call('/api/sessions',{cookie:admin,method:'PUT',body:{sessions:[record],revision:0}});assert.equal(retried.status,200);assert.equal(retried.data.revision,1);
+ assert.equal((await call('/api/translate',{body:{}})).status,401);
  assert.equal((await call('/api/sessions',{cookie:admin,method:'PUT',body:{sessions:[],revision:0}})).status,409);
  assert.equal((await call('/api/sessions',{cookie:member})).data.sessions.length,0);
  assert.equal((await call('/api/sessions',{cookie:admin})).data.sessions[0].notes,'private notes');

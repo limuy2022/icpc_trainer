@@ -7,6 +7,7 @@ import AccountGate, {
 } from "@/components/account-gate";
 import AdminPanel from "@/components/admin-panel";
 import { useTrainingSync } from "@/hooks/use-training-sync";
+import { compactStatementMetadata } from "@/lib/translation-format";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
@@ -116,15 +117,9 @@ function Workspace({
   const [view, setView] = useState<"bank" | "training" | "history" | "admin">(
     "bank",
   );
-  const {
-    sessions,
-    setSessions,
-    loaded,
-    syncState,
-    conflict,
-    save,
-    useServerVersion,
-  } = useTrainingSync(user.id);
+  const { sessions, setSessions, loaded, syncState, save } = useTrainingSync(
+    user.id,
+  );
   const [current, setCurrent] = useState<string | null>(null);
   const [models, setModels] = useState<any[]>([]),
     [modelId, setModelId] = useState(""),
@@ -154,11 +149,29 @@ function Workspace({
     [toast, setToast] = useState(""),
     [finish, setFinish] = useState(false),
     [takeaway, setTakeaway] = useState("");
+  const [statementLanguage, setStatementLanguage] = useState<
+    "original" | "zh" | "compare"
+  >("original");
+  const [statementFont, setStatementFont] = useState(17);
+  const [translations, setTranslations] = useState<
+    Record<
+      string,
+      { text: string; original: string; modelId: string; model: string }
+    >
+  >({});
+  const [translating, setTranslating] = useState<string | null>(null),
+    [translationErrors, setTranslationErrors] = useState<
+      Record<string, string>
+    >({});
   const chatEnd = useRef<HTMLDivElement>(null),
     requestId = useRef(0),
     sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
   const session = sessions.find((s) => s.id === current);
+  const translation =
+    session && translations[session.id]?.original === session.statement
+      ? translations[session.id]
+      : undefined;
   const completed = sessions.filter((s) => s.outcome !== "training");
   const elapsed = session
     ? session.elapsed +
@@ -367,6 +380,48 @@ function Workspace({
       setToast("随机选题失败，请稍后重试。");
     } finally {
       setLoading(false);
+    }
+  }
+  async function translateStatement() {
+    if (!session) return;
+    const id = session.id,
+      original = session.statement;
+    if (
+      translations[id]?.original === original &&
+      translations[id]?.modelId === modelId
+    )
+      return;
+    if (translating === id) return;
+    if (!aiConfigured) {
+      setSettings(true);
+      return;
+    }
+    setTranslating(id);
+    setTranslationErrors((prev) => ({ ...prev, [id]: "" }));
+    try {
+      const response = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: original,
+          problemId: session.problem.id,
+          modelId,
+        }),
+      });
+      const data = (await response.json()) as {
+        text: string;
+        model: string;
+        error?: string;
+      };
+      if (!response.ok) throw Error(data.error || "翻译失败，请重试");
+      setTranslations((prev) => ({
+        ...prev,
+        [id]: { text: data.text, original, modelId, model: data.model },
+      }));
+    } catch (e) {
+      setTranslationErrors((prev) => ({ ...prev, [id]: (e as Error).message }));
+    } finally {
+      setTranslating((prev) => (prev === id ? null : prev));
     }
   }
   async function send(mode = "discuss") {
@@ -606,23 +661,6 @@ function Workspace({
         </header>
         {view === "admin" && user.role === "admin" && (
           <AdminPanel onModelsChanged={refreshModels} />
-        )}
-        {conflict && (
-          <div className="sync-conflict">
-            {syncState} <button onClick={exportData}>导出当前记录</button>
-            <button
-              onClick={() => {
-                if (
-                  window.confirm(
-                    "确认已导出当前记录？接下来将加载服务器版本，替换此页面的未同步记录。",
-                  )
-                )
-                  useServerVersion();
-              }}
-            >
-              已导出，加载服务器版本
-            </button>
-          </div>
         )}
         {view === "bank" && (
           <main className="main-content">
@@ -1213,11 +1251,131 @@ function Workspace({
                   />
                 ) : session.statement ? (
                   <>
-                    <div className="statement-text">
-                      {session.statementFormat === "markdown" ? (
-                        <Text text={session.statement} />
-                      ) : (
-                        session.statement
+                    <div className="statement-toolbar">
+                      <div
+                        className="statement-language"
+                        role="group"
+                        aria-label="题面语言"
+                      >
+                        <button
+                          className={
+                            statementLanguage === "original" ? "selected" : ""
+                          }
+                          onClick={() => setStatementLanguage("original")}
+                        >
+                          英文原文
+                        </button>
+                        <button
+                          className={
+                            statementLanguage === "zh" ? "selected" : ""
+                          }
+                          onClick={() => {
+                            setStatementLanguage("zh");
+                            void translateStatement();
+                          }}
+                        >
+                          中文译文
+                        </button>
+                        <button
+                          className={
+                            statementLanguage === "compare" ? "selected" : ""
+                          }
+                          onClick={() => setStatementLanguage("compare")}
+                        >
+                          中英对照
+                        </button>
+                      </div>
+                      <div className="statement-font">
+                        <button
+                          aria-label="缩小题面字体"
+                          onClick={() =>
+                            setStatementFont((v) => Math.max(15, v - 1))
+                          }
+                        >
+                          A−
+                        </button>
+                        <span>{statementFont}px</span>
+                        <button
+                          aria-label="放大题面字体"
+                          onClick={() =>
+                            setStatementFont((v) => Math.min(22, v + 1))
+                          }
+                        >
+                          A＋
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      className={
+                        "statement-text " +
+                        (statementLanguage === "compare"
+                          ? "statement-columns"
+                          : "")
+                      }
+                      style={{ fontSize: statementFont }}
+                    >
+                      {statementLanguage !== "zh" && (
+                        <section>
+                          {statementLanguage === "compare" && (
+                            <h3 className="statement-column-label">英文原文</h3>
+                          )}
+                          {session.statementFormat === "markdown" ? (
+                            <Text
+                              text={compactStatementMetadata(session.statement)}
+                            />
+                          ) : (
+                            session.statement
+                          )}
+                        </section>
+                      )}
+                      {statementLanguage !== "original" && (
+                        <section>
+                          {statementLanguage === "compare" && (
+                            <h3 className="statement-column-label">中文译文</h3>
+                          )}
+                          {translation ? (
+                            <>
+                              <div className="translation-notice">
+                                AI 译文 · {translation.model} ·
+                                公式与样例保持原样
+                              </div>
+                              <Text
+                                text={compactStatementMetadata(
+                                  translation.text,
+                                )}
+                              />
+                            </>
+                          ) : (
+                            <div className="translation-empty">
+                              {translating === session.id ? (
+                                <>
+                                  <LoaderCircle size={19} className="spin" />
+                                  <p>正在生成中文译文，原文仍可随时查看…</p>
+                                </>
+                              ) : (
+                                <>
+                                  <p>
+                                    使用当前陪练模型翻译题面。生成后保存在服务器，再次查看直接读取缓存。
+                                  </p>
+                                  {translationErrors[session.id] && (
+                                    <div className="form-error" role="alert">
+                                      {translationErrors[session.id]}
+                                    </div>
+                                  )}
+                                  <button
+                                    className="primary"
+                                    onClick={() => void translateStatement()}
+                                  >
+                                    <Sparkles size={16} />
+                                    {translationErrors[session.id]
+                                      ? "重试翻译"
+                                      : "生成中文译文"}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </section>
                       )}
                     </div>
                     {session.statementSource && (
@@ -1252,10 +1410,40 @@ function Workspace({
                   <NotebookPen size={16} />
                   我的观察与草稿<span>{syncState}</span>
                 </div>
+                {Boolean(session.recoveredVersions?.length) && (
+                  <details className="recovered-versions">
+                    <summary>
+                      查看自动合并时保留的 {session.recoveredVersions!.length}{" "}
+                      个版本
+                    </summary>
+                    {session.recoveredVersions!.map((v, i) => (
+                      <details key={i}>
+                        <summary>
+                          {(
+                            {
+                              notes: "草稿",
+                              statement: "题面",
+                              takeaway: "复盘",
+                              outcome: "训练结果",
+                            } as Record<string, string>
+                          )[v.field] || v.field}{" "}
+                          · {new Date(v.savedAt).toLocaleString("zh-CN")}
+                        </summary>
+                        <pre>
+                          {typeof v.value === "string"
+                            ? v.value
+                            : JSON.stringify(v.value, null, 2)}
+                        </pre>
+                      </details>
+                    ))}
+                  </details>
+                )}
                 <textarea
                   className="notes-editor"
                   aria-label="观察草稿"
-                  placeholder="暴力怎么做？最小例子是什么？哪个量不会变？\n先留住一个可以确定的事实。"
+                  placeholder={
+                    "暴力怎么做？最小例子是什么？哪个量不会变？\n先留住一个可以确定的事实。"
+                  }
                   value={session.notes}
                   onChange={(e) => patch(session.id, { notes: e.target.value })}
                 />

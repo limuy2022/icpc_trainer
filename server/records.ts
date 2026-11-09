@@ -35,12 +35,29 @@ export async function records(request: Request) {
   db.prepare(
     "INSERT OR IGNORE INTO training_data(user_id,payload,revision,updated_at) VALUES(?,?,0,?)",
   ).run(user.id, "[]", new Date().toISOString());
+  const latest = db
+    .prepare("SELECT payload,revision FROM training_data WHERE user_id=?")
+    .get(user.id) as { payload: string; revision: number };
+  // A retry after a lost response must acknowledge the write already committed.
+  if (latest.payload === payload)
+    return Response.json({ revision: latest.revision });
   const result = db
     .prepare(
       "UPDATE training_data SET payload=?,revision=revision+1,updated_at=? WHERE user_id=? AND revision=?",
     )
     .run(payload, new Date().toISOString(), user.id, body.revision);
-  if (result.changes !== 1)
-    fail(409, "另一页面已更新记录。请先导出当前记录，再刷新合并，避免覆盖。");
+  if (result.changes !== 1) {
+    const current = db
+      .prepare("SELECT payload,revision FROM training_data WHERE user_id=?")
+      .get(user.id) as { payload: string; revision: number };
+    return Response.json(
+      {
+        error: "记录已更新，正在自动合并",
+        sessions: JSON.parse(current.payload),
+        revision: current.revision,
+      },
+      { status: 409 },
+    );
+  }
   return Response.json({ revision: body.revision + 1 });
 }

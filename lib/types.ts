@@ -23,6 +23,7 @@ export type Session = {
   createdAt: string;
   outcome: "training" | "independent" | "assisted" | "review";
   takeaway: string;
+  recoveredVersions?: { field: string; value: unknown; savedAt: string }[];
 };
 export const tagLabels: Record<string, string> = {
   greedy: "贪心",

@@ -46,3 +46,11 @@ yarn-error.log*
 
 /release/
 /data/
+
+# Safe configuration template; never include real credentials here.
+!.env.example
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.key

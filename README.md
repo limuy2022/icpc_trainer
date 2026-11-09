@@ -1,6 +1,37 @@
 # 思维练习场 · ICPC Thinking Lab
 
-个人和朋友使用的 ICPC 训练网站。React 前端、Node.js 服务、SQLite 持久化，部署到 `icpc.limuy.top`。
+面向 OI → ICPC 过渡的私人 AI 思维陪练平台：按 Codeforces 难度与标签选题，通过表达观察、分级提示、检验猜想和复盘训练解题思维。
+
+React + TypeScript 前端、Node.js 服务、SQLite 持久化。支持管理员手动开户、模型管理、中英题面、公式渲染、深浅主题和手机浏览器布局。
+
+## 本地快速开始
+
+需要 Node.js >= 22.13 和 npm。
+
+```bash
+git clone git@github.com:limuy2022/icpc_trainer.git
+cd icpc_trainer
+npm ci
+npm run build:standalone
+mkdir -p data
+cp .env.example .env.local
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+将最后生成的随机值填入 `.env.local` 的 `MODEL_ENCRYPTION_KEY`，长期保存，不要提交。可选填写自己的 `GLM_API_KEY`，也可以登录后在管理面板添加模型。
+
+创建首个管理员（自动生成密码，写入本地文件）：
+
+```bash
+cd release
+printf '%s' '{"username":"admin","output":"../data/initial-admin.txt"}' | node --env-file=../.env.local admin.mjs init-admin
+node --env-file=../.env.local server.mjs
+```
+
+打开 <http://127.0.0.1:5182>，使用 `data/initial-admin.txt` 中的凭据登录，按页面提示设置密码。没有公开注册入口，也没有内置默认密码。管理员初始化只运行一次。
+
+前端热更新开发时，将 `.env.local` 中的 `PORT` 改为 `5180`、`APP_ORIGIN` 改为 `http://127.0.0.1:5174`，重新启动后端，再在项目根目录另开终端运行 `npm run dev:standalone`，访问 `http://127.0.0.1:5174`。Vite 会将 `/api` 代理到本地 5180 端口。生产环境使用下面的独立部署方式。
+
 
 ## 账号与管理
 
@@ -24,6 +55,7 @@ npm run build:standalone
 node server/integration.test.mjs
 node server/statement.test.mjs
 node server/sync-translation.test.mjs
+node server/statement-header.test.mjs
 ```
 
 产物在 `release/`，不要把本地数据库或密钥打包进去。
@@ -81,3 +113,10 @@ GLM Coding Plan 的套餐适用范围由智谱规定。当前按用户要求使�
 - GLM 套餐 https://docs.bigmodel.cn/cn/coding-plan/faq
 
 原有 `.openai/hosting.json` 保留旧 Sites 项目身份，当前账号版以独立 Node 部署为准，不覆盖旧站点。
+
+
+## 开源许可与第三方内容
+
+本项目代码采用 [MIT License](LICENSE)，版权归 limuy2022 所有。依赖及随仓库提供的第三方文件遵循各自许可证，参见 `vendor/` 和 `scripts/vite/` 中的许可文件。
+
+Codeforces 题目、题面、插图及公共存档内容的权利归其原作者或权利人所有，不因本项目的 MIT 许可而改变。请遵守对应服务的使用条款。AI 译文和陪练回复可能有误，应结合原题核对。

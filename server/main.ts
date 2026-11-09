@@ -1,3 +1,4 @@
+import { statistics } from "./statistics";
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { resolve, extname } from "node:path";
@@ -88,6 +89,10 @@ const server = createServer(async (req, res) => {
           });
           break;
         }
+        case "/api/stats":
+          if (req.method !== "GET") fail(405, "不支持的操作");
+          response = statistics(request);
+          break;
         case "/api/sessions":
           response = await records(request);
           break;

@@ -1,3 +1,5 @@
+import {createHash} from 'node:crypto';
+import {DatabaseSync} from 'node:sqlite';
 import {spawn,spawnSync} from 'node:child_process';
 import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -13,7 +15,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function call(path,{body,method=body?'POST':'GET',cookie='',origin=base}={}){const r=await fetch(base+path,{method,headers:{'Content-Type':'application/json',Cookie:cookie,Origin:origin},body:body?JSON.stringify(body):undefined});return {status:r.status,data:r.headers.get('content-type')?.includes('json')?await r.json():await r.arrayBuffer(),cookie:r.headers.get('set-cookie')?.split(';')[0]};}
 try{
  for(let i=0;i<40;i++){try{if((await call('/api/health')).status===200)break;}catch{}await sleep(100);}
- assert.equal((await call('/api/problems')).status,401);assert.equal((await call('/api/admin/users')).status,401);
+ assert.equal((await call('/api/stats')).status,401);assert.equal((await call('/api/problems')).status,401);assert.equal((await call('/api/admin/users')).status,401);
  assert.equal((await call('/api/auth',{body:{username:'admin',password:'wrong'}})).status,401);
  let login=await call('/api/auth',{body:{username:'admin',password:initial}});assert.equal(login.status,200);let admin=login.cookie;assert.equal(login.data.user.password_hash,undefined);
  assert.equal((await call('/api/config',{cookie:admin})).status,403);
@@ -32,11 +34,31 @@ try{
  assert.equal((await call('/api/sessions',{cookie:admin,method:'PUT',body:{sessions:[],revision:0}})).status,409);
  assert.equal((await call('/api/sessions',{cookie:member})).data.sessions.length,0);
  assert.equal((await call('/api/sessions',{cookie:admin})).data.sessions[0].notes,'private notes');
+ const seedDb=new DatabaseSync(env.DATABASE_PATH);
+ const adminId=seedDb.prepare("SELECT id FROM users WHERE username='admin'").get().id;
+ const statsRecords=[{...record,outcome:'independent',elapsed:120,messages:[{role:'user',content:'think'}]},{...record,id:'repeat',outcome:'assisted',elapsed:60},{...record,id:'review',problem:{id:'2A'},outcome:'review',elapsed:30}];
+ seedDb.prepare('UPDATE training_data SET payload=?,revision=revision+1 WHERE user_id=?').run(JSON.stringify(statsRecords),adminId);
+ const insertUsage=seedDb.prepare('INSERT INTO usage_log(user_id,model_id,status,input_tokens,output_tokens,total_tokens,usage_reported,kind,model_name,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)');
+ insertUsage.run(adminId,'old-model',200,100,50,180,1,'coach','fixture-model',new Date().toISOString());
+ insertUsage.run(adminId,'old-model',200,0,0,0,0,'translation','fixture-model',new Date().toISOString());
+ insertUsage.run(adminId,'old-model',0,0,0,0,0,'coach','fixture-model',new Date().toISOString());
+ const cacheText='Given a sequence of integers, find the maximum sum. The input contains n and n integer values. Print the answer.';
+ const cachedModel=seedDb.prepare('SELECT * FROM models WHERE is_default=1').get();
+ const cacheKey=createHash('sha256').update(JSON.stringify(['body-only-v2',cacheText,cachedModel.id,cachedModel.model,cachedModel.base_url])).digest('hex');
+ seedDb.prepare('INSERT INTO statement_translations(cache_key,problem_id,model_id,translation,created_at) VALUES(?,?,?,?,?)').run(cacheKey,'1A',cachedModel.id,'缓存的译文，不应再次调用模型。',new Date().toISOString());
+ seedDb.close();
+ for(let i=0;i<2;i++){const cached=await call('/api/translate',{cookie:admin,body:{text:cacheText,problemId:'1A'}});assert.equal(cached.status,200);assert.equal(cached.data.cached,true);}
+ const stats=(await call('/api/stats',{cookie:admin})).data;
+ assert.equal(stats.totals.completedProblems,1);assert.equal(stats.totals.completedSessions,2);assert.equal(stats.totals.independentProblems,1);assert.equal(stats.totals.pendingSessions,1);assert.equal(stats.totals.thinkingSeconds,210);assert.equal(stats.totals.discussionRounds,1);
+ assert.equal(stats.totals.calls,3);assert.equal(stats.totals.successfulCalls,2);assert.equal(stats.totals.totalTokens,180);assert.equal(stats.totals.inputTokens,100);assert.equal(stats.totals.outputTokens,50);assert.equal(stats.totals.unknownUsageCalls,2);assert.equal(stats.models[0].model,'fixture-model');assert.equal(stats.daily.length,1);
+ assert.equal((await call('/api/stats',{cookie:member})).data.totals.calls,0);assert.equal((await call('/api/stats',{cookie:member})).data.totals.completedProblems,0);
+ const adminStats=(await call('/api/admin/status',{cookie:admin})).data.userStats;
+ assert.equal(adminStats.find(s=>s.id===adminId).calls,3);assert.equal(adminStats.find(s=>s.id===memberId).calls,0);
  let result=await call('/api/admin/models',{cookie:admin,body:{label:'Test model',provider:'openai-compatible',model:'test-model',base_url:'https://api.openai.com/v1',key:'secret-test-model-key',enabled:true}});assert.equal(result.status,200,JSON.stringify(result.data));
  result=await call('/api/admin/models',{cookie:admin});assert.ok(!JSON.stringify(result.data).includes('secret-test-model-key'));assert.ok(result.data.models.some(m=>m.label==='Test model'));
  assert.equal((await call('/api/admin/models',{cookie:admin,body:{label:'bad',model:'bad',base_url:'https://127.0.0.1/v1',key:'x'}})).status,400);
  result=await call('/api/admin/backup',{cookie:admin});assert.equal(result.status,200);const binary=Buffer.from(result.data);assert.equal(binary.subarray(0,15).toString(),'SQLite format 3');assert.ok(!binary.includes(Buffer.from('secret-test-model-key')));
  assert.equal((await call('/api/admin/users',{cookie:admin,method:'PATCH',body:{id:memberId,disabled:true}})).status,200);assert.equal((await call('/api/config',{cookie:member})).status,401);
  await call('/api/auth',{cookie:admin,method:'DELETE'});assert.equal((await call('/api/config',{cookie:admin})).status,401);
- console.log('PASS: forced password change, session revocation, member/admin isolation, account disable, CSRF, concurrent-save conflict, record isolation, encrypted model keys, endpoint restrictions, backup and logout.');
+ console.log('PASS: forced password change, session revocation, member/admin isolation, account disable, CSRF, concurrent-save conflict, record isolation, encrypted model keys, endpoint restrictions, deduplicated training stats, token accounting, cache reuse, statistics isolation, backup and logout.');
 }finally{server.kill('SIGTERM');await new Promise(r=>server.once('exit',r));rmSync(temp,{recursive:true,force:true});}

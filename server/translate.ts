@@ -1,4 +1,5 @@
 import { splitStatement } from "../lib/statement-header";
+import { requestModel } from "./model-request";
 import { createHash } from "node:crypto";
 import { db } from "./database";
 import { requireUser, fail } from "./security";
@@ -41,7 +42,7 @@ export async function translate(request: Request) {
       await validateEndpoint(model.base_url);
       const key = modelKey(model),
         { masked, kept } = protectStatement(text);
-      const res = await fetch(
+      const { response: res, data: result } = await requestModel(user.id, model, "translation",
         model.base_url.replace(/\/$/, "") + "/chat/completions",
         {
           method: "POST",
@@ -69,26 +70,12 @@ export async function translate(request: Request) {
         },
       );
       if (!res.ok) {
-        db.prepare(
-          "INSERT INTO usage_log(user_id,model_id,status,created_at) VALUES(?,?,?,?)",
-        ).run(user.id, model.id, res.status, new Date().toISOString());
         throw Error(
           res.status === 429
             ? "模型额度不足或请求过于频繁，请稍后重试"
             : `翻译服务暂时不可用（${res.status}）`,
         );
       }
-      const result = (await res.json()) as any;
-      db.prepare(
-        "INSERT INTO usage_log(user_id,model_id,status,input_tokens,output_tokens,created_at) VALUES(?,?,?,?,?,?)",
-      ).run(
-        user.id,
-        model.id,
-        200,
-        Number(result.usage?.prompt_tokens || 0),
-        Number(result.usage?.completion_tokens || 0),
-        new Date().toISOString(),
-      );
       if (result.choices?.[0]?.finish_reason === "length")
         throw Error("译文未生成完整，请稍后重试或选择其他模型");
       const output = result.choices?.[0]?.message?.content;

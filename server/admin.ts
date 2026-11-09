@@ -1,3 +1,4 @@
+import { accountStatistics } from "./statistics";
 import { backup } from "node:sqlite";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -18,9 +19,10 @@ export function adminStatus(request: Request) {
       ).n,
       calls: (db.prepare("SELECT COUNT(*) AS n FROM usage_log").get() as any).n,
     },
+    userStats: (db.prepare("SELECT id,username FROM users ORDER BY created_at").all() as {id:string;username:string}[]).map(user => ({ ...user, ...accountStatistics(user.id) })),
     usage: db
       .prepare(
-        "SELECT l.id,u.username,l.model_id,l.status,l.input_tokens,l.output_tokens,l.created_at FROM usage_log l JOIN users u ON u.id=l.user_id ORDER BY l.id DESC LIMIT 50",
+        "SELECT l.id,u.username,l.model_id,l.status,l.input_tokens,l.output_tokens,l.total_tokens,l.usage_reported,l.kind,l.model_name,l.created_at FROM usage_log l JOIN users u ON u.id=l.user_id ORDER BY l.id DESC LIMIT 50",
       )
       .all(),
     audit: db

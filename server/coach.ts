@@ -1,5 +1,5 @@
 import { splitStatement } from "../lib/statement-header";
-import { db } from "./database";
+import { requestModel } from "./model-request";
 import { modelKey, selectModel, validateEndpoint } from "./models";
 import { requireUser } from "./security";
 import type { Message } from "@/lib/types";
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       solution:
         "用户明确请求完整解法。给出推导、正确性证明、复杂度与边界；仅在用户要求时给代码。",
     };
-    const res = await fetch(
+    const { response: res, data } = await requestModel(user.id, selected, "coach",
       selected.base_url.replace(/\/$/, "") + "/chat/completions",
       {
         method: "POST",
@@ -88,9 +88,6 @@ export async function POST(request: Request) {
       },
     );
     if (!res.ok) {
-      db.prepare(
-        "INSERT INTO usage_log(user_id,model_id,status,created_at) VALUES(?,?,?,?)",
-      ).run(user.id, selected.id, res.status, new Date().toISOString());
       const status = res.status;
       return Response.json(
         {
@@ -106,17 +103,6 @@ export async function POST(request: Request) {
         { status: 502 },
       );
     }
-    const data = (await res.json()) as any;
-    db.prepare(
-      "INSERT INTO usage_log(user_id,model_id,status,input_tokens,output_tokens,created_at) VALUES(?,?,?,?,?,?)",
-    ).run(
-      user.id,
-      selected.id,
-      200,
-      Number(data.usage?.prompt_tokens || 0),
-      Number(data.usage?.completion_tokens || 0),
-      new Date().toISOString(),
-    );
     const text = data.choices?.[0]?.message?.content;
     if (!text)
       return Response.json(

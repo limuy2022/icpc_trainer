@@ -3288,3 +3288,24 @@ html[data-theme="dark"] .luogu-black { --difficulty-color:#e0e0e0; }
   .stats-grid > div { padding:12px; }
   .hero { padding:16px; }
 }
+
+.usage-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin:24px 0; }
+.usage-cards article { min-width:0; background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:22px; }
+.usage-cards article > div { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink); }
+.usage-cards strong { display:block; font-size:30px; font-weight:550; margin:16px 0 10px; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.usage-cards strong small { font-size:12px; font-weight:400; margin-left:7px; }
+.usage-cards p,.usage-note { font-size:12px; line-height:1.8; color:var(--muted); }
+.usage-cards p { margin:0; }
+.usage-note { margin:16px 0 24px; }
+.admin-section > .usage-note { margin:16px 20px; }
+.usage-kinds { padding:0 20px; }
+.usage-kinds > div { display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:18px 0; border-bottom:1px solid var(--line); font-size:13px; }
+.usage-kinds > div:last-child { border:0; }
+.usage-empty { color:var(--muted); padding:20px; font-size:13px; }
+@media(max-width:700px) {
+  .usage-cards { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .usage-cards article { padding:16px 12px; }
+  .usage-cards strong { font-size:24px; margin:12px 0 8px; }
+  .usage-cards article > div { font-size:12px; }
+  .statistics-page .history-title { gap:14px; }
+}

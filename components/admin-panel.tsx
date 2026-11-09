@@ -83,6 +83,7 @@ export default function AdminPanel({
           ["users", "账号管理"],
           ["models", "模型管理"],
           ["status", "运行与备份"],
+          ["statistics", "用户统计"],
         ].map(([v, l]) => (
           <button
             className={tab === v ? "selected" : ""}
@@ -282,6 +283,7 @@ export default function AdminPanel({
           ))}
         </section>
       )}
+      {tab === "statistics" && <section className="admin-section"><div className="panel-heading"><h2>各账号训练与用量 · 全部时间</h2></div><p className="usage-note">完成题目按题号去重；Token 为接口已报告用量，不含无法回溯的缺失数据。</p><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>账号</th><th>完成 / 独立题数</th><th>训练次数</th><th>模型调用 / 接口成功</th><th>输入 Token</th><th>输出 Token</th><th>总 Token</th><th>用量未报告</th></tr></thead><tbody>{status?.userStats?.map((row:any)=><tr key={row.id}><td>{row.username}</td><td>{row.completedProblems} / {row.independentProblems}</td><td>{row.sessions}</td><td>{row.calls} / {row.successfulCalls}</td><td>{row.inputTokens.toLocaleString()}</td><td>{row.outputTokens.toLocaleString()}</td><td>{row.totalTokens.toLocaleString()}</td><td>{row.unknownUsageCalls} 次</td></tr>)}</tbody></table></div></section>}
       {tab === "status" && (
         <>
           <section className="admin-section">
@@ -305,7 +307,7 @@ export default function AdminPanel({
                 <thead>
                   <tr>
                     <th>用户</th>
-                    <th>状态</th>
+                    <th>状态 / 用途</th>
                     <th>输入 / 输出 tokens</th>
                     <th>时间</th>
                   </tr>
@@ -314,9 +316,9 @@ export default function AdminPanel({
                   {status?.usage.map((r: any) => (
                     <tr key={r.id}>
                       <td>{r.username}</td>
-                      <td>{r.status}</td>
+                      <td>{r.status === 0 ? "网络失败" : r.status} / {r.kind === "coach" ? "陪练" : r.kind === "translation" ? "翻译" : "历史"}</td>
                       <td>
-                        {r.input_tokens} / {r.output_tokens}
+                        {r.usage_reported ? `${r.input_tokens} / ${r.output_tokens}` : "未报告完整用量"}
                       </td>
                       <td>{new Date(r.created_at).toLocaleString("zh-CN")}</td>
                     </tr>

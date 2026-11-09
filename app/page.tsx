@@ -1,5 +1,7 @@
-import { splitStatement } from "@/lib/statement-header";
 "use client";
+import StatisticsPanel from "@/components/statistics-panel";
+import { trainingStats } from "@/lib/training-stats";
+import { splitStatement } from "@/lib/statement-header";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import DifficultyBadge, { DifficultyGuide } from "@/components/difficulty-badge";
@@ -15,6 +17,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import {
+  BarChart3,
   Menu,
   ArrowUpRight,
   ArrowRight,
@@ -120,7 +123,7 @@ function Workspace({
   user: Account;
   logout: () => Promise<void>;
 }) {
-  const [view, setView] = useState<"bank" | "training" | "history" | "admin">(
+  const [view, setView] = useState<"bank" | "training" | "history" | "admin" | "statistics">(
     "bank",
   );
   const { sessions, setSessions, loaded, syncState, save } = useTrainingSync(
@@ -185,7 +188,8 @@ function Workspace({
     session && translations[session.id]?.original === session.statement
       ? translations[session.id]
       : undefined;
-  const completed = sessions.filter((s) => s.outcome !== "training");
+  const completed = sessions.filter((s) => s.outcome === "independent" || s.outcome === "assisted");
+  const summary = trainingStats(sessions);
   const elapsed = session
     ? session.elapsed +
       (session.startedAt
@@ -586,6 +590,7 @@ function Workspace({
             { id: "bank", icon: BookOpen, label: "发现题目" },
             { id: "training", icon: MessageCircle, label: "思维陪练" },
             { id: "history", icon: History, label: "训练记录" },
+            { id: "statistics", icon: BarChart3, label: "训练统计" },
           ].map(({ id, icon: Icon, label }) => (
             <button
               key={id}
@@ -667,6 +672,8 @@ function Workspace({
                 ? "发现题目"
                 : view === "training"
                   ? "思维陪练"
+                  : view === "statistics"
+                    ? "训练统计"
                   : view === "admin"
                     ? "管理后台"
                     : "训练记录"}
@@ -681,6 +688,7 @@ function Workspace({
         {view === "admin" && user.role === "admin" && (
           <AdminPanel onModelsChanged={refreshModels} />
         )}
+        {view === "statistics" && <StatisticsPanel save={save} />}
         {view === "bank" && (
           <main className="main-content">
             <section className="hero">
@@ -784,7 +792,7 @@ function Workspace({
                 <div>
                   <span>已完成训练</span>
                   <strong>
-                    {completed.length}
+                    {summary.completedProblems}
                     <small>道</small>
                   </strong>
                 </div>
@@ -808,10 +816,7 @@ function Workspace({
                 <div>
                   <span>独立解出</span>
                   <strong>
-                    {
-                      completed.filter((s) => s.outcome === "independent")
-                        .length
-                    }
+                    {summary.independentProblems}
                     <small>道</small>
                   </strong>
                 </div>

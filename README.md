@@ -182,3 +182,5 @@ Markdown 代码块支持 C/C++、Python、Java、JavaScript/TypeScript、Rust、
 模型选择窗口支持推理等级，按账号、模型分别保存到 `users.model_preferences`，刷新或换设备后恢复。GLM-5.3 提供默认/轻度 low/增强 high/深度 max，始终发送 `thinking.type=enabled`；GLM-5.2 提供默认/关闭/增强/深度；较早 GLM 提供默认/开关。其他兼容模型提供默认/low/medium/high，非默认等级要求该接口支持 `reasoning_effort`。默认档对通用兼容接口不附加推理参数。依据：[智谱深度思考文档](https://docs.bigmodel.cn/cn/guide/capabilities/thinking)，核验于 2026-11-09。
 
 陪练与翻译都使用所选推理等级，翻译缓存也按等级隔离。显式开启推理时增大输出上限以留出推理空间，实际用量按接口返回记录；高等级可能增加耗时和 Token。应用仅显示最终回答，不把模型内部推理内容拼入聊天。验证：`node server/reasoning.test.mjs`、`node server/metadata-ai.test.mjs`、`node server/integration.test.mjs`。
+
+用时趋势图采用协调交互布局：图表置于统计页首屏，集中显示当前中位数、此前中位数与变化；曲线使用主题配色和轻量面积填充。切换难度或解出方式时同步更新数字与图表，点击曲线可以固定查看一条记录，上一条/下一条按钮便于手机和键盘逐题浏览；明细与统计口径可展开。首次显示不动画，筛选切换的过渡尊重系统减少动态效果设置。计算口径与账号数据来源保持一致，无需调用模型或第三方绘图服务。

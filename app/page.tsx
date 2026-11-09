@@ -77,6 +77,14 @@ function Text({ text }: { text: string }) {
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={{
+          img: ({ src, alt }) => (
+            <img
+              src={src}
+              alt={alt || "题目插图"}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
+          ),
           a: ({ children, href }) => (
             <a href={href} target="_blank" rel="noreferrer">
               {children}
@@ -264,11 +272,25 @@ function Workspace({
       const r = await fetch(
         `/api/statement?contest=${p.contestId}&index=${p.index}`,
       );
-      const d = (await r.json()) as Bank & { error?: string; text?: string };
+      const d = (await r.json()) as {
+        error?: string;
+        text: string;
+        format?: "markdown";
+        source?: Session["statementSource"];
+        fetchedAt?: string;
+      };
       if (!r.ok) throw Error(d.error || "请求失败");
       setSessions((prev) =>
         prev.map((s) =>
-          s.id === id && !s.statement ? { ...s, statement: d.text || "" } : s,
+          s.id === id && !s.statement
+            ? {
+                ...s,
+                statement: d.text || "",
+                statementFormat: d.format,
+                statementSource: d.source,
+                statementFetchedAt: d.fetchedAt,
+              }
+            : s,
         ),
       );
     } catch (e) {
@@ -337,7 +359,7 @@ function Workspace({
         random: "1",
       });
       const r = await fetch("/api/problems?" + params);
-      const d = (await r.json()) as Bank & { error?: string; text?: string };
+      const d = (await r.json()) as Bank & { error?: string };
       if (!r.ok) throw Error(d.error || "请求失败");
       if (d.items.length) start(d.items[0]);
       else setToast("当前条件没有匹配的题目，试试放宽难度或标签。");
@@ -1160,7 +1182,7 @@ function Workspace({
                   </button>
                 </div>
                 <div className="statement-help">
-                  题面文本用于 AI 上下文。公式与格式请以 CF 原题为准。
+                  题面会自动读取并缓存，来源显示在正文下方。可编辑或粘贴修正。
                 </div>
                 {statementBusy && (
                   <div className="inline-loading">
@@ -1190,7 +1212,36 @@ function Workspace({
                     placeholder="粘贴完整题面、输入输出约束与样例。AI 会基于这里的内容陪练。"
                   />
                 ) : session.statement ? (
-                  <div className="statement-text">{session.statement}</div>
+                  <>
+                    <div className="statement-text">
+                      {session.statementFormat === "markdown" ? (
+                        <Text text={session.statement} />
+                      ) : (
+                        session.statement
+                      )}
+                    </div>
+                    {session.statementSource && (
+                      <div className="statement-source">
+                        来源：
+                        <a
+                          href={session.statementSource.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {session.statementSource.name}
+                          <ExternalLink size={11} />
+                        </a>
+                        {session.statementFetchedAt && (
+                          <span>
+                            读取于{" "}
+                            {new Date(
+                              session.statementFetchedAt,
+                            ).toLocaleDateString("zh-CN")}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </>
                 ) : !statementBusy && !statementError ? (
                   <div className="empty">
                     <p>请从 CF 原题复制题面到这里。</p>

@@ -18,7 +18,7 @@ import {
   throttle,
 } from "./security";
 import { GET as problems } from "../app/api/problems/route";
-import { GET as statement } from "../app/api/statement/route";
+import { statement } from "./statements";
 import { POST as coach } from "./coach";
 initModels();
 const root = resolve("public");

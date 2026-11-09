@@ -22,6 +22,7 @@
 npm install
 npm run build:standalone
 node server/integration.test.mjs
+node server/statement.test.mjs
 ```
 
 产物在 `release/`，不要把本地数据库或密钥打包进去。
@@ -67,7 +68,9 @@ systemctl --user start icpc-trainer-backup.service
 
 ## CF 和 AI
 
-CF 题库按难度、标签交集、题号和题名筛选，API 不可用时显示快照来源和时间。CF 题面读取受网络限制，失败时需粘贴完整题面、约束和样例。AI 回复支持 Markdown、表格、代码和公式。分级提示、检验猜想、复盘与完整解法均按需调用，不能代替实际判题。
+CF 题库按难度、标签交集、题号和题名筛选，API 不可用时显示快照来源和时间。CF 题面优先尝试原站；遇到网络拦截时，使用 Codeforces Pro 的公开题面存档 https://github.com/codewithsathya/codeforces-problems 。该来源非官方，界面会标注来源链接和读取时间。正文提取仅限 problem-statement 区域，不读取侧栏、题解或用户信息。数学公式和样例转为 Markdown 显示。读取成功后缓存到 SQLite 七天，过期刷新失败时保留旧缓存。两个来源都失败时仍可粘贴题面。
+
+2026-11-09 核验存档目录有 11,450 个 HTML 文件，对本项目 11,194 道带 Rating 的题库快照覆盖 11,122 道，覆盖率约 99.36%。这是当次目录比对结果，不代表未来一直完整。读取按需进行，不批量下载整个存档。AI 回复支持 Markdown、表格、代码和公式。分级提示、检验猜想、复盘与完整解法均按需调用，不能代替实际判题。
 
 GLM Coding Plan 的套餐适用范围由智谱规定。当前按用户要求使用 Coding 专用端点，不自动切换按量计费服务。
 

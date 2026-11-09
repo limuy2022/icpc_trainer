@@ -13,6 +13,9 @@ export type Session = {
   problem: Problem;
   messages: Message[];
   statement: string;
+  statementFormat?: "markdown";
+  statementSource?: { name: string; url: string; official: boolean };
+  statementFetchedAt?: string;
   notes: string;
   hints: number;
   elapsed: number;

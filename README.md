@@ -61,6 +61,8 @@ systemctl --user start icpc-trainer-backup.service
 
 部署目录中的 `deploy/install-nginx.sh` 需要 sudo。它先备份现有配置，只添加本项目独立 include，先测试再 reload，不改现有虚拟主机或 stream 分流。首次 TLS 证书通过现有 Certbot/ACME 账号申请，DNS 的 icpc 记录须已指向本服务器。证书申请失败时不会启用错误的 TLS 配置。
 
+`deploy/install-renewal.sh` 由管理员用 sudo 执行，按用户要求启用服务器自带的 `certbot-renew.timer`，自动检查所有 Certbot 管理的证书。续期成功时执行 Nginx 配置检查和 reload。脚本也会做一次全站 staging dry-run；若有旧域名验证失败，定时器仍然启用，但应根据失败输出修复相应域名。
+
 恢复数据库前，先停止应用和备份任务，将现有数据库及 WAL/SHM 文件保留到单独目录，再放回所选备份。恢复时必须使用匹配的加密主密钥配置。先验证备份后再覆盖运行数据。
 
 ## CF 和 AI

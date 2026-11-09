@@ -3086,3 +3086,11 @@ html[data-theme="dark"] .theme-switch {
   background: #223028;
   color: #d1e0d5;
 }
+
+.problem-metadata { margin-bottom: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.problem-metadata h3 { margin: 0 0 14px; font-size: 1.18em; line-height: 1.5; color: var(--ink); }
+.problem-metadata dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px 20px; margin: 0; font-size: 13px; line-height: 1.6; }
+.problem-metadata dl > div { display: flex; flex-wrap: wrap; gap: 2px 8px; }
+.problem-metadata dt { opacity: .7; }
+.problem-metadata dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+@media(max-width:480px) { .problem-metadata dl { grid-template-columns: 1fr; } }

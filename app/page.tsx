@@ -8,7 +8,7 @@ import AccountGate, {
 } from "@/components/account-gate";
 import AdminPanel from "@/components/admin-panel";
 import { useTrainingSync } from "@/hooks/use-training-sync";
-import { compactStatementMetadata } from "@/lib/translation-format";
+import ProblemStatement from "@/components/problem-statement";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
@@ -1323,13 +1323,10 @@ function Workspace({
                           {statementLanguage === "compare" && (
                             <h3 className="statement-column-label">英文原文</h3>
                           )}
-                          {session.statementFormat === "markdown" ? (
-                            <Text
-                              text={compactStatementMetadata(session.statement)}
-                            />
-                          ) : (
-                            session.statement
-                          )}
+                          <ProblemStatement
+                            text={session.statement}
+                            render={(body) => session.statementFormat === "markdown" ? <Text text={body} /> : body}
+                          />
                         </section>
                       )}
                       {statementLanguage !== "original" && (
@@ -1343,11 +1340,7 @@ function Workspace({
                                 AI 译文 · {translation.model} ·
                                 公式与样例保持原样
                               </div>
-                              <Text
-                                text={compactStatementMetadata(
-                                  translation.text,
-                                )}
-                              />
+                              <ProblemStatement text={translation.text} render={(body) => <Text text={body} />} />
                             </>
                           ) : (
                             <div className="translation-empty">

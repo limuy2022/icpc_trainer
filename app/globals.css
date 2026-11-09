@@ -3214,3 +3214,42 @@ html[data-theme="dark"] .luogu-black { --difficulty-color:#e0e0e0; }
   .luogu-difficulty { font-size:12px; }
   .history-date { flex-wrap:wrap; gap:8px; }
 }
+
+/* History tools belong to the workspace, never beside the app flex columns. */
+.history-page { max-width:1280px; padding-bottom:90px; }
+.history-page .history-title { align-items:center; margin-bottom:30px; }
+.history-page .history-title h1 { font-size:28px; letter-spacing:-.5px; }
+.history-groups { display:grid; gap:30px; }
+.history-group { min-width:0; }
+.history-group-heading { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.history-group-heading h2 { display:flex; align-items:center; gap:9px; margin:0; font-size:17px; font-weight:600; }
+.history-group-heading h2 > span { font-size:12px; border:1px solid var(--line); border-radius:20px; padding:2px 9px; font-variant-numeric:tabular-nums; }
+.history-group-heading p { margin:7px 0 0; color:var(--muted); font-size:13px; line-height:1.7; }
+.history-page .history-list { background:var(--paper); border-radius:12px; }
+.history-page .history-list article { padding:22px 24px; gap:22px; }
+.history-page .history-date { min-width:76px; flex-shrink:0; color:var(--ink); font-size:13px; }
+.history-page .history-date > span { font-size:11px; letter-spacing:0; margin-top:7px; }
+.history-page .history-main h3 { color:var(--ink); line-height:1.6; font-size:16px; overflow-wrap:anywhere; }
+.history-page .history-main h3 > span { font-size:12px; }
+.history-page .history-main > div { font-size:12px; gap:10px 14px; }
+.history-page .history-main p { font-size:13px; color:var(--ink); opacity:.8; }
+.history-page .history-main .luogu-difficulty { margin:0; }
+.history-page .history-list .row-start { flex-shrink:0; padding:10px 12px; border:1px solid var(--line); border-radius:7px; font-size:13px; }
+.history-group-empty { border:1px dashed var(--line); border-radius:10px; padding:26px 20px; color:var(--muted); font-size:13px; line-height:1.8; }
+.history-data-heading { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; border-top:1px solid var(--line); padding-top:24px; margin-top:36px; font-size:13px; }
+.history-sync { display:inline-flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); }
+.history-page .import-toolbar { margin:14px 0 0; gap:16px; }
+.history-page .import-toolbar .secondary { font-size:13px; min-height:42px; }
+.history-page .import-toolbar .text-button { font-size:12px; min-height:42px; }
+@media(max-width:700px) {
+  .history-page .history-title { align-items:flex-start; gap:16px; }
+  .history-page .history-title h1 { font-size:24px; }
+  .history-page .history-list article { padding:18px 16px; gap:14px; }
+  .history-page .history-date { min-width:100%; display:flex; justify-content:space-between; align-items:center; }
+  .history-page .history-date > span { margin:0; }
+  .history-page .history-main { width:100%; }
+  .history-page .history-main h3 { font-size:15px; }
+  .history-page .history-main > div { font-size:12px; gap:8px; }
+  .history-groups { gap:26px; }
+  .history-page .history-list .row-start { margin-left:auto; min-height:44px; }
+}

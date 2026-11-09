@@ -1607,14 +1607,13 @@ function Workspace({
           </main>
         )}
         {view === "history" && (
-          <main className="main-content">
+          <main className="main-content history-page">
             <div className="section-title history-title">
               <div>
                 <div className="eyebrow">MY THINKING JOURNAL</div>
                 <h1>每一次卡住，都留下线索。</h1>
                 <p>
-                  {sessions.length} 次训练 · {completed.length} 次已记录结果 ·
-                  记录按账号保存到服务器
+                  {sessions.length} 次训练 · {sessions.filter(s => s.outcome === "training" || s.outcome === "review").length} 道待继续 · {sessions.filter(s => s.outcome === "independent" || s.outcome === "assisted").length} 道已完成
                 </p>
               </div>
               <button
@@ -1636,8 +1635,14 @@ function Workspace({
                 </button>
               </div>
             ) : (
-              <div className="history-list">
-                {sessions.map((s) => (
+              <div className="history-groups">
+                {[
+                  { title: "未完成", subtitle: "接着上次的观察，继续向前一步。", icon: Clock3, items: sessions.filter(s => s.outcome === "training" || s.outcome === "review"), empty: "目前没有未完成的训练，去挑一道新题吧。", kind: "pending" },
+                  { title: "已完成", subtitle: "已经走通的题，和留下的思考。", icon: CheckCircle2, items: sessions.filter(s => s.outcome === "independent" || s.outcome === "assisted"), empty: "完成训练并标记解出后，会收录在这里。", kind: "finished" },
+                ].map(group => <section className={"history-group " + group.kind} key={group.kind}>
+                  <div className="history-group-heading"><div><h2><group.icon size={18} />{group.title}<span>{group.items.length}</span></h2><p>{group.subtitle}</p></div></div>
+                  {group.items.length ? <div className="history-list">
+                {group.items.map((s) => (
                   <article key={s.id}>
                     <div className="history-date">
                       {new Date(s.createdAt).toLocaleDateString("zh-CN", {
@@ -1645,7 +1650,6 @@ function Workspace({
                         day: "numeric",
                       })}
                       <span>CF {s.problem.rating}</span>
-                      <DifficultyBadge rating={s.problem.rating} />
                     </div>
                     <div className="history-main">
                       <h3>
@@ -1653,6 +1657,7 @@ function Workspace({
                         {s.problem.name}
                       </h3>
                       <div>
+                        <DifficultyBadge rating={s.problem.rating} />
                         <span className={"outcome " + s.outcome}>
                           {outcomes[s.outcome]}
                         </span>
@@ -1679,48 +1684,16 @@ function Workspace({
                       {s.takeaway && <p>{s.takeaway}</p>}
                     </div>
                     <button className="row-start" onClick={() => resume(s)}>
-                      {s.outcome === "training" ? "继续训练" : "查看复盘"}
+                      {s.outcome === "training" ? "继续训练" : s.outcome === "review" ? "重新练习" : "查看复盘"}
                       <ArrowUpRight size={15} />
                     </button>
                   </article>
                 ))}
+                  </div> : <div className="history-group-empty">{group.empty}</div>}
+                </section>)}
               </div>
             )}
-          </main>
-        )}
-      </div>
-      <input
-        ref={importInput}
-        type="file"
-        accept="application/json,.json"
-        hidden
-        onChange={async (e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          try {
-            const parsed = JSON.parse(await file.text());
-            if (
-              !Array.isArray(parsed) ||
-              parsed.some(
-                (x) => !x?.id || !x?.problem?.id || !Array.isArray(x.messages),
-              )
-            )
-              throw Error("记录文件格式无效");
-            const existing = new Set(sessions.map((s) => s.id));
-            setSessions((prev) => [
-              ...prev,
-              ...parsed
-                .filter((x) => !existing.has(x.id))
-                .map((x) => ({ ...x, startedAt: null })),
-            ]);
-            setToast("记录已合并，正在保存到服务器");
-          } catch (err) {
-            setToast((err as Error).message);
-          }
-          e.target.value = "";
-        }}
-      />
-      {view === "history" && (
+            <div className="history-data-heading"><span>记录与备份</span><span className="history-sync" role="status"><span className="connection on" />{syncState}</span></div>
         <div className="import-toolbar">
           <button
             className="secondary"
@@ -1761,9 +1734,43 @@ function Workspace({
           >
             迁移本浏览器旧版记录
           </button>
-          <span>{syncState}</span>
+
         </div>
-      )}
+          </main>
+        )}
+      </div>
+      <input
+        ref={importInput}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          try {
+            const parsed = JSON.parse(await file.text());
+            if (
+              !Array.isArray(parsed) ||
+              parsed.some(
+                (x) => !x?.id || !x?.problem?.id || !Array.isArray(x.messages),
+              )
+            )
+              throw Error("记录文件格式无效");
+            const existing = new Set(sessions.map((s) => s.id));
+            setSessions((prev) => [
+              ...prev,
+              ...parsed
+                .filter((x) => !existing.has(x.id))
+                .map((x) => ({ ...x, startedAt: null })),
+            ]);
+            setToast("记录已合并，正在保存到服务器");
+          } catch (err) {
+            setToast((err as Error).message);
+          }
+          e.target.value = "";
+        }}
+      />
+
       {passwordModal && (
         <div className="modal-overlay">
           <section className="modal">

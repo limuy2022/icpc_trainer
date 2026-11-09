@@ -1,4 +1,6 @@
 "use client";
+import RatingForm from "@/components/rating-form";
+import { ratingRange, difficultyOptions } from "@/lib/rating-range";
 import StatisticsPanel from "@/components/statistics-panel";
 import { reviseConversation } from "@/lib/conversation";
 import { trainingStats } from "@/lib/training-stats";
@@ -112,8 +114,11 @@ function Workspace({
   const [bank, setBank] = useState<Bank | null>(null),
     [loading, setLoading] = useState(true),
     [bankError, setBankError] = useState("");
-  const [min, setMin] = useState(1400),
-    [max, setMax] = useState(1800),
+  const [cfRating, setCfRating] = useState<number|null>(user.cf_rating ?? null);
+  const [ratingModal, setRatingModal] = useState(false);
+  const preset = ratingRange(cfRating);
+  const [min, setMin] = useState(() => ratingRange(user.cf_rating).min),
+    [max, setMax] = useState(() => ratingRange(user.cf_rating).max),
     [tags, setTags] = useState<string[]>([]),
     [query, setQuery] = useState(""),
     [sort, setSort] = useState("popular"),
@@ -625,6 +630,7 @@ function Workspace({
               管理员面板
             </button>
           )}
+          <button className="nav-item" onClick={() => setRatingModal(true)}><Target size={18}/>个人等级分</button>
           <button className="nav-item" onClick={() => setPasswordModal(true)}>
             <Settings2 size={18} />
             修改密码
@@ -847,6 +853,7 @@ function Workspace({
                   : "正在连接 Codeforces"}
               </div>
             </div>
+            <div className="rating-preset"><div><strong>{cfRating == null ? "尚未设置个人等级分" : `我的 CF 等级分 · ${cfRating}`}</strong><span>默认难度 {preset.min}–{preset.max}{cfRating == null ? "" : " · 等级分 −100 / +300"}</span></div><div><button className="text-button" onClick={()=>setRatingModal(true)}>{cfRating==null?"设置等级分":"修改等级分"}</button>{(min!==preset.min||max!==preset.max)&&<button className="secondary" onClick={()=>{setMin(preset.min);setMax(preset.max);setPage(1);}}>应用个人预设</button>}</div></div>
             <section className="filter-panel">
               <div className="filter-top">
                 <label className="range-label">
@@ -861,7 +868,7 @@ function Workspace({
                       setPage(1);
                     }}
                   >
-                    {Array.from({ length: 28 }, (_, i) => 800 + i * 100).map(
+                    {difficultyOptions(min).map(
                       (v) => (
                         <option key={v}>{v}</option>
                       ),
@@ -878,7 +885,7 @@ function Workspace({
                       setPage(1);
                     }}
                   >
-                    {Array.from({ length: 28 }, (_, i) => 800 + i * 100).map(
+                    {difficultyOptions(max).map(
                       (v) => (
                         <option key={v}>{v}</option>
                       ),
@@ -1058,8 +1065,8 @@ function Workspace({
                     onClick={() => {
                       setTags([]);
                       setQuery("");
-                      setMin(1400);
-                      setMax(1800);
+                      setMin(preset.min);
+                      setMax(preset.max);
                       setPage(1);
                     }}
                   >
@@ -1784,6 +1791,7 @@ function Workspace({
         }}
       />
 
+      {ratingModal && <div className="modal-overlay"><section className="modal"><button className="modal-close" aria-label="关闭等级分设置" onClick={()=>setRatingModal(false)}><X size={19}/></button><RatingForm rating={cfRating} onSaved={rating=>{setCfRating(rating);const next=ratingRange(rating);setMin(next.min);setMax(next.max);setPage(1);setRatingModal(false);setToast("个人等级分已保存，选题难度已更新");}}/></section></div>}
       {passwordModal && (
         <div className="modal-overlay">
           <section className="modal">

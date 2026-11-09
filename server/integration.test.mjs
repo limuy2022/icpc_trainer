@@ -15,7 +15,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function call(path,{body,method=body?'POST':'GET',cookie='',origin=base}={}){const r=await fetch(base+path,{method,headers:{'Content-Type':'application/json',Cookie:cookie,Origin:origin},body:body?JSON.stringify(body):undefined});return {status:r.status,data:r.headers.get('content-type')?.includes('json')?await r.json():await r.arrayBuffer(),cookie:r.headers.get('set-cookie')?.split(';')[0]};}
 try{
  for(let i=0;i<40;i++){try{if((await call('/api/health')).status===200)break;}catch{}await sleep(100);}
- assert.equal((await call('/api/stats')).status,401);assert.equal((await call('/api/problems')).status,401);assert.equal((await call('/api/admin/users')).status,401);
+ assert.equal((await call('/api/profile')).status,401);assert.equal((await call('/api/stats')).status,401);assert.equal((await call('/api/problems')).status,401);assert.equal((await call('/api/admin/users')).status,401);
  assert.equal((await call('/api/auth',{body:{username:'admin',password:'wrong'}})).status,401);
  let login=await call('/api/auth',{body:{username:'admin',password:initial}});assert.equal(login.status,200);let admin=login.cookie;assert.equal(login.data.user.password_hash,undefined);
  assert.equal((await call('/api/config',{cookie:admin})).status,403);
@@ -34,7 +34,16 @@ try{
  assert.equal((await call('/api/sessions',{cookie:admin,method:'PUT',body:{sessions:[],revision:0}})).status,409);
  assert.equal((await call('/api/sessions',{cookie:member})).data.sessions.length,0);
  assert.equal((await call('/api/sessions',{cookie:admin})).data.sessions[0].notes,'private notes');
+ assert.equal((await call('/api/profile',{cookie:admin})).data.cfRating,null);
+ let preference=await call('/api/profile',{cookie:admin,method:'PATCH',body:{cfRating:1678}});assert.equal(preference.status,200);assert.deepEqual(preference.data.range,{min:1578,max:1978});
+ assert.equal((await call('/api/auth',{cookie:admin})).data.user.cf_rating,1678);
+ assert.equal((await call('/api/profile',{cookie:member})).data.cfRating,null);
+ assert.equal((await call('/api/profile',{cookie:admin,method:'PATCH',origin:'https://evil.example',body:{cfRating:1200}})).status,403);
+ for(const rating of [-1,5001,1600.5,'1600'])assert.equal((await call('/api/profile',{cookie:admin,method:'PATCH',body:{cfRating:rating}})).status,400);
+ preference=await call('/api/profile',{cookie:admin,method:'PATCH',body:{cfRating:null}});assert.deepEqual(preference.data.range,{min:1400,max:1800});
+ await call('/api/profile',{cookie:admin,method:'PATCH',body:{cfRating:1600}});
  const seedDb=new DatabaseSync(env.DATABASE_PATH);
+ assert.equal(seedDb.prepare("SELECT cf_rating FROM users WHERE username='admin'").get().cf_rating,1600);
  const adminId=seedDb.prepare("SELECT id FROM users WHERE username='admin'").get().id;
  const statsRecords=[{...record,outcome:'independent',elapsed:120,messages:[{role:'user',content:'think'}]},{...record,id:'repeat',outcome:'assisted',elapsed:60},{...record,id:'review',problem:{id:'2A'},outcome:'review',elapsed:30}];
  seedDb.prepare('UPDATE training_data SET payload=?,revision=revision+1 WHERE user_id=?').run(JSON.stringify(statsRecords),adminId);
@@ -60,5 +69,5 @@ try{
  result=await call('/api/admin/backup',{cookie:admin});assert.equal(result.status,200);const binary=Buffer.from(result.data);assert.equal(binary.subarray(0,15).toString(),'SQLite format 3');assert.ok(!binary.includes(Buffer.from('secret-test-model-key')));
  assert.equal((await call('/api/admin/users',{cookie:admin,method:'PATCH',body:{id:memberId,disabled:true}})).status,200);assert.equal((await call('/api/config',{cookie:member})).status,401);
  await call('/api/auth',{cookie:admin,method:'DELETE'});assert.equal((await call('/api/config',{cookie:admin})).status,401);
- console.log('PASS: forced password change, session revocation, member/admin isolation, account disable, CSRF, concurrent-save conflict, record isolation, encrypted model keys, endpoint restrictions, deduplicated training stats, token accounting, cache reuse, statistics isolation, backup and logout.');
+ console.log('PASS: forced password change, session revocation, member/admin isolation, account disable, CSRF, concurrent-save conflict, record isolation, encrypted model keys, endpoint restrictions, deduplicated training stats, token accounting, cache reuse, statistics isolation, persistent rating preferences, profile validation/CSRF/isolation, backup and logout.');
 }finally{server.kill('SIGTERM');await new Promise(r=>server.once('exit',r));rmSync(temp,{recursive:true,force:true});}

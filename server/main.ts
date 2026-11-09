@@ -1,3 +1,4 @@
+import { profile } from "./profile";
 import { statistics } from "./statistics";
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
@@ -73,6 +74,9 @@ const server = createServer(async (req, res) => {
       )
         fail(403, "首次登录请先修改密码");
       switch (url.pathname) {
+        case "/api/profile":
+          response = await profile(request);
+          break;
         case "/api/account":
           if (req.method !== "PATCH") fail(405, "不支持的操作");
           response = await changePassword(request);

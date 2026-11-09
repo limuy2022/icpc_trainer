@@ -13,6 +13,7 @@ export type User = {
   role: "admin" | "member";
   disabled: number;
   must_change_password: number;
+  cf_rating: number | null;
 };
 export class HttpError extends Error {
   constructor(
@@ -58,7 +59,7 @@ export function userFor(request: Request): User | null {
   return (
     (db
       .prepare(
-        "SELECT u.id,u.username,u.role,u.disabled,u.must_change_password FROM login_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.disabled=0",
+        "SELECT u.id,u.username,u.role,u.disabled,u.must_change_password,u.cf_rating FROM login_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.disabled=0",
       )
       .get(hashToken(token), Date.now()) as User) || null
   );

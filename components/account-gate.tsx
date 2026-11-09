@@ -7,6 +7,7 @@ export type Account = {
   username: string;
   role: "admin" | "member";
   must_change_password: number;
+  cf_rating: number | null;
 };
 export async function api(
   path: string,

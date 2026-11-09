@@ -3346,3 +3346,12 @@ html .message-text .code-block pre,html[data-theme="dark"] .coach-panel .message
 .message-edit button { font-size:12px; }
 @media(max-width:700px) { .message-actions button { min-height:40px; padding:4px 6px; } .message-edit textarea { font-size:16px; } .message-edit button { min-height:42px; } }
 .chat-error button { margin-left:10px; text-decoration:underline; min-height:36px; }
+
+.rating-preset { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:14px 16px; margin-bottom:14px; border:1px solid var(--line); border-radius:9px; background:var(--paper); }
+.rating-preset > div { display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; }
+.rating-preset strong { font-size:13px; font-weight:550; }
+.rating-preset span { font-size:12px; color:var(--muted); }
+.rating-preset button { font-size:12px; min-height:36px; }
+.rating-preview { background:var(--bg); padding:14px; border:1px solid var(--line); border-radius:7px; font-size:14px; line-height:1.8; margin:16px 0; }
+.rating-preview small { display:block; font-size:12px; color:var(--muted); margin-top:5px; }
+@media(max-width:700px) { .rating-preset { padding:12px; } .rating-preset > div { gap:8px; } .rating-preset button { min-height:40px; } }

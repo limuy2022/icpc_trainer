@@ -3094,3 +3094,89 @@ html[data-theme="dark"] .theme-switch {
 .problem-metadata dt { opacity: .7; }
 .problem-metadata dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
 @media(max-width:480px) { .problem-metadata dl { grid-template-columns: 1fr; } }
+
+/* Phone layouts use the full viewport; navigation opens on demand. */
+.mobile-menu-toggle,.mobile-menu-close,.mobile-menu-backdrop,.mobile-training-jump { display: none; }
+@media (max-width:700px) {
+  .app-shell { min-height:100dvh; }
+  .workspace { width:100%; margin-left:0; }
+  .sidebar { width:min(290px,85vw); padding:24px 18px; transform:translateX(-105%); visibility:hidden; transition:transform .18s ease,visibility .18s; z-index:70; overflow-y:auto; overscroll-behavior:contain; }
+  .sidebar.mobile-open { transform:translateX(0); visibility:visible; }
+  .sidebar .brand > span:last-child,.sidebar .profile { display:block; }
+  .sidebar .brand { padding:0; font-size:18px; }
+  .sidebar nav { margin-top:30px; }
+  .sidebar .nav-item { font-size:14px; justify-content:flex-start; gap:12px; min-height:46px; padding:12px; }
+  .sidebar-bottom { margin-top:auto; }
+  .mobile-menu-backdrop { display:block; position:fixed; inset:0; background:#0008; z-index:60; }
+  .mobile-menu-close { display:grid; place-items:center; position:absolute; right:8px; top:5px; width:36px; height:36px; }
+  .mobile-menu-toggle { display:grid; place-items:center; width:44px; height:44px; flex-shrink:0; }
+  .topbar { height:60px; padding:0 12px 0 4px; font-size:13px; }
+  .topbar > div { gap:5px; }
+  .topbar .muted,.topbar .muted + svg { display:none; }
+  .topbar .quiet { font-size:12px; }
+  .main-content,.training-content { padding:18px 12px 80px; }
+  .hero { padding:24px 18px; }
+  .hero h1 { font-size:28px; }
+  .hero p,.section-title p { font-size:13px; }
+  .range-label { flex-wrap:wrap; }
+  .range-label select { min-width:0; }
+  input,select,textarea,.search-box input,.account-form input,.account-form select,.modal input,.modal select,.modal textarea { font-size:16px; }
+  .search-box { min-width:0; flex:1 1 100%; }
+  .filter-top .sort-select { max-width:none; width:100%; }
+  .tag { font-size:12px; min-height:36px; }
+  .filter-bottom label { font-size:12px; min-height:32px; }
+  .problem-name a { font-size:14px; line-height:1.6; overflow-wrap:anywhere; }
+  .problem-id,.problem-tags,.rating { font-size:12px; }
+  .row-start { font-size:12px; min-height:44px; }
+  .table-head,.problem-row { grid-template-columns:minmax(0,1fr) 52px 64px; gap:6px; }
+  .pagination { font-size:12px; flex-wrap:wrap; gap:12px; }
+  .pagination > span { max-width:100%; }
+  .pagination button { min-width:40px; min-height:40px; }
+  .training-heading h1 { overflow-wrap:anywhere; }
+  .training-meta { flex-wrap:wrap; font-size:12px; }
+  .training-heading .primary { font-size:13px; min-height:44px; }
+  .mobile-training-jump { display:flex; gap:10px; margin:0 0 14px; }
+  .mobile-training-jump a { flex:1; text-align:center; border:1px solid var(--line); border-radius:7px; padding:12px; font-size:14px; background:var(--paper); }
+  #problem-reader,#ai-coach { scroll-margin-top:12px; min-width:0; }
+  .statement-toolbar { flex-wrap:wrap; gap:10px; }
+  .statement-language { flex-wrap:wrap; }
+  .statement-language button,.statement-font button { min-height:40px; font-size:13px; }
+  .statement-text { padding:16px; max-height:none; }
+  .statement-text img { max-width:100%; height:auto; }
+  .statement-text pre,.message-text pre,.katex-display { max-width:100%; overflow-x:auto; }
+  .statement-text table,.message-text table { display:block; max-width:100%; overflow-x:auto; }
+  .panel-heading h2 { font-size:14px; }
+  .panel-heading .text-button,.statement-help,.statement-source { font-size:12px; }
+  .notes-editor,.statement-editor { font-size:16px; }
+  .coach-panel { min-height:0; height:auto; max-height:none; position:static; }
+  .chat-messages { min-height:240px; max-height:60dvh; }
+  .coach-controls { padding:12px; }
+  .hint-buttons { flex-wrap:wrap; }
+  .hint-buttons button { min-height:40px; font-size:12px; }
+  .coach-bottom { flex-wrap:wrap; gap:12px; }
+  .coach-bottom button { min-height:40px; font-size:12px; }
+  .coach-panel .composer textarea { min-height:110px; }
+  .send-button { min-width:44px; min-height:44px; }
+  .history-main { min-width:0; width:100%; }
+  .history-main h3 { font-size:15px; overflow-wrap:anywhere; }
+  .history-main > div { flex-wrap:wrap; font-size:12px; }
+  .admin-stats { flex-wrap:wrap; }
+  .admin-tabs { overflow-x:auto; }
+  .admin-tabs button { white-space:nowrap; min-height:44px; }
+  .model-card { overflow-wrap:anywhere; }
+  .model-card > div { min-width:0; max-width:100%; }
+  .modal-overlay { padding:12px; }
+  .modal { width:100%; max-height:calc(100dvh - 24px); overflow-y:auto; padding:24px 18px; }
+  .modal-actions { flex-wrap:wrap; }
+  .auth-shell { padding:20px 12px 80px; min-height:100dvh; }
+  .auth-card { width:100%; max-width:420px; padding:24px; }
+  .theme-switch { bottom:calc(10px + env(safe-area-inset-bottom)); right:12px; }
+  .theme-switch select { font-size:13px; min-height:30px; }
+}
+@media (max-width:700px) {
+  .theme-switch { position:relative; inset:auto; width:max-content; margin:10px 12px 0 auto; }
+  .chat-messages { padding:16px 14px; }
+  .coach-intro { padding:12px 0; }
+  .coach-intro > div { flex-wrap:wrap; }
+  .intro-symbol { margin:0 auto 12px; }
+}

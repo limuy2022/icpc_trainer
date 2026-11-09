@@ -13,6 +13,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import {
+  Menu,
   ArrowUpRight,
   ArrowRight,
   BookOpen,
@@ -124,6 +125,13 @@ function Workspace({
   const { sessions, setSessions, loaded, syncState, save } = useTrainingSync(
     user.id,
   );
+  const [mobileMenu, setMobileMenu] = useState(false);
+  useEffect(() => {
+    if (!mobileMenu) return;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setMobileMenu(false); };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [mobileMenu]);
   const [current, setCurrent] = useState<string | null>(null);
   const [models, setModels] = useState<any[]>([]),
     [modelId, setModelId] = useState(""),
@@ -551,7 +559,9 @@ function Workspace({
   const doneIds = new Set(completed.map((s) => s.problem.id));
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      {mobileMenu && <button className="mobile-menu-backdrop" aria-label="关闭导航" onClick={() => setMobileMenu(false)} />}
+      <aside id="workspace-navigation" className={"sidebar" + (mobileMenu ? " mobile-open" : "")} onClick={(event) => { if ((event.target as HTMLElement).closest("button, a")) setMobileMenu(false); }}>
+        <button className="mobile-menu-close" aria-label="收起导航" onClick={() => setMobileMenu(false)}><X size={22} /></button>
         <a
           className="brand"
           href="#"
@@ -645,6 +655,7 @@ function Workspace({
       <div className="workspace">
         <header className="topbar">
           <div>
+            <button className="mobile-menu-toggle" aria-label="打开导航" aria-expanded={mobileMenu} aria-controls="workspace-navigation" onClick={() => setMobileMenu(true)}><Menu size={22} /></button>
             <span className="muted">我的工作台</span>
             <ChevronRight size={14} />
             <span>
@@ -1209,8 +1220,9 @@ function Workspace({
                 </button>
               </div>
             </div>
+            <nav className="mobile-training-jump" aria-label="训练区域"><a href="#problem-reader">阅读题目</a><a href="#ai-coach">与 AI 讨论</a></nav>
             <div className="training-grid">
-              <section className="statement-panel">
+              <section id="problem-reader" className="statement-panel">
                 <div className="panel-heading">
                   <h2>
                     <BookOpen size={17} />
@@ -1445,7 +1457,7 @@ function Workspace({
                   onChange={(e) => patch(session.id, { notes: e.target.value })}
                 />
               </section>
-              <section className="coach-panel">
+              <section id="ai-coach" className="coach-panel">
                 <div className="panel-heading">
                   <h2>
                     <span className="coach-avatar">
@@ -1537,14 +1549,15 @@ function Workspace({
                   >
                     <textarea
                       aria-label="你的解题思路"
-                      placeholder="我的想法是…（Enter 发送，Shift + Enter 换行）"
+                      placeholder="写下你的想法，点击发送…"
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => {
                         if (
                           e.key === "Enter" &&
                           !e.shiftKey &&
-                          !e.nativeEvent.isComposing
+                          !e.nativeEvent.isComposing &&
+                          !window.matchMedia("(pointer: coarse)").matches
                         ) {
                           e.preventDefault();
                           send();

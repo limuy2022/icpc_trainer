@@ -18,6 +18,7 @@ try {
   globalThis.fetch=async(url,options)=>{sent=JSON.parse(options.body);const source=sent.messages.at(-1).content;return Response.json({choices:[{message:{content:name==='translate'?source:'这是一个用于验证正文请求的测试回复。'},finish_reason:'stop'}]});};
   const response=await (mod.translate||mod.POST)(new Request('http://localhost/api/'+name,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:header+body,statement:header+body,problemId:'1A',problem:'1A',messages:[]})}));
   assert.equal(response.status,200);
+  if(name==='coach'){const system=sent.messages.find(m=>m.role==='system').content;assert.ok(system.includes('数学排版要求'));assert.ok(system.includes('$a_i$'));assert.ok(system.includes('\\sum_{i=l}^{r}'));assert.ok(!system.includes('\\\\sum'));assert.ok(system.includes('$$\n'));}
   const userPrompt=sent.messages.filter(m=>m.role==='user').map(m=>m.content).join('\n');
   for(const excluded of ['time limit per test','memory limit per test','standard input','standard output','256 megabytes','C. Test'])assert.ok(!userPrompt.includes(excluded),excluded);
   assert.ok(userPrompt.includes('## Input'));assert.ok(userPrompt.includes('100000'));

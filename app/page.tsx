@@ -97,9 +97,8 @@ export default function Home() {
     [hideTags, setHideTags] = useState(true),
     [exclude, setExclude] = useState(true);
   const [settings, setSettings] = useState(false),
-    [apiKey, setApiKey] = useState(""),
-    [model, setModel] = useState("gpt-4.1"),
-    [showKey, setShowKey] = useState(false);
+    [aiConfigured, setAiConfigured] = useState(false),
+    [model, setModel] = useState("GLM-5.3");
   const [draft, setDraft] = useState(""),
     [busy, setBusy] = useState(false),
     [chatError, setChatError] = useState(""),
@@ -140,9 +139,14 @@ export default function Home() {
             .filter((s) => s?.id && s?.problem?.id && Array.isArray(s.messages))
             .map((s) => ({ ...s, startedAt: null })),
         );
-      const m = localStorage.getItem("icpc-model");
-      if (m) setModel(m);
     } catch {}
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((c: any) => {
+        setAiConfigured(Boolean(c.configured));
+        setModel(c.model || "GLM-5.3");
+      })
+      .catch(() => {});
     setLoaded(true);
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -351,7 +355,7 @@ export default function Home() {
   }
   async function send(mode = "discuss") {
     if (!session || busy) return;
-    if (!apiKey.trim()) {
+    if (!aiConfigured) {
       setSettings(true);
       return;
     }
@@ -399,8 +403,6 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          key: apiKey,
-          model,
           statement: session.statement,
           problem: `${session.problem.id} ${session.problem.name}`,
           notes: session.notes,
@@ -524,7 +526,7 @@ export default function Home() {
           <button className="nav-item" onClick={() => setSettings(true)}>
             <Settings2 size={18} />
             AI 设置
-            <span className={apiKey ? "connection on" : "connection"} />
+            <span className={aiConfigured ? "connection on" : "connection"} />
           </button>
           <div className="profile">
             <div className="avatar">L</div>
@@ -548,8 +550,8 @@ export default function Home() {
             </span>
           </div>
           <button className="quiet" onClick={() => setSettings(true)}>
-            <span className={apiKey ? "connection on" : "connection"} />
-            {apiKey ? "AI 已连接配置" : "连接你的 AI"}
+            <span className={aiConfigured ? "connection on" : "connection"} />
+            {aiConfigured ? "GLM 已配置" : "连接你的 AI"}
             <ArrowUpRight size={14} />
           </button>
         </header>
@@ -1169,7 +1171,7 @@ export default function Home() {
                     AI 思维陪练
                   </h2>
                   <span className="coach-state">
-                    {apiKey ? (
+                    {aiConfigured ? (
                       <>
                         <span className="connection on" />
                         按需调用
@@ -1401,69 +1403,44 @@ export default function Home() {
             <span className="modal-icon">
               <Sparkles size={25} />
             </span>
-            <h2>连接你的思维陪练</h2>
+            <h2>GLM 思维陪练</h2>
             <p>
-              填入你的 OpenAI API Key 和可用模型。Key
-              只保存在当前页面内存中，刷新后需要重新填写。调用会消耗该 Key 的
-              API 额度。
+              由服务端连接 GLM Coding Plan
+              专用接口。密钥保存在站点的加密配置中，页面只接收连接状态和模型名称。
             </p>
             <label>
-              API Key
-              <div className="key-input">
-                <input
-                  autoComplete="off"
-                  type={showKey ? "text" : "password"}
-                  placeholder="sk-…"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                />
-                <button
-                  aria-label="切换密钥可见性"
-                  onClick={() => setShowKey(!showKey)}
-                >
-                  {showKey ? <EyeOff size={17} /> : <Eye size={17} />}
-                </button>
-              </div>
+              服务状态
+              <input
+                readOnly
+                value={
+                  aiConfigured ? "已配置 · 密钥不可读取" : "尚未配置服务端密钥"
+                }
+              />
             </label>
             <label>
               模型名称
-              <input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="填写你账号可用的模型 ID"
-              />
+              <input readOnly value={model} />
             </label>
             <div className="settings-note">
               <CheckCircle2 size={16} />
               <span>
-                通过本站服务端调用官方 API。题面和当前对话会发送给
-                OpenAI；训练记录保存在本机。
+                题面、草稿和当前对话会发送给智谱
+                GLM。训练记录保存在本机。套餐适用范围与可用额度以智谱规定为准。
               </span>
             </div>
             <div className="modal-actions">
-              <button
+              <a
                 className="text-button"
-                onClick={() => {
-                  setApiKey("");
-                  setToast("已清除当前页面中的 API Key");
-                }}
+                href="https://docs.bigmodel.cn/cn/coding-plan/faq"
+                target="_blank"
+                rel="noreferrer"
               >
-                清除 Key
-              </button>
-              <button
-                className="primary"
-                onClick={() => {
-                  localStorage.setItem("icpc-model", model);
-                  setSettings(false);
-                  setToast(
-                    apiKey
-                      ? "AI 配置已保存到当前页面，发送思路时将验证连接。"
-                      : "已保存模型设置。",
-                  );
-                }}
-              >
-                保存配置
-                <Check size={16} />
+                套餐使用说明
+                <ExternalLink size={13} />
+              </a>
+              <button className="primary" onClick={() => setSettings(false)}>
+                开始思考
+                <ArrowRight size={16} />
               </button>
             </div>
           </section>

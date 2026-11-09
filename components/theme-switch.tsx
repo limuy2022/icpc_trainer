@@ -28,7 +28,7 @@ export default function ThemeSwitch() {
   }, [theme]);
   const Icon = theme === "system" ? Monitor : theme === "dark" ? Moon : Sun;
   return (
-    <label className="theme-switch">
+    <label className="theme-switch" title={`外观主题：${theme === "system" ? "跟随系统" : theme === "dark" ? "深色模式" : "浅色模式"}`}>
       <Icon size={16} />
       <select
         aria-label="外观主题"

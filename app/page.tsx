@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import ThemeSwitch from "@/components/theme-switch";
 import AccountGate, {
   PasswordForm,
   type Account,
@@ -100,11 +101,14 @@ function Text({ text }: { text: string }) {
 }
 export default function Home() {
   return (
-    <AccountGate>
-      {(user, logout) => (
-        <Workspace key={user.id} user={user} logout={logout} />
-      )}
-    </AccountGate>
+    <>
+      <ThemeSwitch />
+      <AccountGate>
+        {(user, logout) => (
+          <Workspace key={user.id} user={user} logout={logout} />
+        )}
+      </AccountGate>
+    </>
   );
 }
 function Workspace({

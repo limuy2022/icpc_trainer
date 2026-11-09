@@ -1,0 +1,8 @@
+[Unit]
+Description=Back up ICPC database
+[Service]
+Type=oneshot
+WorkingDirectory=/home/limuy/apps/icpc-trainer/current
+ExecStart=/usr/bin/node --env-file=/home/limuy/apps/icpc-trainer/shared/app.env /home/limuy/apps/icpc-trainer/current/backup.mjs
+UMask=0077
+NoNewPrivileges=true

@@ -1,0 +1,19 @@
+[Unit]
+Description=Private ICPC Thinking Lab
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/limuy/apps/icpc-trainer/current
+ExecStart=/usr/bin/node --env-file=/home/limuy/apps/icpc-trainer/shared/app.env /home/limuy/apps/icpc-trainer/current/server.mjs
+Environment=NODE_ENV=production
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+MemoryMax=384M
+TasksMax=64
+
+[Install]
+WantedBy=default.target

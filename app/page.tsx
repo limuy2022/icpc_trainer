@@ -1,6 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import AccountGate, {
+  PasswordForm,
+  type Account,
+} from "@/components/account-gate";
+import AdminPanel from "@/components/admin-panel";
+import { useTrainingSync } from "@/hooks/use-training-sync";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
@@ -38,6 +44,9 @@ import {
   NotebookPen,
   CircleHelp,
   CheckCircle2,
+  ShieldCheck,
+  LogOut,
+  Upload,
 } from "lucide-react";
 import type { Problem, Session, Message } from "@/lib/types";
 import { tagLabels, problemUrl } from "@/lib/types";
@@ -81,10 +90,38 @@ function Text({ text }: { text: string }) {
   );
 }
 export default function Home() {
-  const [view, setView] = useState<"bank" | "training" | "history">("bank");
-  const [sessions, setSessions] = useState<Session[]>([]),
-    [current, setCurrent] = useState<string | null>(null),
-    [loaded, setLoaded] = useState(false);
+  return (
+    <AccountGate>
+      {(user, logout) => (
+        <Workspace key={user.id} user={user} logout={logout} />
+      )}
+    </AccountGate>
+  );
+}
+function Workspace({
+  user,
+  logout,
+}: {
+  user: Account;
+  logout: () => Promise<void>;
+}) {
+  const [view, setView] = useState<"bank" | "training" | "history" | "admin">(
+    "bank",
+  );
+  const {
+    sessions,
+    setSessions,
+    loaded,
+    syncState,
+    conflict,
+    save,
+    useServerVersion,
+  } = useTrainingSync(user.id);
+  const [current, setCurrent] = useState<string | null>(null);
+  const [models, setModels] = useState<any[]>([]),
+    [modelId, setModelId] = useState(""),
+    [passwordModal, setPasswordModal] = useState(false);
+  const importInput = useRef<HTMLInputElement>(null);
   const [bank, setBank] = useState<Bank | null>(null),
     [loading, setLoading] = useState(true),
     [bankError, setBankError] = useState("");
@@ -130,71 +167,24 @@ export default function Home() {
       0,
     ) / 60,
   );
-  useEffect(() => {
+  async function refreshModels() {
     try {
-      const raw = JSON.parse(localStorage.getItem("icpc-sessions-v1") || "[]");
-      if (Array.isArray(raw))
-        setSessions(
-          raw
-            .filter((s) => s?.id && s?.problem?.id && Array.isArray(s.messages))
-            .map((s) => ({ ...s, startedAt: null })),
-        );
+      const r = await fetch("/api/config");
+      const c = (await r.json()) as any;
+      if (!r.ok) return;
+      setAiConfigured(Boolean(c.configured));
+      setModels(c.models || []);
+      setModel(c.model || "");
+      setModelId((prev) =>
+        c.models.some((m: any) => m.id === prev) ? prev : c.models[0]?.id || "",
+      );
     } catch {}
-    fetch("/api/config")
-      .then((r) => r.json())
-      .then((c: any) => {
-        setAiConfigured(Boolean(c.configured));
-        setModel(c.model || "GLM-5.3");
-      })
-      .catch(() => {});
-    setLoaded(true);
+  }
+  useEffect(() => {
+    void refreshModels();
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-  useEffect(() => {
-    if (loaded) {
-      try {
-        localStorage.setItem(
-          "icpc-sessions-v1",
-          JSON.stringify(
-            sessions.map((s) => ({
-              ...s,
-              elapsed:
-                s.elapsed +
-                (s.startedAt
-                  ? Math.max(0, Math.floor((Date.now() - s.startedAt) / 1000))
-                  : 0),
-              startedAt: null,
-            })),
-          ),
-        );
-      } catch {
-        setToast("浏览器存储空间不足，请导出训练记录。");
-      }
-    }
-  }, [sessions, loaded]);
-  useEffect(() => {
-    if (!loaded) return;
-    const t = setInterval(() => {
-      try {
-        localStorage.setItem(
-          "icpc-sessions-v1",
-          JSON.stringify(
-            sessionsRef.current.map((s) => ({
-              ...s,
-              elapsed:
-                s.elapsed +
-                (s.startedAt
-                  ? Math.max(0, Math.floor((Date.now() - s.startedAt) / 1000))
-                  : 0),
-              startedAt: null,
-            })),
-          ),
-        );
-      } catch {}
-    }, 10000);
-    return () => clearInterval(t);
-  }, [loaded]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 4500);
@@ -288,6 +278,10 @@ export default function Home() {
     }
   }
   function start(p: Problem) {
+    if (!loaded) {
+      setToast("训练记录尚未加载，请稍后重试");
+      return;
+    }
     pauseAll();
     const previous = sessions.find(
       (s) => s.problem.id === p.id && s.outcome === "training",
@@ -354,7 +348,7 @@ export default function Home() {
     }
   }
   async function send(mode = "discuss") {
-    if (!session || busy) return;
+    if (!session || busy || !loaded) return;
     if (!aiConfigured) {
       setSettings(true);
       return;
@@ -406,6 +400,7 @@ export default function Home() {
           statement: session.statement,
           problem: `${session.problem.id} ${session.problem.name}`,
           notes: session.notes,
+          modelId,
           mode,
           messages,
         }),
@@ -523,15 +518,45 @@ export default function Home() {
           <div className="note-line" />
         </div>
         <div className="sidebar-bottom">
+          {user.role === "admin" && (
+            <button
+              className={view === "admin" ? "nav-item active" : "nav-item"}
+              onClick={() => navigate("admin")}
+            >
+              <ShieldCheck size={18} />
+              管理员面板
+            </button>
+          )}
+          <button className="nav-item" onClick={() => setPasswordModal(true)}>
+            <Settings2 size={18} />
+            修改密码
+          </button>
+          <button
+            className="nav-item"
+            onClick={async () => {
+              pauseAll();
+              await save();
+              await logout();
+            }}
+          >
+            <LogOut size={18} />
+            退出登录
+          </button>
           <button className="nav-item" onClick={() => setSettings(true)}>
             <Settings2 size={18} />
-            AI 设置
+            陪练模型
             <span className={aiConfigured ? "connection on" : "connection"} />
           </button>
           <div className="profile">
-            <div className="avatar">L</div>
+            <div className="avatar">
+              {user.username.slice(0, 1).toUpperCase()}
+            </div>
             <div>
-              我的练习空间<small>训练记录保存在此浏览器</small>
+              {user.username}
+              <small>
+                {user.role === "admin" ? "管理员" : "训练成员"} ·
+                记录保存到服务器
+              </small>
             </div>
           </div>
         </div>
@@ -546,15 +571,37 @@ export default function Home() {
                 ? "发现题目"
                 : view === "training"
                   ? "思维陪练"
-                  : "训练记录"}
+                  : view === "admin"
+                    ? "管理后台"
+                    : "训练记录"}
             </span>
           </div>
           <button className="quiet" onClick={() => setSettings(true)}>
             <span className={aiConfigured ? "connection on" : "connection"} />
-            {aiConfigured ? "GLM 已配置" : "连接你的 AI"}
+            {aiConfigured ? "AI 已配置" : "连接你的 AI"}
             <ArrowUpRight size={14} />
           </button>
         </header>
+        {view === "admin" && user.role === "admin" && (
+          <AdminPanel onModelsChanged={refreshModels} />
+        )}
+        {conflict && (
+          <div className="sync-conflict">
+            {syncState} <button onClick={exportData}>导出当前记录</button>
+            <button
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "确认已导出当前记录？接下来将加载服务器版本，替换此页面的未同步记录。",
+                  )
+                )
+                  useServerVersion();
+              }}
+            >
+              已导出，加载服务器版本
+            </button>
+          </div>
+        )}
         {view === "bank" && (
           <main className="main-content">
             <section className="hero">
@@ -1152,7 +1199,7 @@ export default function Home() {
                 ) : null}
                 <div className="notes-heading">
                   <NotebookPen size={16} />
-                  我的观察与草稿<span>自动保存在本机</span>
+                  我的观察与草稿<span>{syncState}</span>
                 </div>
                 <textarea
                   className="notes-editor"
@@ -1310,7 +1357,7 @@ export default function Home() {
                 <h1>每一次卡住，都留下线索。</h1>
                 <p>
                   {sessions.length} 次训练 · {completed.length} 次已记录结果 ·
-                  数据保存在此浏览器
+                  记录按账号保存到服务器
                 </p>
               </div>
               <button
@@ -1384,13 +1431,107 @@ export default function Home() {
           </main>
         )}
       </div>
+      <input
+        ref={importInput}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          try {
+            const parsed = JSON.parse(await file.text());
+            if (
+              !Array.isArray(parsed) ||
+              parsed.some(
+                (x) => !x?.id || !x?.problem?.id || !Array.isArray(x.messages),
+              )
+            )
+              throw Error("记录文件格式无效");
+            const existing = new Set(sessions.map((s) => s.id));
+            setSessions((prev) => [
+              ...prev,
+              ...parsed
+                .filter((x) => !existing.has(x.id))
+                .map((x) => ({ ...x, startedAt: null })),
+            ]);
+            setToast("记录已合并，正在保存到服务器");
+          } catch (err) {
+            setToast((err as Error).message);
+          }
+          e.target.value = "";
+        }}
+      />
+      {view === "history" && (
+        <div className="import-toolbar">
+          <button
+            className="secondary"
+            onClick={() => importInput.current?.click()}
+          >
+            <Upload size={15} />
+            导入 JSON 备份
+          </button>
+          <button
+            className="text-button"
+            onClick={() => {
+              try {
+                const old = JSON.parse(
+                  localStorage.getItem("icpc-sessions-v1") || "[]",
+                );
+                if (!Array.isArray(old) || !old.length) {
+                  setToast("此浏览器没有旧版记录");
+                  return;
+                }
+                if (
+                  !window.confirm(
+                    "将本浏览器旧版训练记录导入当前账号？请确认这些记录属于你。",
+                  )
+                )
+                  return;
+                const ids = new Set(sessions.map((s) => s.id));
+                setSessions((prev) => [
+                  ...prev,
+                  ...old
+                    .filter((s) => !ids.has(s.id))
+                    .map((s) => ({ ...s, startedAt: null })),
+                ]);
+                setToast("旧版记录已合并，正在同步");
+              } catch {
+                setToast("旧版记录无法读取，请从 JSON 备份导入");
+              }
+            }}
+          >
+            迁移本浏览器旧版记录
+          </button>
+          <span>{syncState}</span>
+        </div>
+      )}
+      {passwordModal && (
+        <div className="modal-overlay">
+          <section className="modal">
+            <button
+              className="modal-close"
+              onClick={() => setPasswordModal(false)}
+              aria-label="关闭修改密码"
+            >
+              <X size={19} />
+            </button>
+            <PasswordForm
+              done={() => {
+                setPasswordModal(false);
+                setToast("密码已更新，其他设备已退出登录");
+              }}
+            />
+          </section>
+        </div>
+      )}
       {settings && (
         <div className="modal-overlay" onClick={() => setSettings(false)}>
           <section
             className="modal"
             role="dialog"
             aria-modal="true"
-            aria-label="AI 设置"
+            aria-label="陪练模型"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -1403,41 +1544,41 @@ export default function Home() {
             <span className="modal-icon">
               <Sparkles size={25} />
             </span>
-            <h2>GLM 思维陪练</h2>
+            <h2>选择陪练模型</h2>
             <p>
-              由服务端连接 GLM Coding Plan
-              专用接口。密钥保存在站点的加密配置中，页面只接收连接状态和模型名称。
+              选择管理员已启用的模型。API Key
+              只保存在服务端，页面无法读取。题面、草稿和对话会发送给你选择的模型服务商。
             </p>
             <label>
-              服务状态
-              <input
-                readOnly
-                value={
-                  aiConfigured ? "已配置 · 密钥不可读取" : "尚未配置服务端密钥"
-                }
-              />
-            </label>
-            <label>
-              模型名称
-              <input readOnly value={model} />
+              当前陪练模型
+              <select
+                value={modelId}
+                onChange={(e) => {
+                  setModelId(e.target.value);
+                  setModel(
+                    models.find((m) => m.id === e.target.value)?.model || "",
+                  );
+                }}
+              >
+                {models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label} · {m.model}
+                    {m.is_default ? "（默认）" : ""}
+                  </option>
+                ))}
+              </select>
             </label>
             <div className="settings-note">
               <CheckCircle2 size={16} />
               <span>
-                题面、草稿和当前对话会发送给智谱
-                GLM。训练记录保存在本机。套餐适用范围与可用额度以智谱规定为准。
+                {syncState}。
+                {user.role === "admin"
+                  ? "添加或修改模型请进入管理员面板。"
+                  : "模型配置由管理员维护。"}
               </span>
             </div>
             <div className="modal-actions">
-              <a
-                className="text-button"
-                href="https://docs.bigmodel.cn/cn/coding-plan/faq"
-                target="_blank"
-                rel="noreferrer"
-              >
-                套餐使用说明
-                <ExternalLink size={13} />
-              </a>
+              <span className="muted">密钥不会返回浏览器</span>
               <button className="primary" onClick={() => setSettings(false)}>
                 开始思考
                 <ArrowRight size={16} />

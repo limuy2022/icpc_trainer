@@ -1,43 +1,75 @@
 # 思维练习场 · ICPC Thinking Lab
 
-Codeforces 选题与 AI 思维陪练。使用 Vinext / React，部署为 Cloudflare Worker。
+个人和朋友使用的 ICPC 训练网站。React 前端、Node.js 服务、SQLite 持久化，部署到 `icpc.limuy.top`。
 
-## 本地运行
+## 账号与管理
+
+只接受管理员手动开户，没有注册接口。密码使用独立随机盐的 scrypt 哈希。登录令牌为随机值，数据库只存令牌哈希。生产 Cookie 为 HttpOnly、Secure、SameSite=Lax。首次登录或管理员重置密码后必须设置自己的密码。停用账号或重置密码会撤销旧会话。
+
+管理员面板提供添加/停用账号、重置密码，添加/编辑/切换默认模型，以及调用记录、操作记录和数据库备份。成员不能访问管理接口。模型 Key 只在服务端使用，后台保存的 Key 用 AES-256-GCM 加密，API 不返回原值。
+
+## 数据
+
+训练记录按账号存入 SQLite，启用 WAL、外键和写入锁等待。浏览器保留按账号隔离的未同步备份。保存使用版本比较，另一页面先保存会触发冲突而不会悄悄覆盖。支持个人 JSON 导出、导入和旧版浏览器记录迁移。
+
+服务端训练保存会在编辑停止 1 秒后触发，计时每 10 秒同步。尚未发送的对话输入不保存。退出页面前应确认显示“已保存到服务器”。数据库有每日备份，保留最近 14 份，管理员也可以下载完整 SQLite 备份。同一服务器上的备份不能替代异地备份。
+
+## 独立部署构建
+
+需要 Node.js >=22.13（推荐当前 LTS）。生产发布包没有额外 npm 运行依赖。
 
 ```bash
 npm install
-npm run dev
+npm run build:standalone
+node server/integration.test.mjs
 ```
 
-线上使用 GLM Coding Plan 专用地址 `https://open.bigmodel.cn/api/coding/paas/v4/chat/completions`，模型默认为 `GLM-5.3`。服务端通过 Cloudflare runtime `env.GLM_API_KEY` 读取密钥，`GLM_MODEL` 可设置模型。部署时用 Sites 的加密环境变量配置，禁止将真实密钥写入源码、manifest、客户端代码或构建产物。
+产物在 `release/`，不要把本地数据库或密钥打包进去。
 
-本地开发可在未跟踪的 `.dev.vars` 中配置 `GLM_API_KEY`、`GLM_MODEL`。页面 `/api/config` 只返回是否已配置、服务商和模型名称，浏览器不能读取密钥。当前站点保持仅所有者可访问。题面、草稿和最近对话会发送给智谱。
+环境变量配置在发布目录之外的权限 0600 文件中，参考以下变量名（不要提交真实值）：
 
-智谱官方说明 Coding Plan 限于指定工具与产品，自建网站应使用标准 API 服务。当前按用户明确要求连接 Coding 专用接口并验证了可响应，不自动切换标准接口或其他付费端点。接口连通不保证套餐适用性与计费归属，须以智谱官方规定为准。
+```dotenv
+PORT=18461
+APP_ORIGIN=https://icpc.limuy.top
+COOKIE_SECURE=true
+DATABASE_PATH=/home/limuy/apps/icpc-trainer/shared/icpc.sqlite
+MODEL_ENCRYPTION_KEY=64位十六进制随机密钥
+GLM_API_KEY=服务端密钥
+GLM_MODEL=GLM-5.3
+```
 
-## 功能
+`MODEL_ENCRYPTION_KEY` 必须长期保留，丢失后无法解密数据库中的模型 Key。GLM 环境密钥会在数据库还没有模型时作为默认模型加入。以后可通过后台配置其他 OpenAI Chat Completions 兼容模型。
 
-- 官方 CF problemset.problems API，按难度、标签交集、题号或题名筛选，分页、随机选题和排序。
-- 默认隐藏题目标签。排除已完成训练的题，按本机手动记录判断，不代表 CF AC。
-- CF API 不可用时回退到 `lib/cf-snapshot.json` 的真实题库快照，界面显示快照时间。
-- 尝试读取 CF 题面。若被拦截或网络不可用，需要打开原题后手动粘贴完整题面、约束和样例。题面文本的公式格式可能丢失，以 CF 原题为准。
-- 陪练包含思路讨论、三级提示、猜想检验、完整解法和复盘。每次仅发送当前题面、草稿和最近 30 条对话，通过 Chat Completions 调用。
-- AI 回复支持 Markdown、表格、代码和 LaTeX。教练通过推导辅助训练，没有官方题解验证或代码执行能力。
-- 每道题记录思考时间、草稿、对话、提示层级和结果。数据存在当前浏览器 localStorage，每 10 秒保存计时，离开训练或结束时立即保存。可导出 JSON。刷新后计时暂停。
+从 `release/` 运行 `node --env-file=/absolute/path/app.env server.mjs`。服务只监听 127.0.0.1，TLS 由现有 Nginx 提供。
 
-## 验证与构建
+首次管理员初始化使用 `node --env-file=/absolute/path/app.env admin.mjs init-admin`，标准输入为 JSON。支持 username、password，以及用于写入初始密码的 output 文件路径。省略 password 会生成随机密码。初始凭据文件权限为 0600，密码不打印到日志。已有管理员时不能重复初始化。
+
+## 服务器布局与操作
+
+- 应用 `/home/limuy/apps/icpc-trainer/current`，指向版本目录。
+- 数据与环境配置 `/home/limuy/apps/icpc-trainer/shared/`。
+- 用户服务 `icpc-trainer.service`，由 `systemctl --user` 管理，开机常驻依赖用户 Linger。
+- 备份定时器 `icpc-trainer-backup.timer`，每天运行并保留最近 14 份。
+- Nginx 新配置 `/etc/nginx/icpc-trainer.conf`。当前服务器 443 由已有 stream 转到 127.0.0.1:8443，新虚拟主机沿用此结构。
 
 ```bash
-npx tsc --noEmit
-npm run build
+systemctl --user status icpc-trainer
+journalctl --user -u icpc-trainer -n 50
+systemctl --user restart icpc-trainer
+systemctl --user start icpc-trainer-backup.service
 ```
 
-API 输入校验、筛选、排除、随机选题及错误响应可通过本地 `/api/*` 检查。真实 AI 调用依赖运行时加密配置，部署包不内置凭据。
+部署目录中的 `deploy/install-nginx.sh` 需要 sudo。它先备份现有配置，只添加本项目独立 include，先测试再 reload，不改现有虚拟主机或 stream 分流。首次 TLS 证书通过现有 Certbot/ACME 账号申请，DNS 的 icpc 记录须已指向本服务器。证书申请失败时不会启用错误的 TLS 配置。
 
-## 数据与接口
+恢复数据库前，先停止应用和备份任务，将现有数据库及 WAL/SHM 文件保留到单独目录，再放回所选备份。恢复时必须使用匹配的加密主密钥配置。先验证备份后再覆盖运行数据。
 
-- CF API 文档：https://codeforces.com/apiHelp/methods#problemset.problems
-- GLM Coding Plan 文档：https://docs.bigmodel.cn/cn/coding-plan/quick-start
-- GLM 套餐适用说明：https://docs.bigmodel.cn/cn/coding-plan/faq
+## CF 和 AI
 
-`.openai/hosting.json` 保存站点身份，更新时复用。生产构建在 `dist/server/`。
+CF 题库按难度、标签交集、题号和题名筛选，API 不可用时显示快照来源和时间。CF 题面读取受网络限制，失败时需粘贴完整题面、约束和样例。AI 回复支持 Markdown、表格、代码和公式。分级提示、检验猜想、复盘与完整解法均按需调用，不能代替实际判题。
+
+GLM Coding Plan 的套餐适用范围由智谱规定。当前按用户要求使用 Coding 专用端点，不自动切换按量计费服务。
+
+- CF API https://codeforces.com/apiHelp/methods#problemset.problems
+- GLM 套餐 https://docs.bigmodel.cn/cn/coding-plan/faq
+
+原有 `.openai/hosting.json` 保留旧 Sites 项目身份，当前账号版以独立 Node 部署为准，不覆盖旧站点。

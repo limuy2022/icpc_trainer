@@ -13,6 +13,7 @@ export type Session = {
   id: string;
   problem: Problem;
   messages: Message[];
+  messagesVersion?: string;
   statement: string;
   statementMetadata?: StatementMetadata;
   statementFormat?: "markdown";

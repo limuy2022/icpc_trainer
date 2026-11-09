@@ -3335,3 +3335,14 @@ html .message-text .code-block pre,html[data-theme="dark"] .coach-panel .message
 .code-block .hljs-emphasis { font-style:italic; }
 .code-block .hljs-strong { font-weight:700; }
 @media(max-width:700px) { .message-text .code-block figcaption { padding:6px 10px; } .message-text .code-block figcaption button { min-height:36px; } html .message-text .code-block pre { padding:12px; } }
+
+.message-actions { display:flex; gap:14px; margin-top:8px; }
+.message-actions button { display:inline-flex; align-items:center; gap:5px; min-height:30px; font-size:12px; color:var(--muted); border-radius:4px; }
+.message-actions button:hover { color:var(--ink); }
+.message-edit { margin-top:10px; }
+.message-edit textarea { width:100%; min-height:130px; resize:vertical; padding:12px; border:1px solid var(--line); border-radius:7px; background:var(--paper); font:inherit; line-height:1.7; color:var(--ink); }
+.message-edit p { margin:8px 0; color:var(--muted); font-size:12px; line-height:1.7; }
+.message-edit > div { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; }
+.message-edit button { font-size:12px; }
+@media(max-width:700px) { .message-actions button { min-height:40px; padding:4px 6px; } .message-edit textarea { font-size:16px; } .message-edit button { min-height:42px; } }
+.chat-error button { margin-left:10px; text-decoration:underline; min-height:36px; }

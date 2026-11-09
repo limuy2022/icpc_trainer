@@ -89,6 +89,7 @@ export function mergeTraining(
           "startedAt",
           "hints",
           "messages",
+          "messagesVersion",
           "recoveredVersions",
         ].includes(key)
       )
@@ -121,7 +122,19 @@ export function mergeTraining(
       }
       recover({ field: key, value: rv, savedAt: new Date().toISOString() });
     }
-    result.messages = mergeMessages(l.messages || [], r.messages || []);
+    const lv = l.messagesVersion || "", rv = r.messagesVersion || "";
+    if (lv !== rv) {
+      // An edit/recall creates a new branch. Never append stale replies to it.
+      const winner = lv > rv ? l : r, loser = winner === l ? r : l;
+      result.messages = winner.messages;
+      result.messagesVersion = winner.messagesVersion;
+      if (!equal(winner.messages, loser.messages) && loser.messages.length)
+        recover({ field: "messages", value: loser.messages, savedAt: new Date().toISOString() });
+    } else {
+      result.messages = mergeMessages(l.messages || [], r.messages || []);
+      result.messagesVersion = l.messagesVersion || r.messagesVersion;
+      if (!result.messagesVersion) delete result.messagesVersion;
+    }
     result.elapsed = Math.max(l.elapsed || 0, r.elapsed || 0);
     result.hints = Math.max(l.hints || 0, r.hints || 0);
     result.startedAt = null;

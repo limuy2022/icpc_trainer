@@ -157,3 +157,8 @@ Codeforces 题目、题面、插图及公共存档内容的权利归其原作者
 验证：`node server/model-request.test.mjs` 与 `node server/integration.test.mjs`。
 
 Markdown 代码块支持 C/C++、Python、Java、JavaScript/TypeScript、Rust、Go、Shell 和 JSON 语法高亮，随深浅主题切换，并提供语言标签与复制按钮。支持 `cpp17` / `c++17` 等常见 C++ 标记；未标注语言或不支持的语言保持原文，`text` / 样例数据不做语言猜测。长行在代码块内部横向滚动。复制保留缩进与换行，公式分隔符处理不会改写代码块中的字符串。验证：`node server/markdown.test.mjs`。
+
+
+聊天中每条用户消息提供“编辑”“撤回”。编辑保存后从修改处重新生成回复；撤回会将原内容放回输入框。两者都移除当前对话中受影响的后续消息，操作前提示范围，旧对话保存在“历史版本”中以便查看。回复生成期间禁用编辑/撤回；失败可重试回复。编辑保留输入框中原有未发送内容，撤回覆盖未发送内容前会询问。
+
+编辑/撤回创建新的对话分支版本。跨页面同步时，旧分支不会重新追加到新分支；并发修改选择较新分支，另一份内容保存在历史版本。提示暴露等级与已发生的模型调用/Token 用量不回退。当前训练统计中的讨论轮数只统计当前分支。验证：`node server/conversation.test.mjs`、`node server/sync-translation.test.mjs`。

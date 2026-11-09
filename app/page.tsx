@@ -1,5 +1,6 @@
 "use client";
 import StatisticsPanel from "@/components/statistics-panel";
+import { reviseConversation } from "@/lib/conversation";
 import { trainingStats } from "@/lib/training-stats";
 import { splitStatement } from "@/lib/statement-header";
 import { useEffect, useRef, useState } from "react";
@@ -14,6 +15,8 @@ import AdminPanel from "@/components/admin-panel";
 import { useTrainingSync } from "@/hooks/use-training-sync";
 import ProblemStatement from "@/components/problem-statement";
 import {
+  Pencil,
+  Undo2,
   BarChart3,
   Menu,
   ArrowUpRight,
@@ -120,6 +123,8 @@ function Workspace({
   const [settings, setSettings] = useState(false),
     [aiConfigured, setAiConfigured] = useState(false),
     [model, setModel] = useState("GLM-5.3");
+  const [retryMode, setRetryMode] = useState("discuss");
+  const [messageEdit, setMessageEdit] = useState<{ sessionId: string; index: number; original: string; content: string } | null>(null);
   const [draft, setDraft] = useState(""),
     [busy, setBusy] = useState(false),
     [chatError, setChatError] = useState(""),
@@ -325,6 +330,7 @@ function Workspace({
       };
       setSessions((prev) => [next, ...prev]);
     }
+    setMessageEdit(null);
     setCurrent(id!);
     setView("training");
     setDraft("");
@@ -335,6 +341,7 @@ function Workspace({
   }
   function resume(s: Session) {
     pauseAll();
+    setMessageEdit(null);
     setCurrent(s.id);
     setView("training");
     setDraft("");
@@ -408,7 +415,19 @@ function Workspace({
       setTranslating((prev) => (prev === id ? null : prev));
     }
   }
-  async function send(mode = "discuss") {
+  function recallMessage(index: number) {
+    if (!session || busy) return;
+    const message = session.messages[index];
+    if (message?.role !== "user") return;
+    const following = session.messages.length - index - 1;
+    if (!window.confirm(`撤回这条消息${following ? `，并移除后续 ${following} 条消息` : ""}？原内容会放回输入框，旧对话保留在历史版本中。`)) return;
+    if (draft.trim() && draft !== message.content && !window.confirm("输入框中有未发送内容，是否用撤回的消息替换？")) return;
+    const revised = reviseConversation(session,index);
+    patch(session.id, {messages:revised.messages,messagesVersion:revised.messagesVersion,recoveredVersions:revised.recoveredVersions});
+    setDraft(message.content);setMessageEdit(null);setChatError("");
+    setToast("消息已撤回，原内容已放回输入框");
+  }
+  async function send(mode = "discuss", edit?: { index: number; original: string; content: string }, retry = false) {
     if (!session || busy || !loaded) return;
     if (!aiConfigured) {
       setSettings(true);
@@ -435,19 +454,28 @@ function Workspace({
         "请根据我们实际讨论的过程做一次复盘，指出我的卡点和可以迁移的思考方法。",
       solution: "我选择查看完整解法，请解释推导和证明。",
     };
-    const content = draft.trim() || prompts[mode];
+    if (edit && session.messages[edit.index]?.content !== edit.original) {
+      setChatError("这条消息已在另一页面修改，请取消编辑后重新打开。");return;
+    }
+    const content = edit ? edit.content.trim() : retry ? (session.messages.at(-1)?.role === "user" ? session.messages.at(-1)!.content : "") : draft.trim() || prompts[mode];
     if (!content) return;
     const id = session.id;
     const last = session.messages[session.messages.length - 1];
-    const messages: Message[] =
-      last?.role === "user" && last.content === content
+    if (edit && session.messages.length > edit.index + 1 && !window.confirm("修改后会移除这条消息之后的回复和讨论，并重新生成回答。旧对话将保留在历史版本中，是否继续？")) return;
+    const revised = edit ? reviseConversation(session,edit.index,content) : undefined;
+    const messagesVersion = revised?.messagesVersion || session.messagesVersion;
+    const messages: Message[] = revised
+      ? revised.messages
+      : last?.role === "user" && last.content === content
         ? session.messages
         : [...session.messages, { role: "user", content }];
     setBusy(true);
     setChatError("");
-    setDraft("");
+    if (!edit && (!retry || draft.trim() === content)) setDraft("");
+    setMessageEdit(null);
     patch(id, {
       messages,
+      ...(revised ? {messagesVersion, recoveredVersions: revised.recoveredVersions} : {}),
       ...(mode.startsWith("hint")
         ? { hints: Math.max(session.hints, Number(mode.slice(-1))) }
         : {}),
@@ -467,10 +495,14 @@ function Workspace({
         }),
       });
       const data = (await res.json()) as { error?: string; text: string };
-      if (!res.ok) throw Error(data.error);
+      if (!res.ok) throw Error(data.error || "回复生成失败，请重试");
+      const latest = sessionsRef.current.find(s => s.id === id);
+      if (!latest || latest.messagesVersion !== messagesVersion || JSON.stringify(latest.messages) !== JSON.stringify(messages)) {
+        setToast("对话已在另一页面变化，本次回复未写入旧分支。请在当前对话重试。");return;
+      }
       setSessions((prev) =>
         prev.map((s) =>
-          s.id === id
+          s.id === id && s.messagesVersion === messagesVersion && JSON.stringify(s.messages) === JSON.stringify(messages)
             ? {
                 ...s,
                 messages: [
@@ -483,7 +515,8 @@ function Workspace({
       );
     } catch (e) {
       setChatError((e as Error).message);
-      setDraft(content);
+      setRetryMode(mode);
+      if (!edit && !retry) setDraft(content);
     } finally {
       setBusy(false);
     }
@@ -1400,8 +1433,7 @@ function Workspace({
                 {Boolean(session.recoveredVersions?.length) && (
                   <details className="recovered-versions">
                     <summary>
-                      查看自动合并时保留的 {session.recoveredVersions!.length}{" "}
-                      个版本
+                      查看保留的历史版本（{session.recoveredVersions!.length} 个）
                     </summary>
                     {session.recoveredVersions!.map((v, i) => (
                       <details key={i}>
@@ -1412,6 +1444,7 @@ function Workspace({
                               statement: "题面",
                               takeaway: "复盘",
                               outcome: "训练结果",
+                              messages: "对话历史",
                             } as Record<string, string>
                           )[v.field] || v.field}{" "}
                           · {new Date(v.savedAt).toLocaleString("zh-CN")}
@@ -1485,7 +1518,17 @@ function Workspace({
                           ? "你 · 正在思考"
                           : "AI · 陪你推一步"}
                       </div>
-                      <Text text={m.content} />
+                      {messageEdit?.sessionId === session.id && messageEdit.index === i ? (
+                        <div className="message-edit">
+                          <textarea autoFocus aria-label="编辑已发送消息" value={messageEdit.content} disabled={busy} onChange={e=>setMessageEdit({...messageEdit,content:e.target.value})}/>
+                          <p>保存后将从这里重新生成回复，后续对话会移入历史版本。</p>
+                          <div><button className="secondary" disabled={busy} onClick={()=>setMessageEdit(null)}>取消</button><button className="primary" disabled={busy || !messageEdit.content.trim() || messageEdit.content.trim()===messageEdit.original} onClick={()=>void send("discuss",messageEdit)}>保存并重新生成</button></div>
+                        </div>
+                      ) : <Text text={m.content} />}
+                      {m.role === "user" && !(messageEdit?.sessionId === session.id && messageEdit.index === i) && <div className="message-actions">
+                        <button disabled={busy} aria-label={`编辑第 ${i+1} 条消息`} onClick={()=>setMessageEdit({sessionId:session.id,index:i,original:m.content,content:m.content})}><Pencil size={13}/>编辑</button>
+                        <button disabled={busy} aria-label={`撤回第 ${i+1} 条消息`} onClick={()=>recallMessage(i)}><Undo2 size={13}/>撤回</button>
+                      </div>}
                     </div>
                   ))}
                   {busy && (
@@ -1496,7 +1539,7 @@ function Workspace({
                   )}
                   <div ref={chatEnd} />
                 </div>
-                {chatError && <div className="chat-error">{chatError}</div>}
+                {chatError && <div className="chat-error" role="alert">{chatError}{session.messages.at(-1)?.role === "user" && <button disabled={busy} onClick={()=>void send(retryMode,undefined,true)}>重试回复</button>}</div>}
                 <div className="coach-controls">
                   <div className="hint-buttons">
                     {[1, 2, 3].map((level) => (

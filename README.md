@@ -78,9 +78,19 @@ GLM_MODEL=GLM-5.3
 
 首次管理员初始化使用 `node --env-file=/absolute/path/app.env admin.mjs init-admin`，标准输入为 JSON。支持 username、password，以及用于写入初始密码的 output 文件路径。省略 password 会生成随机密码。初始凭据文件权限为 0600，密码不打印到日志。已有管理员时不能重复初始化。
 
+## 更新应用（单份程序）
+
+从 Git 检出需要部署的提交后，在本地运行：
+
+```bash
+bash deploy/update.sh limuy.top
+```
+
+脚本构建并上传临时包、在临时目录解包验证，先备份数据库，再短暂停止服务、替换 `current/` 并启动检查。成功后不保留旧代码版本，临时包和解包目录会清理。服务器没有 `releases/` 目录。失败时可从 Git 重新构建所需提交再部署；数据库和模型加密主密钥仍需通过独立备份保护，Git 不包含这些数据。
+
 ## 服务器布局与操作
 
-- 应用 `/home/limuy/apps/icpc-trainer/current`，指向版本目录。
+- 应用 `/home/limuy/apps/icpc-trainer/current/` 为普通目录，只保留当前构建，不使用版本目录或软链接。
 - 数据与环境配置 `/home/limuy/apps/icpc-trainer/shared/`。
 - 用户服务 `icpc-trainer.service`，由 `systemctl --user` 管理，开机常驻依赖用户 Linger。
 - 备份定时器 `icpc-trainer-backup.timer`，每天运行并保留最近 14 份。

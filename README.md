@@ -155,3 +155,5 @@ Codeforces 题目、题面、插图及公共存档内容的权利归其原作者
 - 模型名称随请求保存，删除模型配置后仍能查看后续日志中的历史模型名称；不保存模型密钥到用量表。
 
 验证：`node server/model-request.test.mjs` 与 `node server/integration.test.mjs`。
+
+Markdown 代码块支持 C/C++、Python、Java、JavaScript/TypeScript、Rust、Go、Shell 和 JSON 语法高亮，随深浅主题切换，并提供语言标签与复制按钮。支持 `cpp17` / `c++17` 等常见 C++ 标记；未标注语言或不支持的语言保持原文，`text` / 样例数据不做语言猜测。长行在代码块内部横向滚动。复制保留缩进与换行，公式分隔符处理不会改写代码块中的字符串。验证：`node server/markdown.test.mjs`。

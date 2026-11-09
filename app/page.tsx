@@ -3,7 +3,7 @@ import StatisticsPanel from "@/components/statistics-panel";
 import { trainingStats } from "@/lib/training-stats";
 import { splitStatement } from "@/lib/statement-header";
 import { useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import Text from "@/components/markdown-text";
 import DifficultyBadge, { DifficultyGuide } from "@/components/difficulty-badge";
 import ThemeSwitch from "@/components/theme-switch";
 import AccountGate, {
@@ -13,9 +13,6 @@ import AccountGate, {
 import AdminPanel from "@/components/admin-panel";
 import { useTrainingSync } from "@/hooks/use-training-sync";
 import ProblemStatement from "@/components/problem-statement";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
 import {
   BarChart3,
   Menu,
@@ -73,38 +70,6 @@ const outcomes = {
 };
 const fmt = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-function Text({ text }: { text: string }) {
-  const normalized = text
-    .replace(/\\\[/g, "\n$$\n")
-    .replace(/\\\]/g, "\n$$\n")
-    .replace(/\\\(/g, "$")
-    .replace(/\\\)/g, "$");
-  return (
-    <div className="message-text">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
-        components={{
-          img: ({ src, alt }) => (
-            <img
-              src={src}
-              alt={alt || "题目插图"}
-              loading="lazy"
-              referrerPolicy="no-referrer"
-            />
-          ),
-          a: ({ children, href }) => (
-            <a href={href} target="_blank" rel="noreferrer">
-              {children}
-            </a>
-          ),
-        }}
-      >
-        {normalized}
-      </ReactMarkdown>
-    </div>
-  );
-}
 export default function Home() {
   return (
     <>

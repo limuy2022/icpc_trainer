@@ -3253,3 +3253,38 @@ html[data-theme="dark"] .luogu-black { --difficulty-color:#e0e0e0; }
   .history-groups { gap:26px; }
   .history-page .history-list .row-start { margin-left:auto; min-height:44px; }
 }
+
+@media(max-width:700px) {
+  /* Keep appearance settings inside navigation instead of adding a header row. */
+  .sidebar .theme-switch { position:static; width:100%; margin:10px 0 14px; padding:8px 12px; box-shadow:none; }
+  .sidebar .theme-switch select { max-width:none; flex:1; min-width:0; min-height:30px; font-size:14px; }
+  .auth-card .theme-switch { position:static; margin:0 0 20px auto; box-shadow:none; }
+  .topbar { height:54px; }
+  .main-content { padding-top:14px; }
+  .hero { padding:18px; border-radius:12px; }
+  .hero .eyebrow { font-size:10px; letter-spacing:0; }
+  .hero h1 { font-size:clamp(23px,6vw,27px); line-height:1.4; letter-spacing:0; margin:12px 0 10px; }
+  .hero p { font-size:12px; line-height:1.75; margin-bottom:14px; }
+  .hero .desktop-break { display:none; }
+  .hero .primary { min-height:44px; padding:10px 14px; font-size:13px; }
+  .hero-caption { margin-top:8px; font-size:11px; }
+  .stats-grid { margin-top:14px; padding:0; grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .stats-grid > div { min-width:0; padding:12px 10px; gap:8px; }
+  .stats-grid > div > div { min-width:0; }
+  .stats-grid .stat-icon { width:27px; height:27px; border-radius:7px; }
+  .stats-grid .stat-icon svg { width:17px; height:17px; }
+  .stats-grid > div > div > span { font-size:11px; }
+  .stats-grid strong { font-size:21px; margin-top:3px; line-height:1.35; letter-spacing:0; }
+  .stats-grid strong small { margin-left:4px; font-size:10px; }
+  .stats-grid .rating-stat { font-size:clamp(14px,4vw,18px); letter-spacing:-.4px; }
+  .stats-grid .rating-stat span { margin:0 2px; font-size:12px; }
+  .section-title { margin:22px 0 14px; gap:12px; flex-wrap:wrap; }
+  .section-title h2 { font-size:17px; }
+  .section-title p { font-size:12px; line-height:1.7; }
+  .bank-indicator { font-size:10px; }
+}
+@media(max-width:360px) {
+  .stats-grid .stat-icon { display:none; }
+  .stats-grid > div { padding:12px; }
+  .hero { padding:16px; }
+}

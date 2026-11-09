@@ -105,7 +105,6 @@ function Text({ text }: { text: string }) {
 export default function Home() {
   return (
     <>
-      <ThemeSwitch />
       <AccountGate>
         {(user, logout) => (
           <Workspace key={user.id} user={user} logout={logout} />
@@ -613,6 +612,7 @@ function Workspace({
           <div className="note-line" />
         </div>
         <div className="sidebar-bottom">
+          <ThemeSwitch />
           {user.role === "admin" && (
             <button
               className={view === "admin" ? "nav-item active" : "nav-item"}

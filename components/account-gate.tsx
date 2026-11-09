@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import ThemeSwitch from "./theme-switch";
 import { ArrowRight, Code2, LoaderCircle, LogOut } from "lucide-react";
 export type Account = {
   id: string;
@@ -143,6 +144,7 @@ export default function AccountGate({
   return (
     <main className="auth-shell">
       <div className="auth-card">
+        <ThemeSwitch />
         <div className="auth-brand">
           <span className="brand-icon">
             <Code2 size={25} />

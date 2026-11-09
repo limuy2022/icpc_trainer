@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import DifficultyBadge, { DifficultyGuide } from "@/components/difficulty-badge";
 import ThemeSwitch from "@/components/theme-switch";
 import AccountGate, {
   PasswordForm,
@@ -1020,6 +1021,7 @@ function Workspace({
                 随机挑一题
               </button>
             </div>
+            <DifficultyGuide />
             <div className="problem-table">
               <div className="table-head">
                 <span>题目 / PROBLEM</span>
@@ -1072,6 +1074,7 @@ function Workspace({
                           {p.name}
                           <ArrowUpRight size={13} />
                         </a>
+                        <DifficultyBadge rating={p.rating} />
                         <div className="problem-tags">
                           {hideTags ? (
                             <span>
@@ -1184,6 +1187,7 @@ function Workspace({
                     <span />
                     {session.problem.rating}
                   </span>
+                  <DifficultyBadge rating={session.problem.rating} />
                   <a
                     href={problemUrl(session.problem)}
                     target="_blank"
@@ -1636,7 +1640,8 @@ function Workspace({
                         month: "short",
                         day: "numeric",
                       })}
-                      <span>{s.problem.rating} RATING</span>
+                      <span>CF {s.problem.rating}</span>
+                      <DifficultyBadge rating={s.problem.rating} />
                     </div>
                     <div className="history-main">
                       <h3>

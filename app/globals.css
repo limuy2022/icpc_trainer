@@ -3180,3 +3180,37 @@ html[data-theme="dark"] .theme-switch {
   .coach-intro > div { flex-wrap:wrap; }
   .intro-symbol { margin:0 auto 12px; }
 }
+
+.luogu-difficulty { --difficulty-color:#666; display:inline-flex; align-items:center; gap:5px; width:fit-content; max-width:100%; color:var(--difficulty-color); font-size:11px; font-weight:600; line-height:1.6; padding:3px 7px; border:1px solid color-mix(in srgb,var(--difficulty-color) 30%,transparent); background:color-mix(in srgb,var(--difficulty-color) 8%,var(--paper)); border-radius:5px; vertical-align:middle; }
+.luogu-difficulty small { font-size:10px; font-weight:400; opacity:.8; }
+.difficulty-dot { width:6px; height:6px; background:var(--difficulty-color); border-radius:50%; flex-shrink:0; }
+.luogu-red { --difficulty-color:#c83b3b; }
+.luogu-orange { --difficulty-color:#b8620a; }
+.luogu-yellow { --difficulty-color:#947000; }
+.luogu-green { --difficulty-color:#278144; }
+.luogu-cyan { --difficulty-color:#087f88; }
+.luogu-blue { --difficulty-color:#2563c3; }
+.luogu-purple { --difficulty-color:#8545ba; }
+.luogu-black { --difficulty-color:#343434; }
+html[data-theme="dark"] .luogu-red { --difficulty-color:#ff9292; }
+html[data-theme="dark"] .luogu-orange { --difficulty-color:#ffb668; }
+html[data-theme="dark"] .luogu-yellow { --difficulty-color:#efd367; }
+html[data-theme="dark"] .luogu-green { --difficulty-color:#80d89a; }
+html[data-theme="dark"] .luogu-cyan { --difficulty-color:#6ad8e2; }
+html[data-theme="dark"] .luogu-blue { --difficulty-color:#8cb9ff; }
+html[data-theme="dark"] .luogu-purple { --difficulty-color:#d1a2f8; }
+html[data-theme="dark"] .luogu-black { --difficulty-color:#e0e0e0; }
+.problem-name .luogu-difficulty { margin-top:7px; }
+.history-date > .luogu-difficulty { margin-top:6px; }
+.difficulty-guide { margin:16px 0; padding:13px 16px; border:1px solid var(--line); border-radius:8px; background:var(--paper); font-size:13px; line-height:1.8; }
+.difficulty-guide summary { cursor:pointer; min-height:24px; }
+.difficulty-guide p { color:var(--ink); opacity:.85; margin:12px 0; }
+.difficulty-guide a { text-decoration:underline; }
+.difficulty-legend { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.difficulty-legend > div { display:flex; flex-direction:column; align-items:flex-start; gap:5px; }
+.difficulty-legend > div > span:last-child { font-size:12px; }
+@media(max-width:700px) {
+  .difficulty-legend { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .luogu-difficulty { font-size:12px; }
+  .history-date { flex-wrap:wrap; gap:8px; }
+}

@@ -1,3 +1,4 @@
+import type { StatementMetadata } from "./statement-header";
 import { parse, type DefaultTreeAdapterMap } from "parse5";
 type Node = DefaultTreeAdapterMap["node"];
 function children(node: Node): Node[] {
@@ -47,6 +48,7 @@ function tex(node: Node): string {
 function markdown(node: Node): string {
   if (node.nodeName === "#text") return plain(node).replace(/[\t\r\n ]+/g, " ");
   const name = node.nodeName;
+  if (hasClass(node, "header")) return "";
   if (hasClass(node, "tex-span")) return "$" + tex(node) + "$";
   if (name === "script") {
     return attr(node, "type").startsWith("math/tex")
@@ -108,13 +110,24 @@ export function parseStatement(html: string) {
     .trim();
   if (result.length < 100 || result.length > 150000)
     throw Error("Invalid statement length");
+  const header = find(root, n => hasClass(n, "header"));
+  const fields = [["time-limit", "时间限制"], ["memory-limit", "内存限制"], ["input-file", "输入方式"], ["output-file", "输出方式"]];
+  const details = fields.flatMap(([className, label]) => {
+    const node = header && find(header, n => hasClass(n, className));
+    if (!node) return [];
+    // CF's property-title is a nested label; the remaining text is its value.
+    const value = children(node).filter(n => !hasClass(n, "property-title")).map(plain).join("").trim();
+    return value ? [{ label, value }] : [];
+  });
   return {
+    metadata: { title: plain(title).trim(), details },
     text: result,
     title: plain(title).trim(),
     format: "markdown" as const,
   };
 }
 export type Statement = {
+  metadata?: StatementMetadata;
   text: string;
   title: string;
   format: "markdown";

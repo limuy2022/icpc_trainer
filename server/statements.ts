@@ -1,3 +1,4 @@
+import { splitStatement } from "../lib/statement-header";
 import { db } from "./database";
 import { fetchStatement, type Statement } from "../lib/statements";
 const pending = new Map<string, Promise<Statement>>();
@@ -13,9 +14,13 @@ export async function statement(request: Request) {
       "SELECT payload,fetched_at FROM statement_cache WHERE problem_id=?",
     )
     .get(id) as { payload: string; fetched_at: string } | undefined;
-  const cached: Statement | undefined = row
-    ? JSON.parse(row.payload)
-    : undefined;
+  let cached: Statement | undefined;
+  if (row) {
+    const previous = JSON.parse(row.payload) as Statement;
+    cached = { ...previous, ...splitStatement(previous.text, previous.metadata) };
+    if (JSON.stringify(cached) !== row.payload)
+      db.prepare("UPDATE statement_cache SET payload=? WHERE problem_id=?").run(JSON.stringify(cached), id);
+  }
   if (cached && Date.now() - Date.parse(row!.fetched_at) < 7 * 86400000)
     return Response.json({ ...cached, cached: true });
   let work = pending.get(id);

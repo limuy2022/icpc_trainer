@@ -137,3 +137,8 @@ Codeforces 题目、题面、插图及公共存档内容的权利归其原作者
 | 3100+ | NOI/NOI+/CTS（黑） |
 
 参考 [洛谷难度体系](https://help.luogu.com.cn/manual/luogu/problem/difficulty) 与 [社区难度对照表](https://www.luogu.com/article/my22kz4j)，核验于 2026-11-09。社区参考范围存在重叠，本站按表中分界统一归类；不同题目的思维和实现难度可能偏离估算。规则集中在 `lib/difficulty.ts`，可运行 `node server/difficulty.test.mjs` 验证边界。
+
+
+题面读取时会把标题、时间限制、内存限制和输入输出文件方式从 HTML 头部提取为独立 `metadata`，训练记录保存在 `statementMetadata`；`text` / `statement` 只存正文。中英文界面共用这份信息栏，不让模型翻译限制字段。翻译和陪练接口在服务端再次拆分旧格式，发给模型的题面只包含正文；数据范围、输入输出格式说明及样例仍保留。翻译缓存使用新的正文版本键。首次启动新版时，在事务内迁移旧训练记录和题面缓存，保留草稿和对话并更新记录版本；迁移前请保留数据库备份。
+
+相关回归检查：`node server/metadata-ai.test.mjs`、`node server/metadata-migration.test.mjs`。

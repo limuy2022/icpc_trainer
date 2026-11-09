@@ -1,3 +1,4 @@
+import type { StatementMetadata } from "./statement-header";
 export type Problem = {
   id: string;
   contestId: number;
@@ -13,6 +14,7 @@ export type Session = {
   problem: Problem;
   messages: Message[];
   statement: string;
+  statementMetadata?: StatementMetadata;
   statementFormat?: "markdown";
   statementSource?: { name: string; url: string; official: boolean };
   statementFetchedAt?: string;

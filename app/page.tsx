@@ -1,3 +1,4 @@
+import { splitStatement } from "@/lib/statement-header";
 "use client";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
@@ -301,6 +302,7 @@ function Workspace({
       const d = (await r.json()) as {
         error?: string;
         text: string;
+        metadata?: Session["statementMetadata"];
         format?: "markdown";
         source?: Session["statementSource"];
         fetchedAt?: string;
@@ -312,6 +314,7 @@ function Workspace({
             ? {
                 ...s,
                 statement: d.text || "",
+                statementMetadata: d.metadata,
                 statementFormat: d.format,
                 statementSource: d.source,
                 statementFetchedAt: d.fetchedAt,
@@ -416,7 +419,7 @@ function Workspace({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: original,
+          text: splitStatement(original).text,
           problemId: session.problem.id,
           modelId,
         }),
@@ -487,7 +490,7 @@ function Workspace({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          statement: session.statement,
+          statement: splitStatement(session.statement).text,
           problem: `${session.problem.id} ${session.problem.name}`,
           notes: session.notes,
           modelId,
@@ -1341,6 +1344,7 @@ function Workspace({
                           )}
                           <ProblemStatement
                             text={session.statement}
+                            metadata={splitStatement(session.statement, session.statementMetadata).metadata}
                             render={(body) => session.statementFormat === "markdown" ? <Text text={body} /> : body}
                           />
                         </section>
@@ -1356,7 +1360,7 @@ function Workspace({
                                 AI 译文 · {translation.model} ·
                                 公式与样例保持原样
                               </div>
-                              <ProblemStatement text={translation.text} render={(body) => <Text text={body} />} />
+                              <ProblemStatement metadata={splitStatement(session.statement, session.statementMetadata).metadata} text={translation.text} render={(body) => <Text text={body} />} />
                             </>
                           ) : (
                             <div className="translation-empty">

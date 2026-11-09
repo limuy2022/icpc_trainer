@@ -1,3 +1,4 @@
+import { normalizeSessionStatement } from "./statement-header";
 import type { Session, Message } from "./types";
 export type RecoveredVersion = {
   field: string;
@@ -11,7 +12,7 @@ export function snapshotTraining(
   now = Date.now(),
 ): Session[] {
   return sessions.map((s) => ({
-    ...s,
+    ...normalizeSessionStatement(s),
     elapsed:
       s.elapsed +
       (s.startedAt ? Math.max(0, Math.floor((now - s.startedAt) / 1000)) : 0),

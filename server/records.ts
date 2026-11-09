@@ -1,3 +1,4 @@
+import { normalizeSessionStatement } from "../lib/statement-header";
 import { db } from "./database";
 import { checkOrigin, fail, requireUser } from "./security";
 export async function records(request: Request) {
@@ -7,7 +8,7 @@ export async function records(request: Request) {
       .prepare("SELECT payload,revision FROM training_data WHERE user_id=?")
       .get(user.id) as any;
     return Response.json({
-      sessions: row ? JSON.parse(row.payload) : [],
+      sessions: row ? JSON.parse(row.payload).map(normalizeSessionStatement) : [],
       revision: row?.revision || 0,
     });
   }
@@ -29,7 +30,7 @@ export async function records(request: Request) {
     )
       fail(400, "训练记录缺少必要字段");
   }
-  const payload = JSON.stringify(body.sessions);
+  const payload = JSON.stringify(body.sessions.map(normalizeSessionStatement));
   if (Buffer.byteLength(payload) > 10 * 1024 * 1024)
     fail(413, "记录过大，请导出归档后再保存");
   db.prepare(
@@ -53,7 +54,7 @@ export async function records(request: Request) {
     return Response.json(
       {
         error: "记录已更新，正在自动合并",
-        sessions: JSON.parse(current.payload),
+        sessions: JSON.parse(current.payload).map(normalizeSessionStatement),
         revision: current.revision,
       },
       { status: 409 },

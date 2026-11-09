@@ -1,3 +1,4 @@
+import { splitStatement } from "../lib/statement-header";
 import { db } from "./database";
 import { modelKey, selectModel, validateEndpoint } from "./models";
 import { requireUser } from "./security";
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
       model = selected.model;
     if (!Array.isArray(body.messages))
       return Response.json({ error: "对话格式无效" }, { status: 400 });
-    const statement = String(body.statement || "").slice(0, 26000);
+    const statement = splitStatement(String(body.statement || "")).text.slice(0, 26000);
     if (statement.length < 60)
       return Response.json(
         { error: "请先补充完整题面和约束。仅凭题名无法可靠陪练。" },

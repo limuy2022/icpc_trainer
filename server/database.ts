@@ -1,3 +1,4 @@
+import { normalizeSessionStatement, splitStatement } from "../lib/statement-header";
 import { DatabaseSync } from "node:sqlite";
 import { chmodSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -36,4 +37,22 @@ export function transaction<T>(fn: () => T): T {
     db.exec("ROLLBACK");
     throw e;
   }
+}
+
+
+// Upgrade legacy JSON payloads atomically; bump revisions so stale browser tabs merge.
+const metadataMigration = "statement-metadata-v1";
+if (!db.prepare("SELECT name FROM schema_migrations WHERE name=?").get(metadataMigration)) {
+  transaction(() => {
+    for (const row of db.prepare("SELECT user_id,payload FROM training_data").all() as { user_id: string; payload: string }[]) {
+      const payload = JSON.stringify(JSON.parse(row.payload).map(normalizeSessionStatement));
+      if (payload !== row.payload) db.prepare("UPDATE training_data SET payload=?,revision=revision+1 WHERE user_id=?").run(payload, row.user_id);
+    }
+    for (const row of db.prepare("SELECT problem_id,payload FROM statement_cache").all() as { problem_id: string; payload: string }[]) {
+      const previous = JSON.parse(row.payload);
+      const payload = JSON.stringify({ ...previous, ...splitStatement(previous.text, previous.metadata) });
+      if (payload !== row.payload) db.prepare("UPDATE statement_cache SET payload=? WHERE problem_id=?").run(payload, row.problem_id);
+    }
+    db.prepare("INSERT INTO schema_migrations(name) VALUES(?)").run(metadataMigration);
+  });
 }

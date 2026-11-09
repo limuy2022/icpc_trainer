@@ -1,3 +1,5 @@
+import { selectedReasoning } from "./model-preferences";
+import { reasoningParameters } from "../lib/reasoning";
 import { splitStatement } from "../lib/statement-header";
 import { requestModel } from "./model-request";
 import { modelKey, selectModel, validateEndpoint } from "./models";
@@ -29,6 +31,8 @@ export async function POST(request: Request) {
     const body = (await request.json()) as any;
     const user = requireUser(request);
     const selected = selectModel(body.modelId);
+    const effort=selectedReasoning(user.id,selected,body.reasoningEffort);
+    const reasoning=reasoningParameters(selected,effort);
     await validateEndpoint(selected.base_url);
     const key = modelKey(selected),
       model = selected.model;
@@ -94,10 +98,8 @@ export async function POST(request: Request) {
             },
             ...messages,
           ],
-          max_tokens: 4096,
-          ...(selected.provider === "glm"
-            ? { thinking: { type: "disabled" } }
-            : {}),
+          max_tokens: "reasoning_effort" in reasoning || ("thinking" in reasoning && reasoning.thinking.type === "enabled") ? 16384 : 4096,
+          ...reasoning,
         }),
         signal: AbortSignal.timeout(90000),
       },

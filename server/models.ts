@@ -1,3 +1,4 @@
+import { reasoningOptions } from "../lib/reasoning";
 import { randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
@@ -90,9 +91,9 @@ export async function validateEndpoint(value: string) {
 export function availableModels() {
   return db
     .prepare(
-      "SELECT id,label,model,is_default FROM models WHERE enabled=1 ORDER BY is_default DESC,created_at",
+      "SELECT id,label,model,provider,is_default FROM models WHERE enabled=1 ORDER BY is_default DESC,created_at",
     )
-    .all();
+    .all().map(row=>({...row,reasoningOptions:reasoningOptions(row as {model:string;provider:string})}));
 }
 export function selectModel(id?: string) {
   const model = (

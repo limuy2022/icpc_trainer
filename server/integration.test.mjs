@@ -42,6 +42,14 @@ try{
  for(const rating of [-1,5001,1600.5,'1600'])assert.equal((await call('/api/profile',{cookie:admin,method:'PATCH',body:{cfRating:rating}})).status,400);
  preference=await call('/api/profile',{cookie:admin,method:'PATCH',body:{cfRating:null}});assert.deepEqual(preference.data.range,{min:1400,max:1800});
  await call('/api/profile',{cookie:admin,method:'PATCH',body:{cfRating:1600}});
+ const modelConfig=(await call('/api/config',{cookie:admin})).data;
+ const chosenModel=modelConfig.models[0];assert.deepEqual(chosenModel.reasoningOptions.map(v=>v.value),['default','low','high','max']);
+ let modelPreference=await call('/api/model-preferences',{cookie:admin,method:'PATCH',body:{modelId:chosenModel.id,reasoningEffort:'high'}});assert.equal(modelPreference.status,200);assert.equal(modelPreference.data.preferences.efforts[chosenModel.id],'high');
+ assert.equal((await call('/api/config',{cookie:admin})).data.preferences.selectedModelId,chosenModel.id);
+ assert.equal((await call('/api/config',{cookie:admin})).data.preferences.efforts[chosenModel.id],'high');assert.equal((await call('/api/config',{cookie:member})).data.preferences.selectedModelId,undefined);
+ for(const level of ['off','medium','unsupported'])assert.equal((await call('/api/model-preferences',{cookie:admin,method:'PATCH',body:{modelId:chosenModel.id,reasoningEffort:level}})).status,400);
+ assert.equal((await call('/api/model-preferences',{cookie:admin,method:'PATCH',origin:'https://evil.example',body:{modelId:chosenModel.id,reasoningEffort:'low'}})).status,403);
+ await call('/api/model-preferences',{cookie:admin,method:'PATCH',body:{modelId:chosenModel.id,reasoningEffort:'default'}});
  const seedDb=new DatabaseSync(env.DATABASE_PATH);
  assert.equal(seedDb.prepare("SELECT cf_rating FROM users WHERE username='admin'").get().cf_rating,1600);
  const adminId=seedDb.prepare("SELECT id FROM users WHERE username='admin'").get().id;
@@ -53,9 +61,12 @@ try{
  insertUsage.run(adminId,'old-model',0,0,0,0,0,'coach','fixture-model',new Date().toISOString());
  const cacheText='Given a sequence of integers, find the maximum sum. The input contains n and n integer values. Print the answer.';
  const cachedModel=seedDb.prepare('SELECT * FROM models WHERE is_default=1').get();
- const cacheKey=createHash('sha256').update(JSON.stringify(['body-only-v2',cacheText,cachedModel.id,cachedModel.model,cachedModel.base_url])).digest('hex');
+ const cacheKey=createHash('sha256').update(JSON.stringify(['body-only-v3',cacheText,cachedModel.id,cachedModel.model,cachedModel.base_url,'default'])).digest('hex');
  seedDb.prepare('INSERT INTO statement_translations(cache_key,problem_id,model_id,translation,created_at) VALUES(?,?,?,?,?)').run(cacheKey,'1A',cachedModel.id,'缓存的译文，不应再次调用模型。',new Date().toISOString());
+ const highCacheKey=createHash('sha256').update(JSON.stringify(['body-only-v3',cacheText,cachedModel.id,cachedModel.model,cachedModel.base_url,'high'])).digest('hex');
+ seedDb.prepare('INSERT INTO statement_translations(cache_key,problem_id,model_id,translation,created_at) VALUES(?,?,?,?,?)').run(highCacheKey,'1A',cachedModel.id,'高推理等级对应的独立缓存。',new Date().toISOString());
  seedDb.close();
+ const highCached=await call('/api/translate',{cookie:admin,body:{text:cacheText,problemId:'1A',reasoningEffort:'high'}});assert.equal(highCached.status,200);assert.equal(highCached.data.text,'高推理等级对应的独立缓存。');
  for(let i=0;i<2;i++){const cached=await call('/api/translate',{cookie:admin,body:{text:cacheText,problemId:'1A'}});assert.equal(cached.status,200);assert.equal(cached.data.cached,true);}
  const stats=(await call('/api/stats',{cookie:admin})).data;
  assert.equal(stats.totals.completedProblems,1);assert.equal(stats.totals.completedSessions,2);assert.equal(stats.totals.independentProblems,1);assert.equal(stats.totals.pendingSessions,1);assert.equal(stats.totals.thinkingSeconds,210);assert.equal(stats.totals.discussionRounds,1);

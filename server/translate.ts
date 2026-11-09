@@ -1,3 +1,5 @@
+import { selectedReasoning } from "./model-preferences";
+import { reasoningParameters } from "../lib/reasoning";
 import { splitStatement } from "../lib/statement-header";
 import { requestModel } from "./model-request";
 import { createHash } from "node:crypto";
@@ -21,8 +23,10 @@ export async function translate(request: Request) {
   )
     fail(400, "题面格式无效，或长度超过当前翻译上限");
   const model = selectModel(body.modelId);
+  const effort=selectedReasoning(user.id,model,body.reasoningEffort);
+  const reasoning=reasoningParameters(model,effort);
   const hash = createHash("sha256")
-    .update(JSON.stringify(["body-only-v2", text, model.id, model.model, model.base_url]))
+    .update(JSON.stringify(["body-only-v3", text, model.id, model.model, model.base_url, effort]))
     .digest("hex");
   const cached = db
     .prepare(
@@ -61,10 +65,8 @@ export async function translate(request: Request) {
               },
               { role: "user", content: masked },
             ],
-            max_tokens: 12000,
-            ...(model.provider === "glm"
-              ? { thinking: { type: "disabled" } }
-              : {}),
+            max_tokens: "reasoning_effort" in reasoning || ("thinking" in reasoning && reasoning.thinking.type === "enabled") ? 24576 : 12000,
+            ...reasoning,
           }),
           signal: AbortSignal.timeout(90000),
         },

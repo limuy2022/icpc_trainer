@@ -178,3 +178,7 @@ Markdown 代码块支持 C/C++、Python、Java、JavaScript/TypeScript、Rust、
 “训练统计”新增同难度用时曲线：选择精确 CF 题目评分与独立/提示后解出方式，查看单题用时、近 5 题滚动中位数和记录明细。默认排除同题重做，只取该题首次有效解出记录；可手动包含重做。未完成、待重练、非正用时、无有效日期的记录不进入图表。累计至少 6 条符合筛选的记录时，使用最近 N 题与此前 N 题中位数比较（N=min(5, floor(样本数/2))），少量样本不生成变化百分比。
 
 新完成训练保存 `completedAt`；旧记录没有完成日期时使用 `createdAt` 并标明。图表使用训练计时器的累计时长（含讨论），不是 CF 提交耗时；曲线仅反映已解出样本，不能单独作为能力结论。图表按需加载，不增加题库首屏的图表代码开销。验证：`node server/time-trend.test.mjs`、`node server/integration.test.mjs`。
+
+模型选择窗口支持推理等级，按账号、模型分别保存到 `users.model_preferences`，刷新或换设备后恢复。GLM-5.3 提供默认/轻度 low/增强 high/深度 max，始终发送 `thinking.type=enabled`；GLM-5.2 提供默认/关闭/增强/深度；较早 GLM 提供默认/开关。其他兼容模型提供默认/low/medium/high，非默认等级要求该接口支持 `reasoning_effort`。默认档对通用兼容接口不附加推理参数。依据：[智谱深度思考文档](https://docs.bigmodel.cn/cn/guide/capabilities/thinking)，核验于 2026-11-09。
+
+陪练与翻译都使用所选推理等级，翻译缓存也按等级隔离。显式开启推理时增大输出上限以留出推理空间，实际用量按接口返回记录；高等级可能增加耗时和 Token。应用仅显示最终回答，不把模型内部推理内容拼入聊天。验证：`node server/reasoning.test.mjs`、`node server/metadata-ai.test.mjs`、`node server/integration.test.mjs`。

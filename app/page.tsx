@@ -1,4 +1,5 @@
 "use client";
+import { reasoningLabels, type ReasoningLevel } from "@/lib/reasoning";
 import RatingForm from "@/components/rating-form";
 import { ratingRange, difficultyOptions } from "@/lib/rating-range";
 import StatisticsPanel from "@/components/statistics-panel";
@@ -107,9 +108,14 @@ function Workspace({
     return () => document.removeEventListener("keydown", close);
   }, [mobileMenu]);
   const [current, setCurrent] = useState<string | null>(null);
+  const [efforts, setEfforts] = useState<Record<string,ReasoningLevel>>({});
+  const [modelSettingsBusy,setModelSettingsBusy]=useState(false),[modelSettingsError,setModelSettingsError]=useState("");
   const [models, setModels] = useState<any[]>([]),
     [modelId, setModelId] = useState(""),
     [passwordModal, setPasswordModal] = useState(false);
+  const selectedModel=models.find(m=>m.id===modelId);
+  const supportedEfforts=selectedModel?.reasoningOptions || [{value:"default",label:"模型默认"}];
+  const reasoningEffort:ReasoningLevel=supportedEfforts.some((option:any)=>option.value===efforts[modelId])?efforts[modelId]:"default";
   const importInput = useRef<HTMLInputElement>(null);
   const [bank, setBank] = useState<Bank | null>(null),
     [loading, setLoading] = useState(true),
@@ -147,7 +153,7 @@ function Workspace({
   const [translations, setTranslations] = useState<
     Record<
       string,
-      { text: string; original: string; modelId: string; model: string }
+      { text: string; original: string; modelId: string; model: string; reasoningEffort:ReasoningLevel }
     >
   >({});
   const [translating, setTranslating] = useState<string | null>(null),
@@ -160,7 +166,7 @@ function Workspace({
   sessionsRef.current = sessions;
   const session = sessions.find((s) => s.id === current);
   const translation =
-    session && translations[session.id]?.original === session.statement
+    session && translations[session.id]?.original === session.statement && translations[session.id]?.modelId === modelId && translations[session.id]?.reasoningEffort === reasoningEffort
       ? translations[session.id]
       : undefined;
   const completed = sessions.filter((s) => s.outcome === "independent" || s.outcome === "assisted");
@@ -187,9 +193,10 @@ function Workspace({
       if (!r.ok) return;
       setAiConfigured(Boolean(c.configured));
       setModels(c.models || []);
+      setEfforts(c.preferences?.efforts || {});
       setModel(c.model || "");
       setModelId((prev) =>
-        c.models.some((m: any) => m.id === prev) ? prev : c.models[0]?.id || "",
+        c.models.some((m: any) => m.id === prev) ? prev : c.models.some((m:any)=>m.id===c.preferences?.selectedModelId)?c.preferences.selectedModelId:c.models[0]?.id || "",
       );
     } catch {}
   }
@@ -384,7 +391,7 @@ function Workspace({
       original = session.statement;
     if (
       translations[id]?.original === original &&
-      translations[id]?.modelId === modelId
+      translations[id]?.modelId === modelId && translations[id]?.reasoningEffort === reasoningEffort
     )
       return;
     if (translating === id) return;
@@ -402,6 +409,7 @@ function Workspace({
           text: splitStatement(original).text,
           problemId: session.problem.id,
           modelId,
+          reasoningEffort,
         }),
       });
       const data = (await response.json()) as {
@@ -412,7 +420,7 @@ function Workspace({
       if (!response.ok) throw Error(data.error || "翻译失败，请重试");
       setTranslations((prev) => ({
         ...prev,
-        [id]: { text: data.text, original, modelId, model: data.model },
+        [id]: { text: data.text, original, modelId, model: data.model, reasoningEffort },
       }));
     } catch (e) {
       setTranslationErrors((prev) => ({ ...prev, [id]: (e as Error).message }));
@@ -495,6 +503,7 @@ function Workspace({
           problem: `${session.problem.id} ${session.problem.name}`,
           notes: session.notes,
           modelId,
+          reasoningEffort,
           mode,
           messages,
         }),
@@ -1840,7 +1849,9 @@ function Workspace({
               当前陪练模型
               <select
                 value={modelId}
+                disabled={modelSettingsBusy}
                 onChange={(e) => {
+                  setModelSettingsError("");
                   setModelId(e.target.value);
                   setModel(
                     models.find((m) => m.id === e.target.value)?.model || "",
@@ -1855,6 +1866,9 @@ function Workspace({
                 ))}
               </select>
             </label>
+            <label>推理等级<select aria-label="推理等级" value={reasoningEffort} disabled={modelSettingsBusy||!models.length} onChange={e=>setEfforts(prev=>({...prev,[modelId]:e.target.value as ReasoningLevel}))}>{supportedEfforts.map((option:any)=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+            <p className="reasoning-help">{/glm-5\.3/i.test(selectedModel?.model||"")?"GLM-5.3 始终开启思考，可选择轻度、增强或深度；模型默认使用服务商默认等级。":/glm-/i.test(selectedModel?.model||"")?"按当前 GLM 型号提供可用思考选项。":"非默认等级通过 reasoning_effort 发送，兼容接口需要支持该参数；不支持时请选模型默认。"}更高等级可能增加等待时间与 Token 消耗。设置用于后续陪练和翻译，按账号和模型保存。</p>
+            {modelSettingsError&&<div className="form-error" role="alert">{modelSettingsError}</div>}
             <div className="settings-note">
               <CheckCircle2 size={16} />
               <span>
@@ -1866,8 +1880,11 @@ function Workspace({
             </div>
             <div className="modal-actions">
               <span className="muted">密钥不会返回浏览器</span>
-              <button className="primary" onClick={() => setSettings(false)}>
-                开始思考
+              <button className="primary" disabled={modelSettingsBusy||!models.length} onClick={async () => {
+                setModelSettingsBusy(true);setModelSettingsError("");
+                try {const response=await fetch("/api/model-preferences",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({modelId,reasoningEffort})});const data=await response.json() as {error?:string;preferences:{efforts:Record<string,ReasoningLevel>}};if(!response.ok)throw Error(data.error||"设置保存失败");setEfforts(data.preferences.efforts);setSettings(false);setToast(`已保存模型设置：${reasoningLabels[reasoningEffort]}`);}catch(e){setModelSettingsError((e as Error).message);}finally{setModelSettingsBusy(false);}
+              }}>
+                {modelSettingsBusy?"正在保存…":"保存并开始思考"}
                 <ArrowRight size={16} />
               </button>
             </div>

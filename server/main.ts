@@ -1,3 +1,4 @@
+import { modelPreferences, saveModelPreferences } from "./model-preferences";
 import { profile } from "./profile";
 import { statistics } from "./statistics";
 import { createServer } from "node:http";
@@ -74,6 +75,10 @@ const server = createServer(async (req, res) => {
       )
         fail(403, "首次登录请先修改密码");
       switch (url.pathname) {
+        case "/api/model-preferences":
+          if (req.method !== "PATCH") fail(405,"不支持的操作");
+          response = await saveModelPreferences(request);
+          break;
         case "/api/profile":
           response = await profile(request);
           break;
@@ -86,6 +91,7 @@ const server = createServer(async (req, res) => {
           const m = models[0] as any;
           response = Response.json({
             configured: models.length > 0,
+            preferences: modelPreferences(user.id),
             provider: "管理员配置",
             model: m?.model || "",
             models,

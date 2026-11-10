@@ -1,5 +1,6 @@
+import {outputParameters} from "../lib/model-output";
 import { randomUUID } from "node:crypto";
-import { answerText, ModelStreamError } from "../lib/model-stream";
+import { answerText, reasoningText, ModelStreamError } from "../lib/model-stream";
 import { selectedReasoning } from "./model-preferences";
 import { reasoningParameters } from "../lib/reasoning";
 import { splitStatement } from "../lib/statement-header";
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
         "用户明确请求完整解法。给出推导、正确性证明、复杂度与边界；仅在用户要求时给代码。",
     };
     const requestId=randomUUID();
-    const generate=async (onDelta?: (text:string)=>void, signal?:AbortSignal) => {
+    const generate=async (onDelta?: (text:string)=>void, signal:AbortSignal=request.signal, onReasoning?:(text:string)=>void) => {
     const { response: res, data } = await requestModel(user.id, selected, "coach",
       selected.base_url.replace(/\/$/, "") + "/chat/completions",
       {
@@ -119,12 +120,12 @@ export async function POST(request: Request) {
             {role:"user",content:referenceContext},
             ...messages,
           ],
-          max_tokens: "reasoning_effort" in reasoning || ("thinking" in reasoning && reasoning.thinking.type === "enabled") ? 16384 : 4096,
+          ...outputParameters(selected),
           ...reasoning,
         }),
-        signal: signal || AbortSignal.timeout(180000),
+        signal,
       },
-      {onDelta,requestId},
+      {onDelta,onReasoning,requestId},
     );
     if (!res.ok) {
       const status = res.status;
@@ -144,14 +145,14 @@ export async function POST(request: Request) {
       );
     }
     if (data.choices?.[0]?.finish_reason === "length")
-      return Response.json({error:"模型输出达到上限，回复未完成。请缩小问题范围或降低推理等级后重试。",requestId},{status:502});
+      return Response.json({error:"模型输出达到上限，回复未完成。请让管理员提高输出 Token 上限，或缩小问题范围后重试。",requestId},{status:502});
     const text = answerText(data.choices?.[0]?.message?.content).trim();
     if (!text)
       return Response.json(
         { error: "模型只返回了空内容或思考内容，没有最终回答。请重试或降低推理等级。", requestId },
         { status: 502 },
       );
-    return Response.json({ text, model: selected.model, editorial: reference,requestId });
+    return Response.json({ text, reasoning:reasoningText(data.choices?.[0]?.message)||undefined, model: selected.model, editorial: reference,requestId });
     };
     if (body.stream !== true) return await generate();
     const abort=new AbortController();
@@ -162,8 +163,8 @@ export async function POST(request: Request) {
         const send=(event:unknown)=>{if(!closed)controller.enqueue(encoder.encode(JSON.stringify(event)+"\n"));};
         send({type:"status",editorial:reference,requestId});
         heartbeat=setInterval(()=>send({type:"heartbeat"}),10000);
-        const signal=AbortSignal.any([abort.signal,AbortSignal.timeout(180000)]);
-        void generate(text=>send({type:"delta",text}),signal).then(async response=>{
+        const signal=AbortSignal.any([abort.signal,request.signal]);
+        void generate(text=>send({type:"delta",text}),signal,text=>send({type:"reasoning",text})).then(async response=>{
           const data=await response.json() as Record<string,unknown>;send({type:response.ok?"done":"error",...data});
         }).catch(error=>{if(!abort.signal.aborted)send({type:"error",error:requestFailure(signal.aborted?signal.reason:error),requestId});}).finally(()=>{
           closed=true;if(heartbeat)clearInterval(heartbeat);try{controller.close();}catch{}
@@ -181,7 +182,7 @@ export async function POST(request: Request) {
 }
 
 function requestFailure(error:unknown):string {
-  if((error as Error)?.name==="TimeoutError")return "模型生成超过 180 秒，连接已结束。你的输入已保留，可降低推理等级后重试。";
+  if((error as Error)?.name==="TimeoutError")return "模型服务连接超时。你的输入已保留，请重试。";
   if(error instanceof ModelStreamError && error.code==="incomplete_stream")return "模型回复连接中途断开，回答尚未完成。你的输入已保留，请重试。";
   if(error instanceof SyntaxError || error instanceof ModelStreamError)return "模型服务返回了无效或中断的数据。你的输入已保留，请重试。";
   return "连接模型服务失败。你的输入已保留，请稍后重试。";

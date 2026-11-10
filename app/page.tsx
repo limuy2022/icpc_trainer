@@ -11,6 +11,7 @@ import { trainingStats } from "@/lib/training-stats";
 import { splitStatement } from "@/lib/statement-header";
 import {translationSource} from "@/lib/translation-source";
 import { useEffect, useMemo, useRef, useState } from "react";
+import ReasoningDetails from "@/components/reasoning-details";
 import RecoveredVersions from "@/components/recovered-versions";
 import Text from "@/components/markdown-text";
 import DifficultyBadge, { DifficultyGuide } from "@/components/difficulty-badge";
@@ -144,7 +145,9 @@ function Workspace({
   const [retryMode, setRetryMode] = useState("discuss");
   const sending=useRef(false);
   const sendStartedAt=useRef(0);
-  const [partialReply,setPartialReply]=useState<{sessionId:string;text:string}|null>(null);
+  const [partialReply,setPartialReply]=useState<{sessionId:string;text:string;reasoning?:string}|null>(null);
+  const chatAbort=useRef<AbortController|null>(null);
+  useEffect(()=>()=>chatAbort.current?.abort(),[]);
   const [chatRequestId,setChatRequestId]=useState("");
   const [allowUnverified, setAllowUnverified] = useState(false);
   const [messageEdit, setMessageEdit] = useState<{ sessionId: string; index: number; original: string; content: string } | null>(null);
@@ -533,8 +536,10 @@ function Workspace({
         : {}),
       ...(mode === "solution" ? { hints: 4 } : {}),
     });
+    const controller=new AbortController();chatAbort.current=controller;
     try {
       const res = await fetch("/api/coach", {
+        signal:controller.signal,
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -552,7 +557,8 @@ function Workspace({
         }),
       });
       const data = await readChatResponse(res,{
-        delta:text=>setPartialReply(previous=>({sessionId:id,text:(previous?.sessionId===id?previous.text:"")+text})),
+        delta:text=>setPartialReply(previous=>({sessionId:id,text:(previous?.sessionId===id?previous.text:"")+text,reasoning:previous?.sessionId===id?previous.reasoning:undefined})),
+        reasoning:text=>setPartialReply(previous=>({sessionId:id,text:previous?.sessionId===id?previous.text:"",reasoning:(previous?.sessionId===id?previous.reasoning||"":"")+text})),
         status:data=>{if(data.editorial)patch(id,{editorialReference:data.editorial});if(data.requestId)setChatRequestId(data.requestId);},
       });
       const latest = sessionsRef.current.find(s => s.id === id);
@@ -566,7 +572,7 @@ function Workspace({
                 ...s,
                 messages: [
                   ...s.messages,
-                  { role: "assistant", content: data.text },
+                  { role: "assistant", content: data.text, ...(data.reasoning?{reasoning:data.reasoning}:{}) },
                 ],
               }
             : s,
@@ -574,10 +580,11 @@ function Workspace({
       );
       setPartialReply(null);
     } catch (e) {
-      setChatError((e as Error).message);
+      setChatError(controller.signal.aborted?"已停止生成，未完成内容未写入历史。":(e as Error).message);
       setRetryMode(mode);
       if (!edit && !retry) setDraft(content);
     } finally {
+      chatAbort.current=null;
       sending.current=false;
       setBusy(false);
     }
@@ -1515,6 +1522,7 @@ function Workspace({
                           ? ui("你 · 正在思考")
                           : ui("AI · 陪你推一步")}
                       </div>
+                      {m.role==="assistant"&&m.reasoning&&<ReasoningDetails text={m.reasoning}/>}
                       {messageEdit?.sessionId === session.id && messageEdit.index === i ? (
                         <div className="message-edit">
                           <textarea autoFocus aria-label={ui("编辑已发送消息")} value={messageEdit.content} disabled={busy} onChange={e=>setMessageEdit({...messageEdit,content:e.target.value})}/>
@@ -1528,14 +1536,15 @@ function Workspace({
                       </div>}
                     </div>
                   ))}
-                  {partialReply?.sessionId === session.id && partialReply.text && <div className="chat-message assistant partial-reply">
+                  {partialReply?.sessionId === session.id && (partialReply.text||partialReply.reasoning) && <div className="chat-message assistant partial-reply">
                     <div className="message-label">{ui(busy?"正在生成，完成后自动保存":"未完成的回复（未写入历史）")}</div>
-                    <Text text={partialReply.text}/>
+                    {partialReply.reasoning&&<ReasoningDetails text={partialReply.reasoning} live/>}
+                    {partialReply.text&&<Text text={partialReply.text}/>}
                   </div>}
                   {busy && (
                     <div className="thinking">
                       <LoaderCircle size={15} className="spin" />
-                      {ui("正在检验思路… 已等待 {0} 秒",[Math.max(0,Math.floor((now-sendStartedAt.current)/1000))])}</div>
+                      {ui("正在检验思路… 已等待 {0} 秒",[Math.max(0,Math.floor((now-sendStartedAt.current)/1000))])}<button type="button" className="text-button" onClick={()=>chatAbort.current?.abort()}>{ui("停止生成")}</button></div>
                   )}
                   <div ref={chatEnd} />
                 </div>

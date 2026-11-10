@@ -22,6 +22,8 @@ export type ModelConfig = {
   env_key: number;
   enabled: number;
   is_default: number;
+  max_output_tokens?: number | null;
+  output_token_parameter?: string;
 };
 export function initModels() {
   if (db.prepare("SELECT id FROM models LIMIT 1").get()) return;
@@ -123,7 +125,7 @@ export async function modelsAdmin(request: Request) {
     return Response.json({
       models: db
         .prepare(
-          "SELECT id,label,provider,base_url,model,env_key,enabled,is_default,created_at,(encrypted_key IS NOT NULL OR env_key=1) AS has_key FROM models ORDER BY created_at",
+          "SELECT id,label,provider,base_url,model,env_key,enabled,is_default,created_at,max_output_tokens,output_token_parameter,(encrypted_key IS NOT NULL OR env_key=1) AS has_key FROM models ORDER BY created_at",
         )
         .all(),
     });
@@ -160,6 +162,11 @@ export async function modelsAdmin(request: Request) {
   if (!old && !key) fail(400, "添加模型时需要填写密钥");
   if (old && old.base_url.replace(/\/+$/,"")!==base && !key)
     fail(400,"更换模型接口地址时需要重新填写密钥");
+  const rawLimit=body.max_output_tokens===undefined?old?.max_output_tokens:body.max_output_tokens;
+  const outputLimit=rawLimit==null||rawLimit===""?null:Number(rawLimit);
+  if(outputLimit!==null&&((typeof rawLimit!=="number"&&typeof rawLimit!=="string")||!Number.isSafeInteger(outputLimit)||outputLimit<1||outputLimit>1048576))fail(400,"输出 Token 上限必须是 1 到 1048576 的整数");
+  const outputParameter=body.output_token_parameter??old?.output_token_parameter??"max_tokens";
+  if(!["max_tokens","max_completion_tokens"].includes(outputParameter))fail(400,"输出 Token 参数无效");
   const id = old?.id || randomUUID(),
     encrypted = key ? encryptKey(key) : old?.encrypted_key || null,
     envKey = key ? 0 : old?.env_key || 0;
@@ -176,7 +183,7 @@ export async function modelsAdmin(request: Request) {
     if (isDefault)
       db.prepare("UPDATE models SET is_default=0 WHERE is_default=1").run();
     db.prepare(
-      "INSERT INTO models(id,label,provider,base_url,model,encrypted_key,env_key,enabled,is_default,created_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET label=excluded.label,provider=excluded.provider,base_url=excluded.base_url,model=excluded.model,encrypted_key=excluded.encrypted_key,env_key=excluded.env_key,enabled=excluded.enabled,is_default=excluded.is_default",
+      "INSERT INTO models(id,label,provider,base_url,model,encrypted_key,env_key,enabled,is_default,created_at,max_output_tokens,output_token_parameter) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET label=excluded.label,provider=excluded.provider,base_url=excluded.base_url,model=excluded.model,encrypted_key=excluded.encrypted_key,env_key=excluded.env_key,enabled=excluded.enabled,is_default=excluded.is_default,max_output_tokens=excluded.max_output_tokens,output_token_parameter=excluded.output_token_parameter",
     ).run(
       id,
       label,
@@ -188,6 +195,8 @@ export async function modelsAdmin(request: Request) {
       enabled,
       isDefault,
       new Date().toISOString(),
+      outputLimit,
+      outputParameter,
     );
   });
   audit(actor.id, old ? "model-update" : "model-create", id);

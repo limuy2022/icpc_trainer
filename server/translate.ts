@@ -1,3 +1,4 @@
+import {outputParameters} from "../lib/model-output";
 import { selectedReasoning } from "./model-preferences";
 import { reasoningParameters } from "../lib/reasoning";
 import { splitStatement } from "../lib/statement-header";
@@ -74,7 +75,7 @@ export async function translate(request: Request) {
               },
               { role: "user", content: masked },
             ],
-            max_tokens: "reasoning_effort" in reasoning || ("thinking" in reasoning && reasoning.thinking.type === "enabled") ? 24576 : 12000,
+            ...outputParameters(model),
             ...reasoning,
           }),
           signal: AbortSignal.timeout(90000),

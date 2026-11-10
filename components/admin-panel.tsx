@@ -192,7 +192,7 @@ export default function AdminPanel({
                         disabled={busy}
                         onClick={() => {
                           const newPassword = window.prompt(
-                            ui("输入临时新密码（至少12位），对方下次登录必须修改。此处不会显示旧密码。"),
+                            ui("输入临时新密码，对方下次登录必须修改。此处不会显示旧密码。"),
                           );
                           if (newPassword)
                             void mutate(
@@ -398,11 +398,12 @@ export default function AdminPanel({
                   type="password"
                   autoComplete="new-password"
                   required
-                  minLength={12}
+                  maxLength={200}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </label>
+              <button type="button" className="secondary" onClick={()=>setPassword("123456")}>{ui("使用默认密码 123456")}</button>
               <label>
                 {ui("权限")}<select value={role} onChange={(e) => setRole(e.target.value)}>
                   <option value="member">{ui("成员")}</option>
@@ -489,6 +490,8 @@ export default function AdminPanel({
                 <button type="button" className="secondary" disabled={discovering||!modelForm.base_url.trim()} onClick={()=>void fetchModelList()}><RefreshCw size={14} className={discovering?"spin":""}/>{ui(discovering?"正在获取模型…":"获取模型列表")}</button>
                 <small>{ui("先填写 API Key；编辑已有模型时可使用服务端保存的密钥。")}</small>
               </div>
+              <label>{ui("输出 Token 上限")}<input type="number" min="1" max="1048576" step="1" placeholder={ui("留空使用服务商默认值")} value={modelForm.max_output_tokens??""} onChange={e=>setModelForm({...modelForm,max_output_tokens:e.target.value})}/><small>{ui("推理模型的预算可能同时包含思考和最终回答；请按该型号文档设置。")}</small></label>
+              <label>{ui("输出 Token 参数")}<select value={modelForm.output_token_parameter||"max_tokens"} onChange={e=>setModelForm({...modelForm,output_token_parameter:e.target.value})}><option value="max_tokens">max_tokens</option><option value="max_completion_tokens">max_completion_tokens</option></select><small>{ui("按服务商接口要求选择；留空上限时不发送此参数。")}</small></label>
               {discovered.length>0&&<label>{ui("从已获取列表选择")}<select aria-label={ui("从已获取列表选择")} value={discovered.includes(modelForm.model)?modelForm.model:""} onChange={e=>{if(e.target.value)setModelForm({...modelForm,model:e.target.value});}}><option value="">{ui("选择模型，或在上方手动填写")}</option>{discovered.map(id=><option key={id} value={id}>{id}</option>)}</select><small>{ui("已获取 {0} 个模型；列表不代表每个模型都支持聊天。",[discovered.length])}</small></label>}
               {discoveryError&&<p className="form-error" role="alert">{ui(discoveryError)}</p>}
               <label>

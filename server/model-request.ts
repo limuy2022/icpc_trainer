@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { answerText, readModelStream, ModelStreamError } from "../lib/model-stream";
 
 /** Log each actual upstream attempt once, including network failures. Never estimate missing usage. */
-export async function requestModel(userId: string, model: ModelConfig, kind: "coach" | "translation", input: RequestInfo | URL, init: RequestInit, options?: {onDelta?:(text:string)=>void;requestId?:string}) {
+export async function requestModel(userId: string, model: ModelConfig, kind: "coach" | "translation", input: RequestInfo | URL, init: RequestInit, options?: {onDelta?:(text:string)=>void;onReasoning?:(text:string)=>void;requestId?:string}) {
   let response: Response | undefined;
   let data: any;
   const createdAt = new Date().toISOString();
@@ -13,7 +13,7 @@ export async function requestModel(userId: string, model: ModelConfig, kind: "co
   try {
     response = await fetch(input, init);
     if (response.ok) {
-      data = options?.onDelta ? await readModelStream(response,options.onDelta) : await response.json();
+      data = options?.onDelta ? await readModelStream(response,options.onDelta,options.onReasoning) : await response.json();
       if(data.choices?.[0]?.finish_reason==="length")errorCode="output_limit";
       else if(Array.isArray(data.choices)&&!answerText(data.choices?.[0]?.message?.content).trim())errorCode="empty_response";
     } else errorCode="upstream_http_"+response.status;

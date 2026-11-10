@@ -657,5 +657,22 @@
   "正在重新翻译…": "Retranslating…",
   "正在准备中文译文，原文仍可随时查看…": "Preparing the Chinese translation; the original remains available…",
   "优先读取已有译文；没有译文时才使用当前模型生成。切换陪练模型不会重新翻译。": "Existing translations are reused. The current model is used only when none exists; changing coaching models does not retranslate.",
-  "查看中文译文": "View Chinese translation"
+  "查看中文译文": "View Chinese translation",
+  "输出 Token 上限": "Output token limit",
+  "留空使用服务商默认值": "Leave blank for the provider default",
+  "推理模型的预算可能同时包含思考和最终回答；请按该型号文档设置。": "Reasoning budgets may include both thinking and the final answer. Follow the model documentation.",
+  "输出 Token 参数": "Output token parameter",
+  "按服务商接口要求选择；留空上限时不发送此参数。": "Choose the parameter required by the provider. Omitted when the limit is blank.",
+  "输出 Token 上限必须是 1 到 1048576 的整数": "Output token limit must be an integer from 1 to 1048576",
+  "输出 Token 参数无效": "Invalid output token parameter",
+  "正在思考": "Thinking",
+  "推理过程": "Reasoning",
+  "字符": "characters",
+  "停止生成": "Stop generating",
+  "已停止生成，未完成内容未写入历史。": "Generation stopped. Incomplete content was not saved to history.",
+  "模型输出达到上限，回复未完成。请让管理员提高输出 Token 上限，或缩小问题范围后重试。": "Output limit reached before the answer was complete. Ask the administrator to increase the token limit, or narrow your question and retry.",
+  "模型服务连接超时。你的输入已保留，请重试。": "The model connection timed out. Your input has been preserved; please retry.",
+  "使用默认密码 123456": "Use default password 123456",
+  "输入临时新密码，对方下次登录必须修改。此处不会显示旧密码。": "Enter a temporary password. The user must change it at next sign-in. The old password is never displayed.",
+  "密码不能为空，且不能超过 200 个字符": "Password must not be empty or exceed 200 characters."
 }

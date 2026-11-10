@@ -184,7 +184,7 @@ Code is licensed under the [MIT License](LICENSE). Dependencies and third-party 
 
 ### Chat connections and diagnostics
 
-Coaching streams answer text with heartbeats and a 180-second model-generation limit. Only explicitly completed replies enter conversation history. Interrupted or output-limited responses keep their temporary text visible, report a specific error, and allow retry; incomplete text is not sent as context on the next turn.
+Coaching streams answer text with heartbeats, without an application-level generation deadline. “Stop generating” cancels the upstream request; provider and network limits may still apply. Provider-returned `reasoning_content` / `reasoning` text streams into an expandable reasoning section and is saved with completed answers. Subsequent ordinary chat sends final answers only. Models that expose no reasoning receive no fabricated reasoning display. Only explicitly completed replies enter conversation history. Interrupted or output-limited responses keep their temporary text visible, report a specific error, and allow retry; incomplete text is not sent as context on the next turn.
 
 Recent admin call records include request IDs, durations, error categories, and finish reasons, distinguishing upstream HTTP failures, networking/timeouts, empty answers, invalid data, and output limits. Service logs contain only diagnostic metadata, not keys, full prompts, or conversation content. Older records have no diagnostic fields; an HTTP status alone does not establish the failure cause.
 
@@ -209,3 +209,9 @@ Discovery is admin-only and generates no completions or coaching usage. Only ded
 Existing Chinese translations are reused by problem ID and statement body. Changing the coaching model or reasoning level, or refreshing the page, does not automatically regenerate them. Body edits create a new translation identity; metadata-only changes, line endings, and surrounding whitespace do not. Legacy caches are adopted only when their original body hash can be verified, never by problem ID alone.
 
 The notice names the model that actually generated the translation. Use **Retranslate with current model** to request another version. The old translation remains visible during generation and after failures. Concurrent first-time requests for the same body share one generation.
+
+### Output budgets and temporary passwords
+
+Administrators can configure an output token limit per model, selecting either `max_tokens` or `max_completion_tokens` as required by the API. Coaching and translation use this setting. A blank limit omits the parameter and uses the provider default, avoiding small hardcoded budgets for models whose reasoning is enabled by default. Reasoning and final answers may share a budget; follow the model documentation.
+
+Account creation offers a “Use default password 123456” button that fills the field only when clicked. Creation, resets, and password changes accept 1–200 characters; the former 12-character minimum is removed. New accounts and administrator-reset passwords still require a password change at next sign-in.

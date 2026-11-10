@@ -78,7 +78,6 @@ export function PasswordForm({
         {ui("新密码")}<input
           autoComplete="new-password"
           type="password"
-          minLength={12}
           maxLength={200}
           required
           value={next}

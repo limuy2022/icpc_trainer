@@ -61,7 +61,10 @@ const server = createServer(async (req, res) => {
       }
       body = Buffer.concat(chunks);
     }
+    const disconnect=new AbortController();
+    res.once("close",()=>{if(!res.writableFinished)disconnect.abort();});
     const request = new Request(url, {
+      signal:disconnect.signal,
       method: req.method,
       headers,
       body: body as any,

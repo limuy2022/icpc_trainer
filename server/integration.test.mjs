@@ -20,9 +20,11 @@ try{
  let login=await call('/api/auth',{body:{username:'admin',password:initial}});assert.equal(login.status,200);let admin=login.cookie;assert.equal(login.data.user.password_hash,undefined);
  assert.equal((await call('/api/config',{cookie:admin})).status,403);
  const newPass='Updated-Admin-Password-453!';let changed=await call('/api/account',{method:'PATCH',cookie:admin,body:{currentPassword:initial,newPassword:newPass}});assert.equal(changed.status,200);const revoked=admin;admin=changed.cookie;assert.equal((await call('/api/config',{cookie:revoked})).status,401);
- assert.equal((await call('/api/admin/users',{cookie:admin,body:{username:'friend',password:'Friend-Temporary-Password-123!'}})).status,200);
+ assert.equal((await call('/api/admin/users',{cookie:admin,body:{username:'friend',password:'123456'}})).status,200);
+ assert.equal((await call('/api/admin/users',{cookie:admin,body:{username:'empty-password',password:''}})).status,400);
  const list=await call('/api/admin/users',{cookie:admin});assert.ok(!JSON.stringify(list.data).includes('scrypt:'));const memberId=list.data.users.find(u=>u.username==='friend').id;
- login=await call('/api/auth',{body:{username:'friend',password:'Friend-Temporary-Password-123!'}});changed=await call('/api/account',{method:'PATCH',cookie:login.cookie,body:{currentPassword:'Friend-Temporary-Password-123!',newPassword:'Friend-Private-Password-123!'}});const member=changed.cookie;
+ login=await call('/api/auth',{body:{username:'friend',password:'123456'}});changed=await call('/api/account',{method:'PATCH',cookie:login.cookie,body:{currentPassword:'123456',newPassword:'abc123'}});assert.equal(changed.status,200);const member=changed.cookie;
+ assert.equal((await call('/api/account',{method:'PATCH',cookie:member,body:{currentPassword:'abc123',newPassword:''}})).status,400);
  assert.equal((await call('/api/admin/users',{cookie:member})).status,403);
  assert.equal((await call('/api/admin/models',{cookie:member})).status,403);
  assert.equal((await call('/api/admin/backup',{cookie:member})).status,403);
@@ -77,6 +79,12 @@ try{
  assert.equal(adminStats.find(s=>s.id===adminId).calls,3);assert.equal(adminStats.find(s=>s.id===memberId).calls,0);
  let result=await call('/api/admin/models',{cookie:admin,body:{label:'Test model',provider:'openai-compatible',model:'test-model',base_url:'https://api.openai.com/v1',key:'secret-test-model-key',enabled:true}});assert.equal(result.status,200,JSON.stringify(result.data));
  result=await call('/api/admin/models',{cookie:admin});assert.ok(!JSON.stringify(result.data).includes('secret-test-model-key'));assert.ok(result.data.models.some(m=>m.label==='Test model'));
+ const editedModel=result.data.models.find(m=>m.label==='Test model');
+ assert.equal(editedModel.max_output_tokens,null);
+ for(const limit of [0,-1,1.5,1048577,true])assert.equal((await call('/api/admin/models',{cookie:admin,method:'PATCH',body:{id:editedModel.id,max_output_tokens:limit}})).status,400);
+ assert.equal((await call('/api/admin/models',{cookie:admin,method:'PATCH',body:{id:editedModel.id,max_output_tokens:65536,output_token_parameter:'max_completion_tokens'}})).status,200);
+ const updatedModel=(await call('/api/admin/models',{cookie:admin})).data.models.find(m=>m.id===editedModel.id);assert.equal(updatedModel.max_output_tokens,65536);assert.equal(updatedModel.output_token_parameter,'max_completion_tokens');
+ assert.equal((await call('/api/admin/models',{cookie:admin,method:'PATCH',body:{id:editedModel.id,max_output_tokens:''}})).status,200);
  assert.equal((await call('/api/admin/models',{cookie:admin,body:{label:'bad',model:'bad',base_url:'https://127.0.0.1/v1',key:'x'}})).status,400);
  result=await call('/api/admin/backup',{cookie:admin});assert.equal(result.status,200);const binary=Buffer.from(result.data);assert.equal(binary.subarray(0,15).toString(),'SQLite format 3');assert.ok(!binary.includes(Buffer.from('secret-test-model-key')));
  assert.equal((await call('/api/admin/users',{cookie:admin,method:'PATCH',body:{id:memberId,disabled:true}})).status,200);assert.equal((await call('/api/config',{cookie:member})).status,401);

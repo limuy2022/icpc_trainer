@@ -30,8 +30,8 @@ export function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 export async function hashPassword(password: string) {
-  if (password.length < 12 || password.length > 200)
-    fail(400, "密码长度应为 12–200 个字符");
+  if (password.length < 1 || password.length > 200)
+    fail(400, "密码不能为空，且不能超过 200 个字符");
   const salt = randomBytes(16).toString("hex");
   const hash = await new Promise<Buffer>((resolve, reject) =>
     scrypt(password, salt, 32, { N: 16384, r: 8, p: 1 }, (e, key) =>

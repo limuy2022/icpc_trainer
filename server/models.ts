@@ -158,6 +158,8 @@ export async function modelsAdmin(request: Request) {
   const key = String(body.key || "").trim();
   if (key.length > 4096) fail(400, "密钥过长");
   if (!old && !key) fail(400, "添加模型时需要填写密钥");
+  if (old && old.base_url.replace(/\/+$/,"")!==base && !key)
+    fail(400,"更换模型接口地址时需要重新填写密钥");
   const id = old?.id || randomUUID(),
     encrypted = key ? encryptKey(key) : old?.encrypted_key || null,
     envKey = key ? 0 : old?.env_key || 0;

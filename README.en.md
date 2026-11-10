@@ -191,3 +191,9 @@ Recent admin call records include request IDs, durations, error categories, and 
 ### Restoring your place
 
 Navigation updates the URL fragment, such as `#/history`, `#/statistics`, or `#/training/<session-id>`. Refreshes, bookmarks, and browser Back/Forward restore the matching page. Training pages wait for the current account's records before restoring the selected session; timing resumes from restoration without counting offline time. When no explicit fragment is supplied, the browser restores the last location saved for that account. Admin permissions still apply; unavailable or other-account session links return to the session picker with a notice.
+
+### Provider presets
+
+Admin panel → Model management → Add/Edit model includes presets for OpenAI, DeepSeek, Zhipu GLM (standard API / Coding Plan), Alibaba Cloud (Beijing / Singapore), Moonshot/Kimi, SiliconFlow, and OpenRouter. Presets fill the Base URL and API type and link to official documentation. Enter a model ID available to your account; custom endpoints remain supported. Sources are maintained in `lib/model-presets.ts`, checked on 2026-11-10.
+
+Changing to a preset with a different endpoint clears unsaved keys and model IDs. Changing an existing model's endpoint also requires a new key on the server. Renaming a model or changing its model ID without changing the endpoint can retain its stored key.

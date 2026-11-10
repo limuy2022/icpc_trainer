@@ -2,6 +2,7 @@
 import {t as ui,useLocale,currentLocale} from "@/lib/locale";
 import { useEffect, useState } from "react";
 import { api } from "./account-gate";
+import {modelPresets,detectModelPreset,applyModelPreset} from "@/lib/model-presets";
 import {
   Download,
   Plus,
@@ -29,6 +30,8 @@ export default function AdminPanel({
   const [username, setUsername] = useState(""),
     [password, setPassword] = useState(""),
     [role, setRole] = useState("member");
+  const [presetId,setPresetId]=useState("custom");
+  const selectedPreset=modelPresets.find(p=>p.id===presetId);
   async function load() {
     try {
       const [u, m, s] = await Promise.all([
@@ -197,7 +200,8 @@ export default function AdminPanel({
               {ui("模型管理")}</h2>
             <button
               className="primary"
-              onClick={() =>
+              onClick={() => {
+                setPresetId("custom");
                 setModelForm({
                   label: "",
                   provider: "openai-compatible",
@@ -206,8 +210,8 @@ export default function AdminPanel({
                   key: "",
                   enabled: true,
                   is_default: false,
-                })
-              }
+                });
+              }}
             >
               <Plus size={15} />
               {ui("添加模型")}</button>
@@ -238,14 +242,16 @@ export default function AdminPanel({
               <div>
                 <button
                   className="text-button"
-                  onClick={() =>
+                  onClick={() => {
+                    setPresetId(detectModelPreset(m));
                     setModelForm({
                       ...m,
+                      original_base_url:m.base_url,
                       key: "",
                       enabled: Boolean(m.enabled),
                       is_default: Boolean(m.is_default),
-                    })
-                  }
+                    });
+                  }}
                 >
                   {ui("编辑")}</button>
                 <button
@@ -417,6 +423,11 @@ export default function AdminPanel({
               }}
             >
               <h2>{modelForm.id ? ui("编辑模型") : ui("添加模型")}</h2>
+              <label>{ui("常用厂商")}<select aria-label={ui("常用厂商")} value={presetId} onChange={e=>{setPresetId(e.target.value);setModelForm(applyModelPreset(modelForm,e.target.value));}}>
+                <option value="custom">{ui("自定义兼容接口")}</option>
+                {modelPresets.map(p=><option key={p.id} value={p.id}>{ui(p.label)}</option>)}
+              </select></label>
+              <p className="provider-preset-help">{ui("选择厂商可填入接口地址和类型；模型 ID 按账号可用模型填写，地址仍可编辑。")}{selectedPreset&&<> <a href={selectedPreset.docs} target="_blank" rel="noreferrer">{ui("官方接入文档")}</a></>}</p>
               <label>
                 {ui("显示名称")}<input
                   required
@@ -429,9 +440,7 @@ export default function AdminPanel({
               <label>
                 {ui("接口类型")}<select
                   value={modelForm.provider}
-                  onChange={(e) =>
-                    setModelForm({ ...modelForm, provider: e.target.value })
-                  }
+                  onChange={(e) => {setPresetId("custom");setModelForm({ ...modelForm, provider: e.target.value });}}
                 >
                   <option value="openai-compatible">
                     {ui("OpenAI Chat Completions 兼容")}</option>
@@ -445,9 +454,7 @@ export default function AdminPanel({
                   required
                   placeholder="https://api.example.com/v1"
                   value={modelForm.base_url}
-                  onChange={(e) =>
-                    setModelForm({ ...modelForm, base_url: e.target.value })
-                  }
+                  onChange={(e) => {setPresetId("custom");setModelForm({ ...modelForm, base_url: e.target.value, key:"" });}}
                 />
               </label>
               <label>
@@ -460,11 +467,11 @@ export default function AdminPanel({
                 />
               </label>
               <label>
-                API Key {modelForm.id ? ui("（留空保留原密钥）") : ""}
+                API Key {modelForm.id ? ui(modelForm.base_url.replace(/\/+$/,"")===modelForm.original_base_url.replace(/\/+$/,"")?"（留空保留原密钥）":"（更换接口后需重新填写）") : ""}
                 <input
                   type="password"
                   autoComplete="new-password"
-                  required={!modelForm.id}
+                  required={!modelForm.id || modelForm.base_url.replace(/\/+$/,"")!==modelForm.original_base_url.replace(/\/+$/,"")}
                   value={modelForm.key}
                   onChange={(e) =>
                     setModelForm({ ...modelForm, key: e.target.value })

@@ -627,5 +627,16 @@
   "连接模型服务失败。你的输入已保留，请稍后重试。": "Could not connect to the model service. Your input is preserved; please try again later.",
   "正在检验思路… 已等待 {0} 秒": "Checking your reasoning… waiting {0}s",
   "正在恢复训练记录…": "Restoring your training session…",
-  "这条训练记录不存在或不属于当前账号，请重新选择。": "This session is unavailable or belongs to another account. Please choose another."
+  "这条训练记录不存在或不属于当前账号，请重新选择。": "This session is unavailable or belongs to another account. Please choose another.",
+  "常用厂商": "Provider presets",
+  "自定义兼容接口": "Custom compatible API",
+  "选择厂商可填入接口地址和类型；模型 ID 按账号可用模型填写，地址仍可编辑。": "Select a provider to fill the endpoint and API type. Enter a model ID available to your account; the endpoint remains editable.",
+  "官方接入文档": "Official API documentation",
+  "智谱 GLM · 普通 API": "Zhipu GLM · Standard API",
+  "智谱 GLM · Coding Plan": "Zhipu GLM · Coding Plan",
+  "阿里云百炼 · 北京": "Alibaba Cloud · Beijing",
+  "阿里云百炼 · 新加坡": "Alibaba Cloud · Singapore",
+  "硅基流动 SiliconFlow": "SiliconFlow",
+  "（更换接口后需重新填写）": "(required again after changing the endpoint)",
+  "更换模型接口地址时需要重新填写密钥": "Enter a new API key when changing the model endpoint."
 }

@@ -3508,6 +3508,6 @@ html[lang="en"] .stat-label,html[lang="en"] .stat-value { overflow-wrap:anywhere
 .reasoning-details { margin: 0 0 14px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); min-width: 0; }
 .reasoning-details summary { cursor: pointer; font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
 .reasoning-details summary span { font-size: 12px; }
-.reasoning-details > pre, .reasoning-details > .markdown { max-height: 360px; overflow: auto; margin-top: 12px; }
+.reasoning-details > pre, .reasoning-details > .message-text { max-height: 360px; overflow: auto; margin-top: 12px; }
 .reasoning-details > pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: 15px; line-height: 1.7; }
 .thinking .text-button { margin-left: auto; flex-shrink: 0; }

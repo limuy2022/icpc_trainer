@@ -1,13 +1,15 @@
+import {fetchPersonalModel} from "./personal-fetch";
 import {db} from "./database";
 import {modelKey,validateEndpoint,type ModelConfig} from "./models";
 import {checkOrigin,fail,requireUser,throttle} from "./security";
 const MAX_MODEL_LIST_BYTES=8*1024*1024;
-export async function discoverModels(request:Request) {
-  const actor=requireUser(request,true);
+export async function discoverModels(request:Request,personal=false) {
+  const actor=requireUser(request,!personal);
   if(request.method!=="POST")fail(405,"不支持的操作");
   checkOrigin(request);throttle("model-discovery:"+actor.id,20,60000);
   const body=await request.json() as any;
   const old=body.id ? db.prepare("SELECT * FROM models WHERE id=?").get(String(body.id)) as ModelConfig|undefined : undefined;
+  if(old&&(personal?old.owner_user_id!==actor.id:old.owner_user_id!=null))fail(404,"模型不存在");
   if(body.id&&!old)fail(404,"模型不存在");
   const base=await validateEndpoint(String(body.base_url??old?.base_url??""));
   let key=String(body.key||"").trim();
@@ -18,7 +20,7 @@ export async function discoverModels(request:Request) {
     key=modelKey(old);
   }
   let response:Response;
-  try{response=await fetch(base+"/models",{method:"GET",redirect:"error",headers:{Authorization:`Bearer ${key}`,Accept:"application/json"},signal:AbortSignal.timeout(12000)});}catch{fail(502,"获取模型列表失败，请检查接口地址或稍后重试；也可手动填写模型 ID");}
+  try{response=await (personal?fetchPersonalModel:fetch)(base+"/models",{method:"GET",redirect:"error",headers:{Authorization:`Bearer ${key}`,Accept:"application/json"},signal:AbortSignal.timeout(12000)});}catch{fail(502,"获取模型列表失败，请检查接口地址或稍后重试；也可手动填写模型 ID");}
   if([401,403].includes(response!.status))fail(400,"密钥无效或没有模型列表访问权限");
   if([404,405,501].includes(response!.status))fail(400,"该接口不支持自动获取模型列表，请手动填写模型 ID");
   if(response!.status===429)fail(429,"模型列表请求过于频繁，请稍后重试");

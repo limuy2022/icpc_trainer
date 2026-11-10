@@ -1,3 +1,4 @@
+import {fetchPersonalModel} from "./personal-fetch";
 import { db } from "./database";
 import type { ModelConfig } from "./models";
 import { randomUUID } from "node:crypto";
@@ -11,7 +12,7 @@ export async function requestModel(userId: string, model: ModelConfig, kind: "co
   const start=Date.now(),requestId=options?.requestId||randomUUID();
   let errorCode:string|null=null;
   try {
-    response = await fetch(input, init);
+    response = await (model.owner_user_id?fetchPersonalModel:fetch)(input, init);
     if (response.ok) {
       data = options?.onDelta ? await readModelStream(response,options.onDelta,options.onReasoning) : await response.json();
       if(data.choices?.[0]?.finish_reason==="length")errorCode="output_limit";

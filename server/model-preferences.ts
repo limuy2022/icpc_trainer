@@ -15,7 +15,7 @@ export function selectedReasoning(userId:string,model:ModelConfig,value?:unknown
 export async function saveModelPreferences(request:Request) {
   const user=requireUser(request);checkOrigin(request);
   const body=await request.json() as {modelId?:string;reasoningEffort?:unknown};
-  const model=selectModel(body.modelId);
+  const model=selectModel(body.modelId,user);
   const level=selectedReasoning(user.id,model,body.reasoningEffort);
   const preferences=transaction(()=>{
     const current=modelPreferences(user.id);

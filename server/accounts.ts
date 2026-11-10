@@ -59,6 +59,22 @@ export async function auth(request: Request) {
   const { password_hash, ...user } = row;
   return Response.json({ user }, { headers: { "Set-Cookie": cookie(token) } });
 }
+export async function register(request:Request) {
+  if(request.method!=="POST")fail(405,"不支持的操作");
+  checkOrigin(request);
+  throttle("register-ip:"+(request.headers.get("x-real-ip")||"local"),10,3600000);
+  const body=await request.json() as any;
+  const username=String(body.username||"").trim().toLowerCase();
+  if(!/^[a-z0-9_.-]{3,40}$/.test(username))fail(400,"用户名需为 3–40 位字母、数字或 _ . -");
+  const hash=await hashPassword(String(body.password||"")),id=randomUUID();
+  transaction(()=>{
+    if(db.prepare("SELECT id FROM users WHERE username=?").get(username))fail(409,"用户名已存在");
+    db.prepare("INSERT INTO users(id,username,password_hash,role,must_change_password,site_model_access,created_at) VALUES(?,?,?,'member',0,0,?)").run(id,username,hash,new Date().toISOString());
+  });
+  const token=createSession(id);audit(id,"self-register",id);
+  const responseRequest=new Request(request.url,{headers:{cookie:`icpc_session=${token}`}});
+  return Response.json({user:userFor(responseRequest)},{status:201,headers:{"Set-Cookie":cookie(token)}});
+}
 export async function changePassword(request: Request) {
   checkOrigin(request);
   const user = requireUser(request);
@@ -93,7 +109,7 @@ export async function usersAdmin(request: Request) {
     return Response.json({
       users: db
         .prepare(
-          "SELECT id,username,role,disabled,must_change_password,created_at,last_login FROM users ORDER BY created_at",
+          "SELECT id,username,role,disabled,must_change_password,site_model_access,created_at,last_login FROM users ORDER BY created_at",
         )
         .all(),
     });
@@ -110,13 +126,14 @@ export async function usersAdmin(request: Request) {
     const hash = await hashPassword(String(body.password || ""));
     const id = randomUUID();
     db.prepare(
-      "INSERT INTO users(id,username,password_hash,role,created_at) VALUES(?,?,?,?,?)",
+      "INSERT INTO users(id,username,password_hash,role,created_at,site_model_access) VALUES(?,?,?,?,?,?)",
     ).run(
       id,
       username,
       hash,
       body.role === "admin" ? "admin" : "member",
       new Date().toISOString(),
+      body.site_model_access===false?0:1,
     );
     audit(actor.id, "user-create", id);
     return Response.json({ ok: true });
@@ -156,12 +173,13 @@ export async function usersAdmin(request: Request) {
       }
 
       db.prepare(
-        "UPDATE users SET role=?,disabled=?,password_hash=?,must_change_password=? WHERE id=?",
+        "UPDATE users SET role=?,disabled=?,password_hash=?,must_change_password=?,site_model_access=? WHERE id=?",
       ).run(
         role,
         disabled,
         hash || target.password_hash,
         hash ? 1 : target.must_change_password,
+        typeof body.site_model_access==="boolean"?Number(body.site_model_access):target.site_model_access,
         target.id,
       );
       if (hash || disabled || role !== target.role)

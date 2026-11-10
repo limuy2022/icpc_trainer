@@ -14,11 +14,14 @@ import {
 } from "lucide-react";
 export default function AdminPanel({
   onModelsChanged,
+  personal=false,
 }: {
   onModelsChanged: () => void;
+  personal?:boolean;
 }) {
   useLocale();
-  const [tab, setTab] = useState("users"),
+  const modelsEndpoint=personal?"/api/personal/models":"/api/admin/models";
+  const [tab, setTab] = useState(personal?"models":"users"),
     [users, setUsers] = useState<any[]>([]),
     [models, setModels] = useState<any[]>([]),
     [status, setStatus] = useState<any>(null),
@@ -42,7 +45,7 @@ export default function AdminPanel({
     const context=discoveryKey,controller=new AbortController();discoveryAbort.current=controller;
     setDiscovering(true);setDiscoveryError("");setDiscovered([]);
     try{
-      const response=await fetch("/api/admin/models/discover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:modelForm.id,base_url:modelForm.base_url,key:modelForm.key}),signal:controller.signal});
+      const response=await fetch(modelsEndpoint+"/discover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:modelForm.id,base_url:modelForm.base_url,key:modelForm.key}),signal:controller.signal});
       const data=await response.json() as {models?:string[];error?:string};
       if(controller.signal.aborted||context!==discoveryContext.current)return;
       if(!response.ok)throw Error(data.error||"获取模型列表失败，请手动填写模型 ID");
@@ -53,9 +56,10 @@ export default function AdminPanel({
   }
   async function load() {
     try {
+      if(personal){const result=await api(modelsEndpoint);setModels(result.models);return;}
       const [u, m, s] = await Promise.all([
         api("/api/admin/users"),
-        api("/api/admin/models"),
+        api(modelsEndpoint),
         api("/api/admin/status"),
       ]);
       setUsers(u.users);
@@ -89,25 +93,25 @@ export default function AdminPanel({
       <div className="section-title history-title">
         <div>
           <div className="eyebrow">SITE ADMINISTRATION</div>
-          <h1>{ui("管理这个小小的练习场。")}</h1>
-          <p>{ui("手动开通账号，配置模型，查看运行情况。")}</p>
+          <h1>{ui(personal?"我的 API 模型":"管理这个小小的练习场。")}</h1>
+          <p>{ui(personal?"使用自己的 API Key，配置仅对自己可用的模型。":"管理账号、网站模型授权和运行情况。")}</p>
         </div>
         <button className="secondary" onClick={load}>
           <RefreshCw size={15} />
           {ui("刷新")}</button>
       </div>
-      <div className="admin-stats">
+      {!personal&&<div className="admin-stats">
         <span>{status?.stats.users || 0} {ui("个账号")}</span>
         <span>{status?.stats.records || 0} {ui("次训练")}</span>
         <span>{status?.stats.calls || 0} {ui("次模型调用")}</span>
-      </div>
+      </div>}
       <div className="admin-tabs">
         {[
           ["users", ui("账号管理")],
           ["models", ui("模型管理")],
           ["status", ui("运行与备份")],
           ["statistics", ui("用户统计")],
-        ].map(([v, l]) => (
+        ].filter(([v])=>!personal||v==="models").map(([v, l]) => (
           <button
             className={tab === v ? "selected" : ""}
             key={v}
@@ -153,6 +157,7 @@ export default function AdminPanel({
                 <tr>
                   <th>{ui("账号")}</th>
                   <th>{ui("权限")}</th>
+                  <th>{ui("网站模型")}</th>
                   <th>{ui("状态")}</th>
                   <th>{ui("最近登录")}</th>
                   <th>{ui("操作")}</th>
@@ -163,6 +168,7 @@ export default function AdminPanel({
                   <tr key={u.id}>
                     <td>{u.username}</td>
                     <td>{u.role === "admin" ? ui("管理员") : ui("成员")}</td>
+                    <td><label><input type="checkbox" aria-label={ui("允许 {0} 使用网站密钥",[u.username])} checked={u.role==="admin"||Boolean(u.site_model_access)} disabled={busy||u.role==="admin"} onChange={e=>void mutate("/api/admin/users",{id:u.id,site_model_access:e.target.checked},"PATCH")}/>{ui("允许使用网站密钥")}</label></td>
                     <td>
                       {u.disabled
                         ? ui("已停用")
@@ -273,24 +279,24 @@ export default function AdminPanel({
                   }}
                 >
                   {ui("编辑")}</button>
-                <button
+                {!personal&&<button
                   className="text-button"
                   disabled={busy || m.is_default}
                   onClick={() =>
                     mutate(
-                      "/api/admin/models",
+                      modelsEndpoint,
                       { ...m, is_default: true, enabled: true },
                       "PATCH",
                     )
                   }
                 >
-                  {ui("设为默认")}</button>
+                  {ui("设为默认")}</button>}
                 <button
                   className="text-button"
                   disabled={busy || m.is_default}
                   onClick={() => {
                     if (window.confirm(ui("删除这个模型配置？训练记录仍然保留。")))
-                      void mutate("/api/admin/models", { id: m.id }, "DELETE");
+                      void mutate(modelsEndpoint, { id: m.id }, "DELETE");
                   }}
                 >
                   {ui("删除")}</button>
@@ -434,7 +440,7 @@ export default function AdminPanel({
                 e.preventDefault();
                 if (
                   await mutate(
-                    "/api/admin/models",
+                    modelsEndpoint,
                     modelForm,
                     modelForm.id ? "PATCH" : "POST",
                   )
@@ -516,7 +522,7 @@ export default function AdminPanel({
                     }
                   />
                   {ui("启用")}</label>
-                <label>
+                {!personal&&<label>
                   <input
                     type="checkbox"
                     checked={modelForm.is_default}
@@ -527,7 +533,7 @@ export default function AdminPanel({
                       })
                     }
                   />
-                  {ui("默认模型")}</label>
+                  {ui("默认模型")}</label>}
               </div>
               {error && <div className="form-error">{ui(error)}</div>}
               <button className="primary" disabled={busy}>

@@ -149,6 +149,7 @@ function Workspace({
   const chatAbort=useRef<AbortController|null>(null);
   useEffect(()=>()=>chatAbort.current?.abort(),[]);
   const [chatRequestId,setChatRequestId]=useState("");
+  const [personalModelsOpen,setPersonalModelsOpen]=useState(false);
   const [allowUnverified, setAllowUnverified] = useState(false);
   const [messageEdit, setMessageEdit] = useState<{ sessionId: string; index: number; original: string; content: string } | null>(null);
   const [draft, setDraft] = useState(""),
@@ -1809,6 +1810,7 @@ function Workspace({
           </section>
         </div>
       )}
+      {personalModelsOpen&&<div className="modal-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setPersonalModelsOpen(false);}}><section className="modal personal-model-panel"><button type="button" className="modal-close" aria-label={ui("关闭设置")} onClick={()=>{setPersonalModelsOpen(false);setSettings(true);}}><X size={20}/></button><AdminPanel personal onModelsChanged={()=>void refreshModels()}/></section></div>}
       {settings && (
         <div className="modal-overlay" onClick={() => setSettings(false)}>
           <section
@@ -1830,7 +1832,7 @@ function Workspace({
             </span>
             <h2>{ui("选择陪练模型")}</h2>
             <p>
-              {ui("选择管理员已启用的模型。API Key 只保存在服务端，页面无法读取。题面、草稿和对话会发送给你选择的模型服务商。")}</p>
+              {ui("可选择自己的模型，以及管理员授权的网站模型。API Key 加密保存在服务端，不会回传浏览器。题面、草稿和对话会发送给所选服务商。")}</p>
             <label>
               {ui("当前陪练模型")}<select
                 value={modelId}
@@ -1845,7 +1847,7 @@ function Workspace({
               >
                 {models.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.label} · {m.model}
+                    {m.label} · {m.model} · {ui(m.scope==="personal"?"个人密钥":"网站密钥")}
                     {m.is_default ? ui("（默认）") : ""}
                   </option>
                 ))}
@@ -1860,9 +1862,10 @@ function Workspace({
                 {ui(syncState)}。
                 {user.role === "admin"
                   ? ui("添加或修改模型请进入管理员面板。")
-                  : ui("模型配置由管理员维护。")}
+                  : ui("网站密钥需管理员授权，也可使用自己的 API Key。")}
               </span>
             </div>
+            <button type="button" className="secondary" onClick={()=>{setSettings(false);setPersonalModelsOpen(true);}}>{ui("管理我的 API Key")}</button>
             <div className="modal-actions">
               <span className="muted">{ui("密钥不会返回浏览器")}</span>
               <button className="primary" disabled={modelSettingsBusy||!models.length} onClick={async () => {

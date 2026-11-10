@@ -7,7 +7,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { readFile, stat } from "node:fs/promises";
 import { resolve, extname } from "node:path";
-import { auth, changePassword, usersAdmin } from "./accounts";
+import { auth, register, changePassword, usersAdmin } from "./accounts";
 import { records } from "./records";
 import {
   availableModels,
@@ -71,6 +71,7 @@ const server = createServer(async (req, res) => {
     });
     let response: Response;
     if (url.pathname === "/api/health") response = Response.json({ ok: true });
+    else if (url.pathname === "/api/register") response=await register(request);
     else if (url.pathname === "/api/auth") response = await auth(request);
     else if (url.pathname.startsWith("/api/")) {
       const user = requireUser(request);
@@ -93,7 +94,7 @@ const server = createServer(async (req, res) => {
           response = await changePassword(request);
           break;
         case "/api/config": {
-          const models = availableModels();
+          const models = availableModels(user);
           const m = models[0] as any;
           response = Response.json({
             configured: models.length > 0,
@@ -129,6 +130,12 @@ const server = createServer(async (req, res) => {
           if (req.method !== "POST") fail(405, "不支持的操作");
           throttle("coach:" + user.id, 60, 3600000);
           response = await coach(request);
+          break;
+        case "/api/personal/models":
+          response=await modelsAdmin(request,true);
+          break;
+        case "/api/personal/models/discover":
+          response=await discoverModels(request,true);
           break;
         case "/api/admin/users":
           response = await usersAdmin(request);

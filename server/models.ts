@@ -11,8 +11,11 @@ import {
   encryptKey,
   fail,
   requireUser,
+  type User,
+  throttle,
 } from "./security";
 export type ModelConfig = {
+  owner_user_id?: string | null;
   id: string;
   label: string;
   provider: string;
@@ -26,7 +29,7 @@ export type ModelConfig = {
   output_token_parameter?: string;
 };
 export function initModels() {
-  if (db.prepare("SELECT id FROM models LIMIT 1").get()) return;
+  if (db.prepare("SELECT id FROM models WHERE owner_user_id IS NULL LIMIT 1").get()) return;
   const initial = environmentModel(process.env);
   if (initial)
     db.prepare(
@@ -90,24 +93,15 @@ export async function validateEndpoint(value: string) {
   }
   return url!.toString().replace(/\/$/, "");
 }
-export function availableModels() {
-  return db
-    .prepare(
-      "SELECT id,label,model,provider,is_default FROM models WHERE enabled=1 ORDER BY is_default DESC,created_at",
-    )
-    .all().map(row=>({...row,reasoningOptions:reasoningOptions(row as {model:string;provider:string})}));
+const siteAllowed=(user:User)=>user.role==="admin"||user.site_model_access===1;
+export function availableModels(user:User) {
+  return db.prepare("SELECT id,label,model,provider,is_default,CASE WHEN owner_user_id IS NULL THEN 'site' ELSE 'personal' END AS scope FROM models WHERE enabled=1 AND (owner_user_id=? OR (owner_user_id IS NULL AND ?=1)) ORDER BY is_default DESC,created_at")
+    .all(user.id,Number(siteAllowed(user))).map(row=>({...row,reasoningOptions:reasoningOptions(row as {model:string;provider:string})}));
 }
-export function selectModel(id?: string) {
-  const model = (
-    id
-      ? db.prepare("SELECT * FROM models WHERE id=? AND enabled=1").get(id)
-      : db
-          .prepare(
-            "SELECT * FROM models WHERE enabled=1 ORDER BY is_default DESC,created_at LIMIT 1",
-          )
-          .get()
-  ) as ModelConfig | undefined;
-  if (!model) fail(400, "没有可用模型，请联系管理员配置");
+export function selectModel(id:string|undefined,user:User) {
+  const permission="enabled=1 AND (owner_user_id=? OR (owner_user_id IS NULL AND ?=1))";
+  const model=(id?db.prepare("SELECT * FROM models WHERE id=? AND "+permission).get(id,user.id,Number(siteAllowed(user))):db.prepare("SELECT * FROM models WHERE "+permission+" ORDER BY is_default DESC,created_at LIMIT 1").get(user.id,Number(siteAllowed(user)))) as ModelConfig|undefined;
+  if(!model)fail(403,"没有可用模型，请配置个人 API Key 或联系管理员授权");
   return model;
 }
 export function modelKey(model: ModelConfig) {
@@ -119,23 +113,26 @@ export function modelKey(model: ModelConfig) {
   if (!key) fail(503, "该模型未配置可用密钥");
   return key;
 }
-export async function modelsAdmin(request: Request) {
-  const actor = requireUser(request, true);
+export async function modelsAdmin(request: Request, personal=false) {
+  const actor = requireUser(request, !personal);
+  const scope=personal?"owner_user_id=?":"owner_user_id IS NULL";
+  const scopeArgs=personal?[actor.id]:[];
   if (request.method === "GET") {
     return Response.json({
       models: db
         .prepare(
-          "SELECT id,label,provider,base_url,model,env_key,enabled,is_default,created_at,max_output_tokens,output_token_parameter,(encrypted_key IS NOT NULL OR env_key=1) AS has_key FROM models ORDER BY created_at",
+          "SELECT id,label,provider,base_url,model,env_key,enabled,is_default,created_at,max_output_tokens,output_token_parameter,(encrypted_key IS NOT NULL OR env_key=1) AS has_key FROM models WHERE "+scope+" ORDER BY created_at",
         )
-        .all(),
+        .all(...scopeArgs),
     });
   }
   checkOrigin(request);
   const body = (await request.json()) as any;
+  if(personal){throttle("personal-model-write:"+actor.id,60,3600000);if(request.method==="POST"&&(db.prepare("SELECT COUNT(*) AS n FROM models WHERE owner_user_id=?").get(actor.id) as {n:number}).n>=20)fail(400,"个人模型最多保存 20 个");}
   if (request.method === "DELETE") {
     const old = db
-      .prepare("SELECT * FROM models WHERE id=?")
-      .get(String(body.id)) as ModelConfig;
+      .prepare("SELECT * FROM models WHERE id=? AND "+scope)
+      .get(String(body.id),...scopeArgs) as ModelConfig;
     if (!old) fail(404, "模型不存在");
     if (old.is_default) fail(400, "请先将其他模型设为默认，再删除此模型");
     db.prepare("DELETE FROM models WHERE id=?").run(old.id);
@@ -146,8 +143,8 @@ export async function modelsAdmin(request: Request) {
   const old =
     request.method === "PATCH"
       ? (db
-          .prepare("SELECT * FROM models WHERE id=?")
-          .get(String(body.id)) as ModelConfig)
+          .prepare("SELECT * FROM models WHERE id=? AND "+scope)
+          .get(String(body.id),...scopeArgs) as ModelConfig)
       : undefined;
   if (request.method === "PATCH" && !old) fail(404, "模型不存在");
   const label = String(body.label ?? old?.label ?? "").trim(),
@@ -174,16 +171,16 @@ export async function modelsAdmin(request: Request) {
     body.enabled === undefined
       ? (old?.enabled ?? 1)
       : Number(Boolean(body.enabled));
-  const isDefault =
+  const isDefault = personal ? 0 :
     body.is_default === undefined
       ? (old?.is_default ?? 0)
       : Number(Boolean(body.is_default));
   if (isDefault && !enabled) fail(400, "默认模型不能停用，请先切换默认模型");
   transaction(() => {
     if (isDefault)
-      db.prepare("UPDATE models SET is_default=0 WHERE is_default=1").run();
+      db.prepare("UPDATE models SET is_default=0 WHERE is_default=1 AND owner_user_id IS NULL").run();
     db.prepare(
-      "INSERT INTO models(id,label,provider,base_url,model,encrypted_key,env_key,enabled,is_default,created_at,max_output_tokens,output_token_parameter) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET label=excluded.label,provider=excluded.provider,base_url=excluded.base_url,model=excluded.model,encrypted_key=excluded.encrypted_key,env_key=excluded.env_key,enabled=excluded.enabled,is_default=excluded.is_default,max_output_tokens=excluded.max_output_tokens,output_token_parameter=excluded.output_token_parameter",
+      "INSERT INTO models(id,label,provider,base_url,model,encrypted_key,env_key,enabled,is_default,created_at,max_output_tokens,output_token_parameter,owner_user_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET label=excluded.label,provider=excluded.provider,base_url=excluded.base_url,model=excluded.model,encrypted_key=excluded.encrypted_key,env_key=excluded.env_key,enabled=excluded.enabled,is_default=excluded.is_default,max_output_tokens=excluded.max_output_tokens,output_token_parameter=excluded.output_token_parameter",
     ).run(
       id,
       label,
@@ -197,6 +194,7 @@ export async function modelsAdmin(request: Request) {
       new Date().toISOString(),
       outputLimit,
       outputParameter,
+      personal?actor.id:null,
     );
   });
   audit(actor.id, old ? "model-update" : "model-create", id);

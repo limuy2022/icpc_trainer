@@ -19,7 +19,7 @@ try {
  b.onResolve({filter:/^\.\/database$/},()=>({path:'db',namespace:'mock'}));
  b.onResolve({filter:/^node:dns\/promises$/},()=>({path:'dns',namespace:'mock'}));
  b.onResolve({filter:/^\.\/security$/},()=>({path:'security',namespace:'mock'}));
- b.onLoad({filter:/.*/,namespace:'mock'},a=>({contents:a.path==='dns'?`export const lookup=async()=>[{address:'93.184.216.34'}];`:a.path==='db'?`export const db={prepare:()=>({get:()=>globalThis.__existing,run:(...args)=>{globalThis.__insert=args;globalThis.__existing={id:args[0]}}})};export const transaction=f=>f();`:`export const audit=()=>{};export const checkOrigin=()=>{};export const decryptKey=v=>'decrypted:'+v;export const encryptKey=v=>v;export const fail=(status,message)=>{throw Error(message)};export const requireUser=()=>({id:'test'});`,loader:'js'}));
+ b.onLoad({filter:/.*/,namespace:'mock'},a=>({contents:a.path==='dns'?`export const lookup=async()=>[{address:'93.184.216.34'}];`:a.path==='db'?`export const db={prepare:()=>({get:()=>globalThis.__existing,run:(...args)=>{globalThis.__insert=args;globalThis.__existing={id:args[0]}}})};export const transaction=f=>f();`:`export const throttle=()=>{};export const audit=()=>{};export const checkOrigin=()=>{};export const decryptKey=v=>'decrypted:'+v;export const encryptKey=v=>v;export const fail=(status,message)=>{throw Error(message)};export const requireUser=()=>({id:'test'});`,loader:'js'}));
  }}]});
  const saved={...process.env};Object.assign(process.env,generic);
  const models=await import(join(dir,'models.mjs'));models.initModels();assert.deepEqual(globalThis.__insert.slice(0,5),['builtin-env','My model','openai-compatible','https://api.example.com/v1','test-model']);

@@ -45,6 +45,39 @@ try{
  preference=await call('/api/profile',{cookie:admin,method:'PATCH',body:{cfRating:null}});assert.deepEqual(preference.data.range,{min:1400,max:1800});
  await call('/api/profile',{cookie:admin,method:'PATCH',body:{cfRating:1600}});
  const modelConfig=(await call('/api/config',{cookie:admin})).data;
+ const siteId=modelConfig.models[0].id;
+ assert.equal((await call('/api/register',{method:'GET'})).status,405);
+ assert.equal((await call('/api/register',{origin:'https://evil.example',body:{username:'evil',password:'1'}})).status,403);
+ let signup=await call('/api/register',{body:{username:'public-one',password:'123456',role:'admin',site_model_access:true}});assert.equal(signup.status,201);const publicOne=signup.cookie,publicId=signup.data.user.id;assert.equal(signup.data.user.role,'member');assert.equal(signup.data.user.site_model_access,0);assert.equal(signup.data.user.must_change_password,0);assert.equal(signup.data.user.password_hash,undefined);
+ assert.equal((await call('/api/register',{body:{username:'public-one',password:'123456'}})).status,409);
+ const second=await call('/api/register',{body:{username:'public-two',password:'123456'}});assert.equal(second.status,201);const publicTwo=second.cookie;
+ let ownConfig=(await call('/api/config',{cookie:publicOne})).data;assert.equal(ownConfig.configured,false);assert.deepEqual(ownConfig.models,[]);
+ assert.equal((await call('/api/model-preferences',{cookie:publicOne,method:'PATCH',body:{modelId:siteId}})).status,403);
+ for(const endpoint of ['/api/coach','/api/translate'])for(const modelId of [siteId,undefined])assert.equal((await call(endpoint,{cookie:publicOne,body:{modelId}})).status,403);
+ assert.equal((await call('/api/admin/models',{cookie:publicOne})).status,403);
+ assert.equal((await call('/api/admin/users',{cookie:publicOne,method:'PATCH',body:{id:publicId,site_model_access:true}})).status,403);
+ const personalBody={label:'My model',model:'private-model',base_url:'https://api.openai.com/v1',key:'personal-key-fixture',provider:'openai-compatible',owner_user_id:null,env_key:1,is_default:true};
+ assert.equal((await call('/api/personal/models',{cookie:publicOne,body:personalBody})).status,200);
+ const personalList=await call('/api/personal/models',{cookie:publicOne});assert.equal(personalList.data.models.length,1);assert.ok(!JSON.stringify(personalList.data).includes('personal-key-fixture'));assert.equal(personalList.data.models[0].env_key,0);assert.equal(personalList.data.models[0].is_default,0);const privateId=personalList.data.models[0].id;
+ ownConfig=(await call('/api/config',{cookie:publicOne})).data;assert.equal(ownConfig.models.length,1);assert.equal(ownConfig.models[0].scope,'personal');
+ assert.equal((await call('/api/model-preferences',{cookie:publicOne,method:'PATCH',body:{modelId:privateId}})).status,200);
+ assert.equal((await call('/api/personal/models',{cookie:publicTwo})).data.models.length,0);
+ for(const endpoint of ['/api/coach','/api/translate','/api/model-preferences'])assert.equal((await call(endpoint,{cookie:publicTwo,method:endpoint.endsWith('preferences')?'PATCH':'POST',body:{modelId:privateId}})).status,403);
+ for(const id of [privateId,siteId]){
+  assert.equal((await call('/api/personal/models',{cookie:publicTwo,method:'PATCH',body:{id,key:'stolen'}})).status,404);
+  assert.equal((await call('/api/personal/models',{cookie:publicTwo,method:'DELETE',body:{id}})).status,404);
+  assert.equal((await call('/api/personal/models/discover',{cookie:publicTwo,body:{id}})).status,404);
+ }
+ assert.equal((await call('/api/personal/models',{cookie:publicOne,origin:'https://evil.example',body:personalBody})).status,403);
+ assert.equal((await call('/api/personal/models',{cookie:publicOne,body:{...personalBody,base_url:'https://127.0.0.1/v1'}})).status,400);
+ assert.equal((await call('/api/admin/models',{cookie:admin})).data.models.some(m=>m.id===privateId),false);
+ assert.equal((await call('/api/admin/users',{cookie:admin,method:'PATCH',body:{id:publicId,site_model_access:true}})).status,200);
+ ownConfig=(await call('/api/config',{cookie:publicOne})).data;assert.ok(ownConfig.models.some(m=>m.id===siteId));assert.equal((await call('/api/model-preferences',{cookie:publicOne,method:'PATCH',body:{modelId:siteId}})).status,200);
+ assert.equal((await call('/api/admin/users',{cookie:admin,method:'PATCH',body:{id:publicId,site_model_access:false}})).status,200);
+ assert.equal((await call('/api/model-preferences',{cookie:publicOne,method:'PATCH',body:{modelId:siteId}})).status,403);
+ assert.equal((await call('/api/coach',{cookie:publicOne,body:{modelId:siteId}})).status,403);
+ assert.equal((await call('/api/personal/models',{cookie:publicOne,method:'DELETE',body:{id:privateId}})).status,200);
+
  const chosenModel=modelConfig.models[0];assert.deepEqual(chosenModel.reasoningOptions.map(v=>v.value),['default','low','high','max']);
  let modelPreference=await call('/api/model-preferences',{cookie:admin,method:'PATCH',body:{modelId:chosenModel.id,reasoningEffort:'high'}});assert.equal(modelPreference.status,200);assert.equal(modelPreference.data.preferences.efforts[chosenModel.id],'high');
  assert.equal((await call('/api/config',{cookie:admin})).data.preferences.selectedModelId,chosenModel.id);
@@ -89,5 +122,5 @@ try{
  result=await call('/api/admin/backup',{cookie:admin});assert.equal(result.status,200);const binary=Buffer.from(result.data);assert.equal(binary.subarray(0,15).toString(),'SQLite format 3');assert.ok(!binary.includes(Buffer.from('secret-test-model-key')));
  assert.equal((await call('/api/admin/users',{cookie:admin,method:'PATCH',body:{id:memberId,disabled:true}})).status,200);assert.equal((await call('/api/config',{cookie:member})).status,401);
  await call('/api/auth',{cookie:admin,method:'DELETE'});assert.equal((await call('/api/config',{cookie:admin})).status,401);
- console.log('PASS: forced password change, session revocation, member/admin isolation, account disable, CSRF, concurrent-save conflict, record isolation, encrypted model keys, endpoint restrictions, deduplicated training stats, token accounting, cache reuse, statistics isolation, persistent rating preferences, profile validation/CSRF/isolation, backup and logout.');
+ console.log('PASS: public registration without privilege escalation, personal model isolation, encrypted personal keys, site-key grant/revoke, CSRF/endpoint/foreign-ID rejection, forced password change, session revocation, member/admin isolation, account disable, CSRF, concurrent-save conflict, record isolation, encrypted model keys, endpoint restrictions, deduplicated training stats, token accounting, cache reuse, statistics isolation, persistent rating preferences, profile validation/CSRF/isolation, backup and logout.');
 }finally{server.kill('SIGTERM');await new Promise(r=>server.once('exit',r));rmSync(temp,{recursive:true,force:true});}

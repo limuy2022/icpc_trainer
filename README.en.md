@@ -13,7 +13,7 @@ Model providers are configurable: no GLM subscription or specific vendor is requ
 - Progressive hints, counterexamples, reviews, and optional full solutions; LaTeX, syntax highlighting, message editing and recall.
 - Interactive explanations inside AI replies, with an explicit “画图讲解” (visual explanation) action.
 - Saved sessions and notes, cross-device sync, JSON import/export, solve-time trends, model-call and token statistics.
-- Administrator-created accounts, no public registration; multiple models, separate keys, and default-model management.
+- Public registration with personal API keys; administrators grant site-model access per account.
 - Light/dark/system themes, mobile layouts, and SQLite backups.
 
 ## Quick start
@@ -40,7 +40,7 @@ printf '%s' '{"username":"admin","output":"../data/initial-admin.txt"}' | node -
 node --env-file=../.env.local server.mjs
 ```
 
-Open <http://127.0.0.1:5182>, sign in with the credentials in `data/initial-admin.txt`, and change the password. There is no built-in default password. Initialization runs once; administrators create subsequent accounts.
+Open <http://127.0.0.1:5182>, sign in with the credentials in `data/initial-admin.txt`, and change the password. There is no built-in default password. Initialization runs once. Users can then register themselves, or administrators can create accounts.
 
 ### Development
 
@@ -215,3 +215,11 @@ The notice names the model that actually generated the translation. Use **Retran
 Administrators can configure an output token limit per model, selecting either `max_tokens` or `max_completion_tokens` as required by the API. Coaching and translation use this setting. A blank limit omits the parameter and uses the provider default, avoiding small hardcoded budgets for models whose reasoning is enabled by default. Reasoning and final answers may share a budget; follow the model documentation.
 
 Account creation offers a “Use default password 123456” button that fills the field only when clicked. Creation, resets, and password changes accept 1–200 characters; the former 12-character minimum is removed. New accounts and administrator-reset passwords still require a password change at next sign-in.
+
+### Registration, personal keys and site-model access
+
+The sign-in page offers public registration. Self-registration always creates an ordinary member with site-model access disabled, ignoring submitted roles, grants and ownership fields. Registrants can sign in immediately without changing their chosen password again. Registration is rate-limited by IP.
+
+Open “Coaching model → Manage my API keys” to manage up to 20 personal models, with provider presets, model discovery, reasoning levels and output budgets. Personal keys are encrypted and never returned to the browser. Only the owner can list, edit, discover or call their models. Personal endpoints require public HTTPS; connection-time DNS checks reject private addresses, DNS rebinding and redirects.
+
+In account management, administrators can grant or revoke “Allow site keys” independently of a member's role. Subsequent requests recheck access for coaching, translation, model selection and discovery. Administrators can use site models. Existing accounts retain their access on upgrade; manually created accounts default to site access, which can be revoked. Self-registered accounts always default to no site access.

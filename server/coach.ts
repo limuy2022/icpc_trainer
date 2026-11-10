@@ -6,7 +6,7 @@ import { reasoningParameters } from "../lib/reasoning";
 import { splitStatement } from "../lib/statement-header";
 import { requestModel } from "./model-request";
 import { modelKey, selectModel, validateEndpoint } from "./models";
-import { requireUser } from "./security";
+import { requireUser, HttpError } from "./security";
 import type { Message } from "@/lib/types";
 import { visualInstructions } from "../lib/coach-visual";
 import { getEditorial } from "./editorials";
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "请求来源无效" }, { status: 403 });
     const body = (await request.json()) as any;
     const user = requireUser(request);
-    const selected = selectModel(body.modelId);
+    const selected = selectModel(body.modelId,user);
     const effort=selectedReasoning(user.id,selected,body.reasoningEffort);
     const reasoning=reasoningParameters(selected,effort);
     await validateEndpoint(selected.base_url);
@@ -176,8 +176,8 @@ export async function POST(request: Request) {
     return new Response(stream,{headers:{"Content-Type":"application/x-ndjson; charset=utf-8","Cache-Control":"no-store","X-Accel-Buffering":"no"}});
   } catch (error) {
     return Response.json(
-      { error: requestFailure(error) },
-      { status: 502 },
+      { error: error instanceof HttpError?error.message:requestFailure(error) },
+      { status: error instanceof HttpError?error.status:502 },
     );
   }
 }

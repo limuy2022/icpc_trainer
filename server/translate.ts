@@ -17,6 +17,7 @@ const pending = new Map<
 export async function translate(request: Request) {
   const user = requireUser(request),
     body = (await request.json()) as any;
+  const model=selectModel(body.modelId,user);
   const originalText=splitStatement(typeof body.text === "string" ? body.text : "").text;
   const text = translationSource(originalText),
     problemId = String(body.problemId || "");
@@ -43,7 +44,6 @@ export async function translate(request: Request) {
     }
     if(cached)return Response.json({text:cached.translation,model:cached.model_name||"Cached translation",createdAt:cached.created_at,cached:true});
   }
-  const model = selectModel(body.modelId);
   const effort=selectedReasoning(user.id,model,body.reasoningEffort);
   const reasoning=reasoningParameters(model,effort);
   const hash = createHash("sha256")

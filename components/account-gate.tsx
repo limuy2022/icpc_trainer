@@ -10,6 +10,7 @@ export type Account = {
   role: "admin" | "member";
   must_change_password: number;
   cf_rating: number | null;
+  site_model_access: number;
 };
 export async function api(
   path: string,
@@ -64,7 +65,7 @@ export function PasswordForm({
       }}
     >
       <h2>{required ? ui("首次登录，请设置自己的密码") : ui("修改密码")}</h2>
-      <p>{ui("账号由管理员创建。修改密码后，其他设备上的登录会失效。")}</p>
+      <p>{ui("修改密码后，其他设备上的登录会失效。")}</p>
       <label>
         {ui("当前密码")}<input
           autoComplete="current-password"
@@ -117,6 +118,7 @@ export default function AccountGate({
     [password, setPassword] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
+  const [registering,setRegistering]=useState(false),[confirmation,setConfirmation]=useState("");
   async function refresh() {
     try {
       const data = await api("/api/auth");
@@ -151,7 +153,7 @@ export default function AccountGate({
             <Code2 size={25} />
           </span>
           <span>
-            {ui("思维练习场")}<small>PRIVATE ICPC WORKSPACE</small>
+            {ui("思维练习场")}<small>ICPC THINKING WORKSPACE</small>
           </span>
         </div>
         {user ? (
@@ -169,7 +171,8 @@ export default function AccountGate({
               setError("");
               setBusy(true);
               try {
-                const data = await api("/api/auth", { username, password });
+                if(registering&&password!==confirmation)throw Error("两次新密码不一致");
+                const data = await api(registering?"/api/register":"/api/auth", { username, password });
                 setUser(data.user);
                 setPassword("");
               } catch (e) {
@@ -181,7 +184,7 @@ export default function AccountGate({
           >
             <div className="eyebrow">{ui("一个小范围的训练空间")}</div>
             <h1>{ui("从一次思考开始。")}</h1>
-            <p>{ui("仅限管理员开通的账号登录，不开放注册。")}</p>
+            <p>{ui(registering?"注册后请配置自己的 API Key；网站密钥需管理员授权。":"登录继续训练，或注册一个新账号。")}</p>
             <label>
               {ui("账号")}<input
                 autoComplete="username"
@@ -193,13 +196,15 @@ export default function AccountGate({
             </label>
             <label>
               {ui("密码")}<input
-                autoComplete="current-password"
+                autoComplete={registering?"new-password":"current-password"}
+                maxLength={200}
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </label>
+            {registering&&<label>{ui("再次输入新密码")}<input type="password" autoComplete="new-password" required maxLength={200} value={confirmation} onChange={e=>setConfirmation(e.target.value)}/></label>}
             {error && (
               <div className="form-error" role="alert">
                 {ui(error)}
@@ -209,11 +214,11 @@ export default function AccountGate({
               {busy ? (
                 <LoaderCircle className="spin" size={16} />
               ) : (
-                ui("登录训练空间")
+                ui(registering?"注册并开始训练":"登录训练空间")
               )}
               <ArrowRight size={16} />
             </button>
-            <small>{ui("需要账号？请联系管理员。")}</small>
+            <button type="button" className="text-button" disabled={busy} onClick={()=>{setRegistering(!registering);setError("");setPassword("");setConfirmation("");}}>{ui(registering?"已有账号？返回登录":"没有账号？注册")}</button>
           </form>
         )}
       </div>

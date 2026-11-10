@@ -19,6 +19,7 @@ import AccountGate, {
 } from "@/components/account-gate";
 import AdminPanel from "@/components/admin-panel";
 import { useTrainingSync } from "@/hooks/use-training-sync";
+import { useWorkspaceRoute } from "@/hooks/use-workspace-route";
 import ProblemStatement from "@/components/problem-statement";
 import {
   Pencil,
@@ -99,9 +100,7 @@ function Workspace({
   logout: () => Promise<void>;
 }) {
   useLocale();
-  const [view, setView] = useState<"bank" | "training" | "history" | "admin" | "statistics">(
-    "bank",
-  );
+  const {view,current,open:openRoute}=useWorkspaceRoute(user.id,user.role==="admin");
   const { sessions, setSessions, loaded, syncState, save } = useTrainingSync(
     user.id,
   );
@@ -112,7 +111,6 @@ function Workspace({
     document.addEventListener("keydown", close);
     return () => document.removeEventListener("keydown", close);
   }, [mobileMenu]);
-  const [current, setCurrent] = useState<string | null>(null);
   const [efforts, setEfforts] = useState<Record<string,ReasoningLevel>>({});
   const [modelSettingsBusy,setModelSettingsBusy]=useState(false),[modelSettingsError,setModelSettingsError]=useState("");
   const [models, setModels] = useState<any[]>([]),
@@ -289,8 +287,23 @@ function Workspace({
   }
   function navigate(next: typeof view) {
     if (next !== "training") pauseAll();
-    setView(next);
+    openRoute(next);
   }
+  useEffect(()=>{
+    requestId.current++;
+    setMobileMenu(false);
+    setMessageEdit(null);
+    setStatementError("");
+    if(view!=="training"){pauseAll();return;}
+    if(!loaded || !current)return;
+    const restored=sessionsRef.current.find(s=>s.id===current);
+    if(!restored){openRoute("training",null,true);setToast("这条训练记录不存在或不属于当前账号，请重新选择。");return;}
+    const timestamp=Date.now();
+    setSessions(previous=>previous.map(s=>s.id===current
+      ? s.outcome==="training"&&!s.startedAt?{...s,startedAt:timestamp}:s
+      : s.startedAt?{...s,elapsed:s.elapsed+Math.max(0,Math.floor((timestamp-s.startedAt)/1000)),startedAt:null}:s));
+    if(!restored.statement)void loadStatement(restored.problem,restored.id);
+  },[view,current,loaded]);
   async function loadStatement(p: Problem, id: string) {
     const token = ++requestId.current;
     setStatementBusy(true);
@@ -358,25 +371,21 @@ function Workspace({
       setSessions((prev) => [next, ...prev]);
     }
     setMessageEdit(null);
-    setCurrent(id!);
-    setView("training");
+    openRoute("training",id!);
     setDraft("");
     setChatError("");
     setStatementError("");
     setEditor(false);
-    if (!previous?.statement) void loadStatement(p, id!);
   }
   function resume(s: Session) {
     pauseAll();
     setMessageEdit(null);
-    setCurrent(s.id);
-    setView("training");
+    openRoute("training",s.id);
     setDraft("");
     setChatError("");
     setStatementError("");
     setEditor(false);
     patch(s.id, { startedAt: s.outcome === "training" ? Date.now() : null });
-    if (!s.statement) void loadStatement(s.problem, s.id);
   }
   async function random() {
     setLoading(true);
@@ -602,7 +611,7 @@ function Workspace({
     });
     setFinish(false);
     setToast("训练已记录。完成状态由你手动标记，未同步 CF 判题。");
-    setView("history");
+    openRoute("history");
   }
   const doneIds = new Set(completed.map((s) => s.problem.id));
   return (
@@ -1165,7 +1174,8 @@ function Workspace({
             </footer>
           </main>
         )}
-        {view === "training" && !session && (
+        {view === "training" && !loaded && <div className="empty" role="status"><LoaderCircle className="spin" size={20}/><p>{ui("正在恢复训练记录…")}</p><p>{ui(syncState)}</p></div>}
+        {view === "training" && loaded && !session && (
           <main className="main-content">
             <div className="empty large-empty">
               <MessageCircle size={38} />
@@ -1243,7 +1253,7 @@ function Workspace({
                   {ui("结束并记录")}</button>
               </div>
             </div>
-            <nav className="mobile-training-jump" aria-label={ui("训练区域")}><a href="#problem-reader">{ui("阅读题目")}</a><a href="#ai-coach">{ui("与 AI 讨论")}</a></nav>
+            <nav className="mobile-training-jump" aria-label={ui("训练区域")}><a href="#problem-reader" onClick={e=>{e.preventDefault();document.getElementById("problem-reader")?.scrollIntoView({block:"start"});}}>{ui("阅读题目")}</a><a href="#ai-coach" onClick={e=>{e.preventDefault();document.getElementById("ai-coach")?.scrollIntoView({block:"start"});}}>{ui("与 AI 讨论")}</a></nav>
             <div className="training-grid">
               <section id="problem-reader" className="statement-panel">
                 <div className="panel-heading">

@@ -625,5 +625,7 @@
   "模型回复连接中途断开，回答尚未完成。你的输入已保留，请重试。": "The model connection ended before the reply completed. Your input is preserved; please retry.",
   "模型服务返回了无效或中断的数据。你的输入已保留，请重试。": "The model service returned invalid or interrupted data. Your input is preserved; please retry.",
   "连接模型服务失败。你的输入已保留，请稍后重试。": "Could not connect to the model service. Your input is preserved; please try again later.",
-  "正在检验思路… 已等待 {0} 秒": "Checking your reasoning… waiting {0}s"
+  "正在检验思路… 已等待 {0} 秒": "Checking your reasoning… waiting {0}s",
+  "正在恢复训练记录…": "Restoring your training session…",
+  "这条训练记录不存在或不属于当前账号，请重新选择。": "This session is unavailable or belongs to another account. Please choose another."
 }

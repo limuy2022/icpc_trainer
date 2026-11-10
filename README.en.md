@@ -187,3 +187,7 @@ Code is licensed under the [MIT License](LICENSE). Dependencies and third-party 
 Coaching streams answer text with heartbeats and a 180-second model-generation limit. Only explicitly completed replies enter conversation history. Interrupted or output-limited responses keep their temporary text visible, report a specific error, and allow retry; incomplete text is not sent as context on the next turn.
 
 Recent admin call records include request IDs, durations, error categories, and finish reasons, distinguishing upstream HTTP failures, networking/timeouts, empty answers, invalid data, and output limits. Service logs contain only diagnostic metadata, not keys, full prompts, or conversation content. Older records have no diagnostic fields; an HTTP status alone does not establish the failure cause.
+
+### Restoring your place
+
+Navigation updates the URL fragment, such as `#/history`, `#/statistics`, or `#/training/<session-id>`. Refreshes, bookmarks, and browser Back/Forward restore the matching page. Training pages wait for the current account's records before restoring the selected session; timing resumes from restoration without counting offline time. When no explicit fragment is supplied, the browser restores the last location saved for that account. Admin permissions still apply; unavailable or other-account session links return to the session picker with a notice.

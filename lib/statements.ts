@@ -92,6 +92,12 @@ function markdown(node: Node): string {
   if (["td", "th"].includes(name)) return value + " | ";
   return value;
 }
+export function htmlToMarkdown(html: string) {
+  return markdown(parse(html))
+    .replace(/\${6}([\s\S]*?)\${6}/g, (_, value) => "\n\n$$\n" + value.trim() + "\n$$\n\n")
+    .replace(/\${3}([\s\S]*?)\${3}/g, (_, value) => "$" + value.trim() + "$")
+    .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
 export function parseStatement(html: string) {
   const document = parse(html);
   const root = find(document, (n) => hasClass(n, "problem-statement"));

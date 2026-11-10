@@ -13,6 +13,7 @@ export type Session = {
   id: string;
   problem: Problem;
   messages: Message[];
+  editorialReference?: import("./editorials").EditorialReference;
   messagesVersion?: string;
   statement: string;
   statementMetadata?: StatementMetadata;

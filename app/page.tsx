@@ -135,6 +135,7 @@ function Workspace({
     [aiConfigured, setAiConfigured] = useState(false),
     [model, setModel] = useState("");
   const [retryMode, setRetryMode] = useState("discuss");
+  const [allowUnverified, setAllowUnverified] = useState(false);
   const [messageEdit, setMessageEdit] = useState<{ sessionId: string; index: number; original: string; content: string } | null>(null);
   const [draft, setDraft] = useState(""),
     [busy, setBusy] = useState(false),
@@ -502,6 +503,8 @@ function Workspace({
         body: JSON.stringify({
           statement: splitStatement(session.statement).text,
           problem: `${session.problem.id} ${session.problem.name}`,
+          problemId: session.problem.id,
+          allowUnverified,
           notes: session.notes,
           modelId,
           reasoningEffort,
@@ -509,7 +512,8 @@ function Workspace({
           messages,
         }),
       });
-      const data = (await res.json()) as { error?: string; text: string };
+      const data = (await res.json()) as { error?: string; text: string; editorial?: Session["editorialReference"] };
+      if (data.editorial) patch(id,{editorialReference:data.editorial});
       if (!res.ok) throw Error(data.error || "回复生成失败，请重试");
       const latest = sessionsRef.current.find(s => s.id === id);
       if (!latest || latest.messagesVersion !== messagesVersion || JSON.stringify(latest.messages) !== JSON.stringify(messages)) {
@@ -1511,6 +1515,10 @@ function Workspace({
                 <div className="coach-principle">
                   <Lightbulb size={15} />
                   每次只推进一小步，先把你的想法说出来。
+                </div>
+                <div className="editorial-reference">
+                  {session.editorialReference?.status === "ready" ? <span>最近回复已参考官方题解{session.editorialReference.stale ? "（旧缓存）" : ""} · <a href={session.editorialReference.url} target="_blank" rel="noreferrer">来源链接（含剧透）</a></span> : <span>{session.editorialReference?.status === "unavailable" ? "官方题解暂不可用；独立推导尚未核验" : "回复前会获取当前题目的官方题解，仅供教练核验"}</span>}
+                  <label><input type="checkbox" checked={allowUnverified} disabled={busy} onChange={e=>setAllowUnverified(e.target.checked)}/>允许无题解推导</label>
                 </div>
                 <div className="chat-messages" aria-live="polite">
                   {!session.messages.length && (

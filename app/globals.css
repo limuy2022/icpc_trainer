@@ -3479,3 +3479,8 @@ html[data-theme="dark"] .time-trend { --trend-raw:#9bcab6; --trend-median:#8dbff
 .coach-visual summary { cursor:pointer; }
 .coach-visual details pre { max-height:320px; overflow:auto; font-size:12px; }
 @media(pointer:coarse) { .coach-visual-toolbar button,.coach-visual summary { min-height:44px; display:flex; align-items:center; } }
+.editorial-reference { display:flex; flex-direction:column; gap:6px; padding:10px 18px; border-bottom:1px solid var(--line); color:var(--ink); font-size:13px; line-height:1.6; }
+.editorial-reference a { text-decoration:underline; text-underline-offset:3px; }
+.editorial-reference label { display:flex; align-items:center; gap:8px; min-height:32px; }
+.editorial-reference input { width:16px; height:16px; accent-color:var(--green); }
+@media(pointer:coarse) { .editorial-reference label { min-height:44px; } }

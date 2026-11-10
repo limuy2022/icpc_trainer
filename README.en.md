@@ -156,6 +156,12 @@ The script builds, uploads, and validates a temporary bundle, backs up the datab
 
 The problem bank uses the [Codeforces API](https://codeforces.com/apiHelp/methods#problemset.problems), falling back to a bundled, dated snapshot when unavailable. Statements try the original site, then an [unofficial public archive](https://github.com/codewithsathya/codeforces-problems), with source labels. Manual pasting remains available. Statements are cached for seven days; failed refreshes preserve old cache entries.
 
+Before coaching, the server discovers the official Tutorial/Editorial link in the problem page's Contest materials, reads its body through CF's `blogEntry.view`, and extracts the current problem's section by explicit problem identity. If the original problem page is blocked, the public statement archive may supply the link; editorial content still comes from the official CF API. Community articles are not labelled official, and other problems' solutions and comments are not included. Ambiguous section matching is treated as unavailable.
+
+The editorial is server-side reference material, not a solution automatically displayed to the learner. Hint levels still apply, and an alternative approach is not rejected simply for differing from the editorial. The chat shows the latest reply's reference status and a spoiler-labelled source link. References are cached for seven days; refresh failures can reuse clearly marked stale data. Failed fetches have a short cooldown. First retrieval can add up to about 18 seconds.
+
+By default, no model call is made without an official reference. Users may explicitly enable “允许无题解推导” (allow reasoning without an editorial); the interface and reply then identify the result as unverified. Inconsistent editorial formats, video-only explanations, or CF network restrictions may prevent retrieval. Official references reduce mistakes but cannot guarantee correct proofs, counterexamples, or visuals.
+
 Titles and time/memory limits are stored separately; coaching and translation receive the body. Translations protect formulas, samples, and images and can be checked against the original. Statements, notes, and conversations are sent to the selected model provider. AI can be wrong; the application is not an online judge.
 
 Interactive `icpc-visual` blocks contain HTML/SVG/JavaScript rendered in a sandboxed iframe without same-origin privileges and with CSP restrictions on network requests. Only AI replies enable these blocks. Replay and source inspection are available; correctness depends on the model.

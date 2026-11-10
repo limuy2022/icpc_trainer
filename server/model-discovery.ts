@@ -4,6 +4,7 @@ import {modelKey,validateEndpoint,type ModelConfig} from "./models";
 import {checkOrigin,fail,requireUser,throttle} from "./security";
 const MAX_MODEL_LIST_BYTES=8*1024*1024;
 export async function discoverModels(request:Request,personal=false) {
+  if(personal)fail(410,"个人模型目录改为浏览器直接查询，请刷新页面");
   const actor=requireUser(request,!personal);
   if(request.method!=="POST")fail(405,"不支持的操作");
   checkOrigin(request);throttle("model-discovery:"+actor.id,20,60000);

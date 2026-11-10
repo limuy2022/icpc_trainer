@@ -95,16 +95,17 @@ export async function validateEndpoint(value: string) {
 }
 const siteAllowed=(user:User)=>user.role==="admin"||user.site_model_access===1;
 export function availableModels(user:User) {
-  return db.prepare("SELECT id,label,model,provider,is_default,CASE WHEN owner_user_id IS NULL THEN 'site' ELSE 'personal' END AS scope FROM models WHERE enabled=1 AND (owner_user_id=? OR (owner_user_id IS NULL AND ?=1)) ORDER BY is_default DESC,created_at")
-    .all(user.id,Number(siteAllowed(user))).map(row=>({...row,reasoningOptions:reasoningOptions(row as {model:string;provider:string})}));
+  return db.prepare("SELECT id,label,model,provider,is_default,CASE WHEN owner_user_id IS NULL THEN 'site' ELSE 'personal' END AS scope FROM models WHERE enabled=1 AND (owner_user_id IS NULL AND ?=1) ORDER BY is_default DESC,created_at")
+    .all(Number(siteAllowed(user))).map(row=>({...row,reasoningOptions:reasoningOptions(row as {model:string;provider:string})}));
 }
 export function selectModel(id:string|undefined,user:User) {
-  const permission="enabled=1 AND (owner_user_id=? OR (owner_user_id IS NULL AND ?=1))";
-  const model=(id?db.prepare("SELECT * FROM models WHERE id=? AND "+permission).get(id,user.id,Number(siteAllowed(user))):db.prepare("SELECT * FROM models WHERE "+permission+" ORDER BY is_default DESC,created_at LIMIT 1").get(user.id,Number(siteAllowed(user)))) as ModelConfig|undefined;
+  const permission="enabled=1 AND (owner_user_id IS NULL AND ?=1)";
+  const model=(id?db.prepare("SELECT * FROM models WHERE id=? AND "+permission).get(id,Number(siteAllowed(user))):db.prepare("SELECT * FROM models WHERE "+permission+" ORDER BY is_default DESC,created_at LIMIT 1").get(Number(siteAllowed(user)))) as ModelConfig|undefined;
   if(!model)fail(403,"没有可用模型，请配置个人 API Key 或联系管理员授权");
   return model;
 }
 export function modelKey(model: ModelConfig) {
+  if(model.owner_user_id)fail(410,"个人密钥已改为仅本机保存，请刷新页面后重新配置");
   const key = model.env_key
     ? environmentModelKey(process.env, model.id)
     : model.encrypted_key
@@ -114,6 +115,7 @@ export function modelKey(model: ModelConfig) {
   return key;
 }
 export async function modelsAdmin(request: Request, personal=false) {
+  if(personal)fail(410,"个人密钥已改为仅本机保存，请刷新页面后重新配置");
   const actor = requireUser(request, !personal);
   const scope=personal?"owner_user_id=?":"owner_user_id IS NULL";
   const scopeArgs=personal?[actor.id]:[];

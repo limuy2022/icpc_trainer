@@ -3526,3 +3526,13 @@ html[lang="en"] .stat-label,html[lang="en"] .stat-value { overflow-wrap:anywhere
 .assistant-preferences { padding:24px; }
 .assistant-preferences select,.assistant-preferences textarea { width:100%; min-width:0; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); font:inherit; }
 @media(max-width:600px) { .assistant-preferences { padding:18px 14px; } }
+.model-choice { margin:18px 0; }
+.model-options { display:flex; flex-direction:column; gap:8px; max-height:260px; overflow-y:auto; overscroll-behavior:contain; padding:8px 2px; -webkit-overflow-scrolling:touch; }
+.model-options > button { flex-shrink:0; min-height:54px; padding:12px; text-align:left; border:1px solid var(--line); border-radius:8px; background:var(--paper); color:var(--ink); touch-action:manipulation; overflow-wrap:anywhere; }
+.model-options > button[aria-selected="true"] { border-color:var(--green); box-shadow:inset 0 0 0 1px var(--green); }
+.model-options > button span { display:block; margin-top:4px; color:var(--muted); font-size:13px; }
+.browser-model-manager { line-height:1.7; }
+.browser-model-manager .account-form { margin-top:20px; }
+.browser-model-manager .remember-browser-key { display:flex; flex-direction:row; align-items:center; gap:10px; }
+.browser-model-manager .remember-browser-key input { width:auto; }
+@media(max-width:600px) { .model-options > button { font-size:16px; } .browser-model-manager input,.browser-model-manager select { font-size:16px; } }

@@ -38,11 +38,14 @@ export async function POST(request: Request) {
       return Response.json({ error: "请求来源无效" }, { status: 403 });
     const body = (await request.json()) as any;
     const user = requireUser(request);
-    const selected = selectModel(body.modelId,user);
-    const effort=selectedReasoning(user.id,selected,body.reasoningEffort);
+    const prepareOnly=body.prepareOnly===true;
+    const metadata=body.browserModel||{};
+    if(prepareOnly&&(!/^[^\s]{1,120}$/.test(String(metadata.model||""))||!["glm","openai-compatible"].includes(metadata.provider)))return Response.json({error:"本机模型配置无效"},{status:400});
+    const selected = prepareOnly?{id:"browser-only",label:"Browser",model:String(metadata.model),provider:metadata.provider,base_url:"",encrypted_key:null,env_key:0,enabled:1,is_default:0,max_output_tokens:metadata.max_output_tokens??null,output_token_parameter:metadata.output_token_parameter||"max_tokens"}:selectModel(body.modelId,user);
+    const effort=prepareOnly?(body.reasoningEffort||"default"):selectedReasoning(user.id,selected,body.reasoningEffort);
     const reasoning=reasoningParameters(selected,effort);
-    await validateEndpoint(selected.base_url);
-    const key = modelKey(selected),
+    if(!prepareOnly)await validateEndpoint(selected.base_url);
+    const key = prepareOnly?"":modelKey(selected),
       model = selected.model;
     if (!Array.isArray(body.messages))
       return Response.json({ error: "对话格式无效" }, { status: 400 });
@@ -89,19 +92,8 @@ export async function POST(request: Request) {
         "用户明确请求完整解法。给出推导、正确性证明、复杂度与边界；仅在用户要求时给代码。",
     };
     const requestId=randomUUID();
-    const generate=async (onDelta?: (text:string)=>void, signal:AbortSignal=request.signal, onReasoning?:(text:string)=>void) => {
-    const { response: res, data } = await requestModel(user.id, selected, "coach",
-      selected.base_url.replace(/\/$/, "") + "/chat/completions",
-      {
-        method: "POST",
-        redirect: "error",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify({
+    const payload={
           model,
-          ...(onDelta ? {stream:true,stream_options:{include_usage:true}} : {}),
           messages: [
             {
               role: "system",
@@ -126,7 +118,19 @@ export async function POST(request: Request) {
           ],
           ...outputParameters(selected),
           ...reasoning,
-        }),
+    };
+    if(prepareOnly)return Response.json({payload,model:selected.model,editorial:reference,sources:knowledge?.sources});
+    const generate=async (onDelta?: (text:string)=>void, signal:AbortSignal=request.signal, onReasoning?:(text:string)=>void) => {
+    const { response: res, data } = await requestModel(user.id, selected, "coach",
+      selected.base_url.replace(/\/$/, "") + "/chat/completions",
+      {
+        method: "POST",
+        redirect: "error",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({...payload,...(onDelta?{stream:true,stream_options:{include_usage:true}}:{})}),
         signal,
       },
       {onDelta,onReasoning,requestId},

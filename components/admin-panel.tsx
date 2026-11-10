@@ -33,6 +33,7 @@ export default function AdminPanel({
   const [username, setUsername] = useState(""),
     [password, setPassword] = useState(""),
     [role, setRole] = useState("member");
+  const [modelSearch,setModelSearch]=useState("");
   const [presetId,setPresetId]=useState("custom");
   const selectedPreset=modelPresets.find(p=>p.id===presetId);
   const [discovered,setDiscovered]=useState<string[]>([]),[discovering,setDiscovering]=useState(false),[discoveryError,setDiscoveryError]=useState("");
@@ -242,7 +243,7 @@ export default function AdminPanel({
               {ui("添加模型")}</button>
           </div>
           <p className="admin-help">
-            {ui("支持 OpenAI Chat Completions 兼容接口。密钥加密保存，列表和编辑接口都不会返回原值。")}</p>
+            {ui("这里配置网站共享模型，Key 会加密保存在服务器。个人使用请到「管理我的 API Key」添加本机模型。")}</p>
           {models.map((m) => (
             <article className="model-card" key={m.id}>
               <div>
@@ -498,7 +499,7 @@ export default function AdminPanel({
               </div>
               <label>{ui("输出 Token 上限")}<input type="number" min="1" max="1048576" step="1" placeholder={ui("留空使用服务商默认值")} value={modelForm.max_output_tokens??""} onChange={e=>setModelForm({...modelForm,max_output_tokens:e.target.value})}/><small>{ui("推理模型的预算可能同时包含思考和最终回答；请按该型号文档设置。")}</small></label>
               <label>{ui("输出 Token 参数")}<select value={modelForm.output_token_parameter||"max_tokens"} onChange={e=>setModelForm({...modelForm,output_token_parameter:e.target.value})}><option value="max_tokens">max_tokens</option><option value="max_completion_tokens">max_completion_tokens</option></select><small>{ui("按服务商接口要求选择；留空上限时不发送此参数。")}</small></label>
-              {discovered.length>0&&<label>{ui("从已获取列表选择")}<select aria-label={ui("从已获取列表选择")} value={discovered.includes(modelForm.model)?modelForm.model:""} onChange={e=>{if(e.target.value)setModelForm({...modelForm,model:e.target.value});}}><option value="">{ui("选择模型，或在上方手动填写")}</option>{discovered.map(id=><option key={id} value={id}>{id}</option>)}</select><small>{ui("已获取 {0} 个模型；列表不代表每个模型都支持聊天。",[discovered.length])}</small></label>}
+              {discovered.length>0&&<div><span>{ui("从已获取列表选择")}</span><label>{ui("筛选模型列表")}<input value={modelSearch} onChange={e=>setModelSearch(e.target.value)}/></label><div role="listbox" aria-label={ui("从已获取列表选择")} className="model-options">{discovered.filter(id=>id.toLowerCase().includes(modelSearch.toLowerCase())).slice(0,100).map(id=><button type="button" role="option" aria-selected={modelForm.model===id} key={id} onClick={()=>setModelForm({...modelForm,model:id})}>{id}</button>)}</div><small>{ui("已获取 {0} 个模型；列表不代表每个模型都支持聊天。",[discovered.length])}</small></div>}
               {discoveryError&&<p className="form-error" role="alert">{ui(discoveryError)}</p>}
               <label>
                 API Key {modelForm.id ? ui(modelForm.base_url.replace(/\/+$/,"")===modelForm.original_base_url.replace(/\/+$/,"")?"（留空保留原密钥）":"（更换接口后需重新填写）") : ""}

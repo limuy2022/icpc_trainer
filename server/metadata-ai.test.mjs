@@ -43,6 +43,11 @@ try {
    const response=await mod.POST(new Request('http://localhost/api/coach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assistant:true,messages:[{role:'user',content:'Explain a simple loop.'}],assistantProfile:{style:'auto',known:'basic loops',goal:'understand proofs'}})}));
    assert.equal(response.status,200);const answer=await response.json();assert.deepEqual(answer.sources,[]);assert.ok(sent.messages[0].content.includes('不要要求用户先提供竞赛题'));assert.ok(sent.messages[0].content.includes('basic loops'));assert.ok(!sent.messages.some(m=>m.content.includes('OFFICIAL_REFERENCE_FIXTURE')));
   }
+  if(name==='coach'){
+   globalThis.fetch=async()=>{throw Error('prepare-only must never call an upstream model');};
+   const response=await mod.POST(new Request('http://localhost/api/coach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prepareOnly:true,browserModel:{model:'browser-glm',provider:'glm',key:'NEVER_ECHO_THIS'},statement:header+body,problemId:'1A',messages:[],reasoningEffort:'on'})}));
+   assert.equal(response.status,200);const result=await response.json();assert.ok(!JSON.stringify(result).includes('NEVER_ECHO_THIS'));assert.ok(result.payload.messages.some(m=>m.content.includes('OFFICIAL_REFERENCE_FIXTURE')));assert.equal(result.payload.thinking.type,'enabled');
+  }
   if(name==='translate'){const result=await response.json();assert.ok(result.text.includes('3\n1 2 3'));}
  }
  console.log('PASS: translation and coaching send body only; constraints, Input/Output sections and samples preserved');

@@ -134,6 +134,7 @@ export default function AccountGate({
   }, []);
   async function logout() {
     await api("/api/auth", undefined, "DELETE");
+    if(user)sessionStorage.removeItem("icpc-browser-models:"+user.id);
     setUser(null);
     setPassword("");
   }

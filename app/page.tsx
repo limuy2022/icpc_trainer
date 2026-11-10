@@ -13,6 +13,10 @@ import {translationSource} from "@/lib/translation-source";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {assistantId,newAssistantSession} from "@/lib/assistant";
 import AssistantPreferences from "@/components/assistant-preferences";
+import BrowserModelManager from "@/components/browser-model-manager";
+import {readBrowserModels,browserModelMetadata,browserCompletion,browserModelPayload} from "@/lib/browser-models";
+import {protectStatement,restoreStatement} from "@/lib/translation-format";
+import {translationInstructions} from "@/lib/translation-prompt";
 import ReasoningDetails from "@/components/reasoning-details";
 import RecoveredVersions from "@/components/recovered-versions";
 import Text from "@/components/markdown-text";
@@ -148,6 +152,8 @@ function Workspace({
   const sending=useRef(false);
   const sendStartedAt=useRef(0);
   const [partialReply,setPartialReply]=useState<{sessionId:string;text:string;reasoning?:string}|null>(null);
+  const directGeneration=useRef(false),directAbort=useRef<AbortController|null>(null);
+  useEffect(()=>()=>directAbort.current?.abort(),[]);
   const activeJob=useRef<string|null>(null),submittingJob=useRef(false),pollJobs=useRef<()=>void>(()=>{});
   const [chatRequestId,setChatRequestId]=useState("");
   const [personalModelsOpen,setPersonalModelsOpen]=useState(false);
@@ -213,19 +219,24 @@ function Workspace({
       const r = await fetch("/api/config");
       const c = (await r.json()) as any;
       if (!r.ok) return;
-      setAiConfigured(Boolean(c.configured));
-      setModels(c.models || []);
-      setEfforts(c.preferences?.efforts || {});
+      const local=readBrowserModels(user.id).map(browserModelMetadata);
+      const combined=[...(c.models||[]),...local];
+      let preferences:any={};try{preferences=JSON.parse(localStorage.getItem("icpc-browser-preferences:"+user.id)||"{}");}catch{}
+      c.models=combined;
+      setAiConfigured(combined.length>0);
+      setModels(combined);
+      setEfforts({...c.preferences?.efforts,...preferences.efforts});
       setModel(c.model || "");
       setModelId((prev) =>
-        c.models.some((m: any) => m.id === prev) ? prev : c.models.some((m:any)=>m.id===c.preferences?.selectedModelId)?c.preferences.selectedModelId:c.models[0]?.id || "",
+        c.models.some((m: any) => m.id === prev) ? prev : c.models.some((m:any)=>m.id===preferences.selectedModelId)?preferences.selectedModelId:c.models.some((m:any)=>m.id===c.preferences?.selectedModelId)?c.preferences.selectedModelId:c.models[0]?.id || "",
       );
     } catch {}
   }
   useEffect(() => {
     void refreshModels();
+    const localChanged=()=>void refreshModels();window.addEventListener("icpc-browser-models",localChanged);
     const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
+    return () => {clearInterval(timer);window.removeEventListener("icpc-browser-models",localChanged);};
   }, []);
   useEffect(() => {
     if (!toast) return;
@@ -289,6 +300,7 @@ function Workspace({
     let stopped=false,inFlight=false,timer:ReturnType<typeof setTimeout>|undefined,controller:AbortController|undefined;
     const poll=async(force=false)=>{
       if(stopped||(inFlight&&!force))return;
+      if(directGeneration.current){if(timer)clearTimeout(timer);timer=setTimeout(()=>void poll(),1000);return;}
       if(force)controller?.abort();if(timer)clearTimeout(timer);
       const attempt=new AbortController();controller=attempt;inFlight=true;
       try{
@@ -343,6 +355,7 @@ function Workspace({
     return()=>{stopped=true;controller?.abort();if(timer)clearTimeout(timer);window.removeEventListener("focus",resume);window.removeEventListener("online",resume);document.removeEventListener("visibilitychange",resume);pollJobs.current=()=>{};};
   },[loaded,user.id]);
   async function stopGeneration(){
+    if(directAbort.current){directAbort.current.abort();return;}
     const id=activeJob.current;if(!id)return;
     try{const response=await fetch("/api/coach-jobs",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,action:"cancel"})});if(!response.ok)throw Error();pollJobs.current();}catch{setChatError("停止请求未送达，请恢复网络后重试。");}
   }
@@ -508,6 +521,17 @@ function Workspace({
     setTranslating(id);
     setTranslationErrors((prev) => ({ ...prev, [id]: "" }));
     try {
+      const local=readBrowserModels(user.id).find(m=>m.id===modelId);
+      if(local){
+        const cacheKey="icpc-browser-translation:"+user.id+":"+session.problem.id;
+        let cached:any;try{cached=JSON.parse(localStorage.getItem(cacheKey)||"null");}catch{}
+        if(!forceRefresh&&cached?.original===original){setTranslations(prev=>({...prev,[id]:cached}));return;}
+        const {masked,kept}=protectStatement(splitStatement(original).text);
+        const result=await browserCompletion(user.id,local,{...browserModelPayload(local,reasoningEffort),messages:[{role:"system",content:translationInstructions},{role:"user",content:masked}]});
+        const value={text:restoreStatement(result.text,kept),original,model:local.model};
+        try{localStorage.setItem(cacheKey,JSON.stringify(value));}catch{}
+        setTranslations(prev=>({...prev,[id]:value}));return;
+      }
       const response = await fetch("/api/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -608,6 +632,25 @@ function Workspace({
         : {}),
       ...(mode === "solution" ? { hints: 4 } : {}),
     });
+    const browserModel=readBrowserModels(user.id).find(m=>m.id===modelId);
+    if(browserModel){
+      const controller=new AbortController();directAbort.current=controller;directGeneration.current=true;
+      activeJob.current=null;setRetryMode(mode);
+      try{
+        const expected=conversationBranch({messages,messagesVersion});
+        const response=await fetch("/api/coach",{method:"POST",headers:{"Content-Type":"application/json"},signal:controller.signal,body:JSON.stringify({prepareOnly:true,browserModel:browserModelMetadata(browserModel),assistant:isAssistant,assistantProfile:session.assistantProfile,statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))})});
+        const prepared=await response.json() as any;if(!response.ok)throw Error(prepared.error||"请求失败");
+        if(prepared.editorial)patch(id,{editorialReference:prepared.editorial});
+        const result=await browserCompletion(user.id,browserModel,prepared.payload,{signal:controller.signal,
+          delta:text=>setPartialReply(previous=>({sessionId:id,text:(previous?.sessionId===id?previous.text:"")+text,reasoning:previous?.sessionId===id?previous.reasoning:undefined})),
+          reasoning:text=>setPartialReply(previous=>({sessionId:id,text:previous?.sessionId===id?previous.text:"",reasoning:(previous?.sessionId===id?previous.reasoning||"":"")+text})),
+        });
+        const job:CoachJob={id:"browser-"+crypto.randomUUID(),sessionId:id,branchHash:"",status:"done",text:result.text,reasoning:result.reasoning||"",result:{...result,editorial:prepared.editorial,sources:prepared.sources},createdAt:new Date().toISOString()};
+        setSessions(prev=>prev.map(s=>s.id===id?applyJobReply(s,job,conversationBranch(s)===expected):s));setPartialReply(null);
+      }catch(error){setChatError(controller.signal.aborted?"已停止生成，未完成内容未写入历史。":(error as Error).message);if(!edit&&!retry)setDraft(content);}
+      finally{directAbort.current=null;directGeneration.current=false;submittingJob.current=false;sending.current=false;setBusy(false);pollJobs.current();}
+      return;
+    }
     const jobId=crypto.randomUUID();activeJob.current=jobId;
     setRetryMode(mode);
     try {
@@ -1838,9 +1881,9 @@ function Workspace({
           </section>
         </div>
       )}
-      {personalModelsOpen&&<div className="modal-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setPersonalModelsOpen(false);}}><section className="modal personal-model-panel"><button type="button" className="modal-close" aria-label={ui("关闭设置")} onClick={()=>{setPersonalModelsOpen(false);setSettings(true);}}><X size={20}/></button><AdminPanel personal onModelsChanged={()=>void refreshModels()}/></section></div>}
+      {personalModelsOpen&&<div className="modal-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setPersonalModelsOpen(false);}}><section className="modal personal-model-panel"><button type="button" className="modal-close" aria-label={ui("关闭设置")} onClick={()=>{setPersonalModelsOpen(false);setSettings(true);}}><X size={20}/></button><BrowserModelManager userId={user.id}/></section></div>}
       {settings && (
-        <div className="modal-overlay" onClick={() => setSettings(false)}>
+        <div className="modal-overlay" onPointerDown={e=>{if(e.target===e.currentTarget)setSettings(false);}}>
           <section
             className="modal"
             role="dialog"
@@ -1860,27 +1903,8 @@ function Workspace({
             </span>
             <h2>{ui("选择陪练模型")}</h2>
             <p>
-              {ui("可选择自己的模型，以及管理员授权的网站模型。API Key 加密保存在服务端，不会回传浏览器。题面、草稿和对话会发送给所选服务商。")}</p>
-            <label>
-              {ui("当前陪练模型")}<select
-                value={modelId}
-                disabled={modelSettingsBusy}
-                onChange={(e) => {
-                  setModelSettingsError("");
-                  setModelId(e.target.value);
-                  setModel(
-                    models.find((m) => m.id === e.target.value)?.model || "",
-                  );
-                }}
-              >
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label} · {m.model} · {ui(m.scope==="personal"?"个人密钥":"网站密钥")}
-                    {m.is_default ? ui("（默认）") : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
+              {ui("网站模型由服务器代调；本机模型的 Key 仅存在此浏览器，直接请求服务商，不上传本站。")}</p>
+            <div className="model-choice"><span id="model-choice-label">{ui("当前陪练模型")}</span><div className="model-options" role="listbox" aria-labelledby="model-choice-label">{models.map(m=><button type="button" key={m.id} role="option" aria-selected={modelId===m.id} disabled={modelSettingsBusy} onClick={()=>{setModelSettingsError("");setModelId(m.id);setModel(m.model);}}><strong>{m.label}</strong><span>{m.model} · {ui(m.scope==="browser"?"本机直连":"网站密钥")}</span></button>)}</div>{!models.length&&<p>{ui("没有可选模型，请添加本机模型或联系管理员授权。")}</p>}</div>
             <label>{ui("推理等级")}<select aria-label={ui("推理等级")} value={reasoningEffort} disabled={modelSettingsBusy||!models.length} onChange={e=>setEfforts(prev=>({...prev,[modelId]:e.target.value as ReasoningLevel}))}>{supportedEfforts.map((option:any)=><option key={option.value} value={option.value}>{ui(option.label)}</option>)}</select></label>
             <p className="reasoning-help">{/glm-5\.3/i.test(selectedModel?.model||"")?ui("GLM-5.3 始终开启思考，可选择轻度、增强或深度；模型默认使用服务商默认等级。"):/glm-/i.test(selectedModel?.model||"")?ui("按当前 GLM 型号提供可用思考选项。"):ui("非默认等级通过 reasoning_effort 发送，兼容接口需要支持该参数；不支持时请选模型默认。")}{ui("更高等级可能增加等待时间与 Token 消耗。设置用于后续陪练和翻译，按账号和模型保存。")}</p>
             {modelSettingsError&&<div className="form-error" role="alert">{ui(modelSettingsError)}</div>}
@@ -1890,15 +1914,15 @@ function Workspace({
                 {ui(syncState)}。
                 {user.role === "admin"
                   ? ui("添加或修改模型请进入管理员面板。")
-                  : ui("网站密钥需管理员授权，也可使用自己的 API Key。")}
+                  : ui("网站密钥需管理员授权；自带 Key 仅本机直连。")}
               </span>
             </div>
             <button type="button" className="secondary" onClick={()=>{setSettings(false);setPersonalModelsOpen(true);}}>{ui("管理我的 API Key")}</button>
             <div className="modal-actions">
-              <span className="muted">{ui("密钥不会返回浏览器")}</span>
+              <span className="muted">{ui(selectedModel?.scope==="browser"?"本机直连：切屏后可能中断":"网站模型：支持后台生成")}</span>
               <button className="primary" disabled={modelSettingsBusy||!models.length} onClick={async () => {
                 setModelSettingsBusy(true);setModelSettingsError("");
-                try {const response=await fetch("/api/model-preferences",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({modelId,reasoningEffort})});const data=await response.json() as {error?:string;preferences:{efforts:Record<string,ReasoningLevel>}};if(!response.ok)throw Error(data.error||"设置保存失败");setEfforts(data.preferences.efforts);setSettings(false);setToast(ui("已保存模型设置：{0}",[ui(reasoningLabels[reasoningEffort])]));}catch(e){setModelSettingsError((e as Error).message);}finally{setModelSettingsBusy(false);}
+                try {if(selectedModel?.scope==="browser"){localStorage.setItem("icpc-browser-preferences:"+user.id,JSON.stringify({selectedModelId:modelId,efforts:{...efforts,[modelId]:reasoningEffort}}));setSettings(false);setToast("已保存本机模型设置");return;}const response=await fetch("/api/model-preferences",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({modelId,reasoningEffort})});const data=await response.json() as {error?:string;preferences:{efforts:Record<string,ReasoningLevel>}};if(!response.ok)throw Error(data.error||"设置保存失败");localStorage.setItem("icpc-browser-preferences:"+user.id,JSON.stringify({selectedModelId:modelId,efforts:{...efforts,...data.preferences.efforts}}));setEfforts({...efforts,...data.preferences.efforts});setSettings(false);setToast(ui("已保存模型设置：{0}",[ui(reasoningLabels[reasoningEffort])]));}catch(e){setModelSettingsError((e as Error).message);}finally{setModelSettingsBusy(false);}
               }}>
                 {modelSettingsBusy?ui("正在保存…"):ui("保存并开始思考")}
                 <ArrowRight size={16} />

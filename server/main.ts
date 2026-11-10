@@ -137,10 +137,10 @@ const server = createServer(async (req, res) => {
           response = await coach(request);
           break;
         case "/api/personal/models":
-          response=await modelsAdmin(request,true);
+          fail(410,"个人密钥已改为仅本机保存，请刷新页面后重新配置");
           break;
         case "/api/personal/models/discover":
-          response=await discoverModels(request,true);
+          fail(410,"个人模型目录改为浏览器直接查询，请刷新页面");
           break;
         case "/api/admin/users":
           response = await usersAdmin(request);

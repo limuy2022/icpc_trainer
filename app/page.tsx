@@ -5,7 +5,8 @@ import { reasoningLabels, type ReasoningLevel } from "@/lib/reasoning";
 import RatingForm from "@/components/rating-form";
 import { ratingRange, difficultyOptions } from "@/lib/rating-range";
 import StatisticsPanel from "@/components/statistics-panel";
-import { reviseConversation } from "@/lib/conversation";
+import { reviseConversation, matchesConversation } from "@/lib/conversation";
+import { readChatResponse } from "@/lib/chat-response";
 import { trainingStats } from "@/lib/training-stats";
 import { splitStatement } from "@/lib/statement-header";
 import { useEffect, useRef, useState } from "react";
@@ -139,6 +140,10 @@ function Workspace({
     [aiConfigured, setAiConfigured] = useState(false),
     [model, setModel] = useState("");
   const [retryMode, setRetryMode] = useState("discuss");
+  const sending=useRef(false);
+  const sendStartedAt=useRef(0);
+  const [partialReply,setPartialReply]=useState<{sessionId:string;text:string}|null>(null);
+  const [chatRequestId,setChatRequestId]=useState("");
   const [allowUnverified, setAllowUnverified] = useState(false);
   const [messageEdit, setMessageEdit] = useState<{ sessionId: string; index: number; original: string; content: string } | null>(null);
   const [draft, setDraft] = useState(""),
@@ -257,6 +262,11 @@ function Workspace({
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [session?.messages.length, busy]);
+  useEffect(()=>{
+    const container=chatEnd.current?.parentElement;
+    if(partialReply?.sessionId===session?.id && container && container.scrollHeight-container.scrollTop-container.clientHeight<180)
+      chatEnd.current?.scrollIntoView({block:"nearest"});
+  },[partialReply,session?.id]);
   function patch(id: string, change: Partial<Session>) {
     setSessions((prev) =>
       prev.map((s) => (s.id === id ? { ...s, ...change } : s)),
@@ -446,7 +456,7 @@ function Workspace({
     setToast("消息已撤回，原内容已放回输入框");
   }
   async function send(mode = "discuss", edit?: { index: number; original: string; content: string }, retry = false) {
-    if (!session || busy || !loaded) return;
+    if (!session || busy || sending.current || !loaded) return;
     if (!aiConfigured) {
       setSettings(true);
       return;
@@ -488,7 +498,11 @@ function Workspace({
       : last?.role === "user" && last.content === content
         ? session.messages
         : [...session.messages, { role: "user", content }];
+    sending.current=true;
+    sendStartedAt.current=Date.now();
     setBusy(true);
+    setPartialReply(null);
+    setChatRequestId("");
     setChatError("");
     if (!edit && (!retry || draft.trim() === content)) setDraft("");
     setMessageEdit(null);
@@ -510,6 +524,7 @@ function Workspace({
           problemId: session.problem.id,
           allowUnverified,
           language: currentLocale(),
+          stream: true,
           notes: session.notes,
           modelId,
           reasoningEffort,
@@ -517,16 +532,17 @@ function Workspace({
           messages,
         }),
       });
-      const data = (await res.json()) as { error?: string; text: string; editorial?: Session["editorialReference"] };
-      if (data.editorial) patch(id,{editorialReference:data.editorial});
-      if (!res.ok) throw Error(data.error || "回复生成失败，请重试");
+      const data = await readChatResponse(res,{
+        delta:text=>setPartialReply(previous=>({sessionId:id,text:(previous?.sessionId===id?previous.text:"")+text})),
+        status:data=>{if(data.editorial)patch(id,{editorialReference:data.editorial});if(data.requestId)setChatRequestId(data.requestId);},
+      });
       const latest = sessionsRef.current.find(s => s.id === id);
-      if (!latest || latest.messagesVersion !== messagesVersion || JSON.stringify(latest.messages) !== JSON.stringify(messages)) {
-        setToast("对话已在另一页面变化，本次回复未写入旧分支。请在当前对话重试。");return;
+      if (!latest || !matchesConversation(latest,messages,messagesVersion)) {
+        throw Error("对话已在另一页面变化，本次回复未写入旧分支。请在当前对话重试。");
       }
       setSessions((prev) =>
         prev.map((s) =>
-          s.id === id && s.messagesVersion === messagesVersion && JSON.stringify(s.messages) === JSON.stringify(messages)
+          s.id === id && matchesConversation(s,messages,messagesVersion)
             ? {
                 ...s,
                 messages: [
@@ -537,11 +553,13 @@ function Workspace({
             : s,
         ),
       );
+      setPartialReply(null);
     } catch (e) {
       setChatError((e as Error).message);
       setRetryMode(mode);
       if (!edit && !retry) setDraft(content);
     } finally {
+      sending.current=false;
       setBusy(false);
     }
   }
@@ -1513,14 +1531,18 @@ function Workspace({
                       </div>}
                     </div>
                   ))}
+                  {partialReply?.sessionId === session.id && partialReply.text && <div className="chat-message assistant partial-reply">
+                    <div className="message-label">{ui(busy?"正在生成，完成后自动保存":"未完成的回复（未写入历史）")}</div>
+                    <Text text={partialReply.text}/>
+                  </div>}
                   {busy && (
                     <div className="thinking">
                       <LoaderCircle size={15} className="spin" />
-                      {ui("正在检验思路…")}</div>
+                      {ui("正在检验思路… 已等待 {0} 秒",[Math.max(0,Math.floor((now-sendStartedAt.current)/1000))])}</div>
                   )}
                   <div ref={chatEnd} />
                 </div>
-                {chatError && <div className="chat-error" role="alert">{ui(chatError)}{session.messages.at(-1)?.role === "user" && <button disabled={busy} onClick={()=>void send(retryMode,undefined,true)}>{ui("重试回复")}</button>}</div>}
+                {chatError && <div className="chat-error" role="alert">{ui(chatError)}{chatRequestId&&<small>{ui("请求编号")} · {chatRequestId}</small>}{session.messages.at(-1)?.role === "user" && <button disabled={busy} onClick={()=>void send(retryMode,undefined,true)}>{ui("重试回复")}</button>}</div>}
                 <div className="coach-controls">
                   <div className="hint-buttons">
                     <button disabled={busy} onClick={() => send("visualize")}><Sparkles size={13}/>{ui("画图讲解")}</button>

@@ -1,4 +1,7 @@
 import type { Session } from "./types";
+export function matchesConversation(session:Session,messages:Session["messages"],version?:string) {
+  return (session.messagesVersion||"")===(version||"") && session.messages.length===messages.length && session.messages.every((m,i)=>m.role===messages[i].role&&m.content===messages[i].content);
+}
 /** Replacing a user turn invalidates every response derived from it. */
 export function reviseConversation(session: Session, index: number, replacement?: string): Session {
   if (!Number.isInteger(index) || index < 0 || session.messages[index]?.role !== "user") throw Error("只能修改已发送的用户消息");

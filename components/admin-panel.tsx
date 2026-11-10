@@ -299,6 +299,7 @@ export default function AdminPanel({
                     <th>{ui("状态 / 用途")}</th>
                     <th>{ui("输入 / 输出 tokens")}</th>
                     <th>{ui("时间")}</th>
+                    <th>{ui("耗时 / 诊断")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -310,6 +311,7 @@ export default function AdminPanel({
                         {r.usage_reported ? `${r.input_tokens} / ${r.output_tokens}` : ui("未报告完整用量")}
                       </td>
                       <td>{new Date(r.created_at).toLocaleString(currentLocale())}</td>
+                      <td>{r.duration_ms==null?"—":`${(r.duration_ms/1000).toFixed(1)}s`}<br/>{r.error_code||r.finish_reason||"—"}{r.request_id&&<details><summary>{ui("请求编号")}</summary><code>{r.request_id}</code></details>}</td>
                     </tr>
                   ))}
                 </tbody>

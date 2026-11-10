@@ -2,6 +2,8 @@ import { modelPreferences, saveModelPreferences } from "./model-preferences";
 import { profile } from "./profile";
 import { statistics } from "./statistics";
 import { createServer } from "node:http";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { readFile, stat } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { auth, changePassword, usersAdmin } from "./accounts";
@@ -175,8 +177,12 @@ const server = createServer(async (req, res) => {
     res.setHeader("X-Frame-Options", "DENY");
     if (url.pathname.startsWith("/api/"))
       res.setHeader("Cache-Control", "no-store");
-    res.end(Buffer.from(await response.arrayBuffer()));
+    if(response.headers.get("content-type")?.includes("application/x-ndjson") && response.body) {
+      res.flushHeaders();
+      await pipeline(Readable.fromWeb(response.body as any),res);
+    } else res.end(Buffer.from(await response.arrayBuffer()));
   } catch (e) {
+    if(res.headersSent || res.destroyed){if(!res.destroyed)res.destroy();return;}
     const status = e instanceof HttpError ? e.status : 500;
     res.writeHead(status, {
       "Content-Type": "application/json",

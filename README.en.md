@@ -181,3 +181,9 @@ Issues and PRs are welcome. Include reproduction steps, Node/pnpm versions, and 
 ## License
 
 Code is licensed under the [MIT License](LICENSE). Dependencies and third-party files retain their licenses; see `vendor/` and `scripts/vite/`. Codeforces problems, statements, and illustrations belong to their respective authors or rights holders and are not relicensed by this project's MIT license.
+
+### Chat connections and diagnostics
+
+Coaching streams answer text with heartbeats and a 180-second model-generation limit. Only explicitly completed replies enter conversation history. Interrupted or output-limited responses keep their temporary text visible, report a specific error, and allow retry; incomplete text is not sent as context on the next turn.
+
+Recent admin call records include request IDs, durations, error categories, and finish reasons, distinguishing upstream HTTP failures, networking/timeouts, empty answers, invalid data, and output limits. Service logs contain only diagnostic metadata, not keys, full prompts, or conversation content. Older records have no diagnostic fields; an HTTP status alone does not establish the failure cause.

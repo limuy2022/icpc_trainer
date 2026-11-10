@@ -22,7 +22,7 @@ export function adminStatus(request: Request) {
     userStats: (db.prepare("SELECT id,username FROM users ORDER BY created_at").all() as {id:string;username:string}[]).map(user => ({ ...user, ...accountStatistics(user.id) })),
     usage: db
       .prepare(
-        "SELECT l.id,u.username,l.model_id,l.status,l.input_tokens,l.output_tokens,l.total_tokens,l.usage_reported,l.kind,l.model_name,l.created_at FROM usage_log l JOIN users u ON u.id=l.user_id ORDER BY l.id DESC LIMIT 50",
+        "SELECT l.id,u.username,l.model_id,l.status,l.input_tokens,l.output_tokens,l.total_tokens,l.usage_reported,l.kind,l.model_name,l.created_at,l.request_id,l.duration_ms,l.error_code,l.finish_reason FROM usage_log l JOIN users u ON u.id=l.user_id ORDER BY l.id DESC LIMIT 50",
       )
       .all(),
     audit: db

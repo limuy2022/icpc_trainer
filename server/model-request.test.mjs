@@ -18,6 +18,7 @@ try {
  globalThis.fetch=async()=>{throw Error('timeout')};await assert.rejects(call());assert.equal(rows[4][2],0);
  globalThis.fetch=async()=>new Response('invalid json');await assert.rejects(call());assert.equal(rows[5][2],200);assert.equal(rows[5][9],0);
  globalThis.fetch=async()=>Response.json({usage:{prompt_tokens:0,completion_tokens:0}});await call();assert.equal(rows[6][9],1);
+ assert.ok(rows.every(row=>typeof row[10]==='string'&&row[10].length===36&&Number.isInteger(row[11])));assert.equal(rows[3][12],'upstream_http_429');assert.equal(rows[4][12],'network_error');assert.equal(rows[5][12],'invalid_json');
  assert.equal(rows.length,7);assert.ok(rows.every(row=>row[0]==='user'&&row[6]==='coach'&&row[7]==='fixture-model'));
  console.log('PASS: one log per real attempt, reported total preserved, unknown/partial/zero usage, HTTP/network/JSON failures');
 }finally{await rm(dir,{recursive:true,force:true});}

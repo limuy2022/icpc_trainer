@@ -652,5 +652,10 @@
   "密钥无效或没有模型列表访问权限": "The key is invalid or cannot access the model list.",
   "该接口不支持自动获取模型列表，请手动填写模型 ID": "This endpoint does not support model discovery. Enter a model ID manually.",
   "模型列表请求过于频繁，请稍后重试": "Too many model-list requests. Please retry later.",
-  "模型列表格式无效或内容过大，请手动填写模型 ID": "The model list was invalid or too large. Enter a model ID manually."
+  "模型列表格式无效或内容过大，请手动填写模型 ID": "The model list was invalid or too large. Enter a model ID manually.",
+  "用当前模型重新翻译": "Retranslate with current model",
+  "正在重新翻译…": "Retranslating…",
+  "正在准备中文译文，原文仍可随时查看…": "Preparing the Chinese translation; the original remains available…",
+  "优先读取已有译文；没有译文时才使用当前模型生成。切换陪练模型不会重新翻译。": "Existing translations are reused. The current model is used only when none exists; changing coaching models does not retranslate.",
+  "查看中文译文": "View Chinese translation"
 }

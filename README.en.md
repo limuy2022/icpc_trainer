@@ -78,7 +78,7 @@ Bootstrap settings create a model **only when the database has no models**; they
 
 Legacy `GLM_API_KEY` / `GLM_MODEL` settings remain supported. Generic settings take precedence for new initialization. Existing `builtin-glm` rows keep using the legacy GLM key, never a different provider's generic key. To migrate, save a new key for the old model in the panel, or add a new model and make it the default.
 
-Reasoning preferences are saved per account and model. Generic APIs receive no extra reasoning parameters by default; non-default levels send `reasoning_effort` and require provider support. Choose the default level if unsupported. GLM uses model-specific thinking parameters. Coaching and translation share the selected model and reasoning level.
+Reasoning preferences are saved per account and model. Generic APIs receive no extra reasoning parameters by default; non-default levels send `reasoning_effort` and require provider support. Choose the default level if unsupported. GLM uses model-specific thinking parameters. The selected model and reasoning level apply to future coaching, initial translations, and explicit retranslation requests; reading existing translations is independent of model changes.
 
 ## Environment variables
 
@@ -203,3 +203,9 @@ Changing to a preset with a different endpoint clears unsaved keys and model IDs
 When adding or editing a model, fill in its Base URL and API key, then click **Fetch models**. The server requests the compatible `GET /models` endpoint and returns IDs for the picker; manual entry remains available. Existing models can reuse their server-stored key when the endpoint is unchanged. Changing the endpoint requires a new key. Changing the endpoint or key clears earlier discovery results.
 
 Discovery is admin-only and generates no completions or coaching usage. Only deduplicated model IDs are returned, not raw provider responses or credentials. Some providers do not expose a model directory, restrict access, or include non-chat models; consult their documentation and use manual entry where needed.
+
+### Reusing translations across models
+
+Existing Chinese translations are reused by problem ID and statement body. Changing the coaching model or reasoning level, or refreshing the page, does not automatically regenerate them. Body edits create a new translation identity; metadata-only changes, line endings, and surrounding whitespace do not. Legacy caches are adopted only when their original body hash can be verified, never by problem ID alone.
+
+The notice names the model that actually generated the translation. Use **Retranslate with current model** to request another version. The old translation remains visible during generation and after failures. Concurrent first-time requests for the same body share one generation.

@@ -9,6 +9,7 @@ import { reviseConversation, matchesConversation } from "@/lib/conversation";
 import { readChatResponse } from "@/lib/chat-response";
 import { trainingStats } from "@/lib/training-stats";
 import { splitStatement } from "@/lib/statement-header";
+import {translationSource} from "@/lib/translation-source";
 import { useEffect, useRef, useState } from "react";
 import Text from "@/components/markdown-text";
 import DifficultyBadge, { DifficultyGuide } from "@/components/difficulty-badge";
@@ -161,20 +162,21 @@ function Workspace({
   const [translations, setTranslations] = useState<
     Record<
       string,
-      { text: string; original: string; modelId: string; model: string; reasoningEffort:ReasoningLevel }
+      { text: string; original: string; model: string }
     >
   >({});
   const [translating, setTranslating] = useState<string | null>(null),
     [translationErrors, setTranslationErrors] = useState<
       Record<string, string>
     >({});
+  const translationRequests=useRef(new Set<string>());
   const chatEnd = useRef<HTMLDivElement>(null),
     requestId = useRef(0),
     sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
   const session = sessions.find((s) => s.id === current);
   const translation =
-    session && translations[session.id]?.original === session.statement && translations[session.id]?.modelId === modelId && translations[session.id]?.reasoningEffort === reasoningEffort
+    session && translations[session.id]?.original === translationSource(session.statement)
       ? translations[session.id]
       : undefined;
   const completed = sessions.filter((s) => s.outcome === "independent" || s.outcome === "assisted");
@@ -409,20 +411,21 @@ function Workspace({
       setLoading(false);
     }
   }
-  async function translateStatement() {
+  async function translateStatement(forceRefresh=false) {
     if (!session) return;
     const id = session.id,
-      original = session.statement;
+      original = translationSource(session.statement);
     if (
-      translations[id]?.original === original &&
-      translations[id]?.modelId === modelId && translations[id]?.reasoningEffort === reasoningEffort
+      !forceRefresh && translations[id]?.original === original
     )
       return;
-    if (translating === id) return;
+    const requestKey=session.problem.id+"\0"+original;
+    if (translationRequests.current.has(requestKey)) return;
     if (!aiConfigured) {
       setSettings(true);
       return;
     }
+    translationRequests.current.add(requestKey);
     setTranslating(id);
     setTranslationErrors((prev) => ({ ...prev, [id]: "" }));
     try {
@@ -434,6 +437,7 @@ function Workspace({
           problemId: session.problem.id,
           modelId,
           reasoningEffort,
+          forceRefresh,
         }),
       });
       const data = (await response.json()) as {
@@ -444,11 +448,12 @@ function Workspace({
       if (!response.ok) throw Error(data.error || "翻译失败，请重试");
       setTranslations((prev) => ({
         ...prev,
-        [id]: { text: data.text, original, modelId, model: data.model, reasoningEffort },
+        [id]: { text: data.text, original, model: data.model },
       }));
     } catch (e) {
       setTranslationErrors((prev) => ({ ...prev, [id]: (e as Error).message }));
     } finally {
+      translationRequests.current.delete(requestKey);
       setTranslating((prev) => (prev === id ? null : prev));
     }
   }
@@ -1323,7 +1328,7 @@ function Workspace({
                           className={
                             statementLanguage === "compare" ? "selected" : ""
                           }
-                          onClick={() => setStatementLanguage("compare")}
+                          onClick={() => {setStatementLanguage("compare");void translateStatement();}}
                         >
                           {ui("中英对照")}</button>
                       </div>
@@ -1376,7 +1381,10 @@ function Workspace({
                           {translation ? (
                             <>
                               <div className="translation-notice">
-                                {ui("AI 译文 ·")}{translation.model} {ui("· 公式与样例保持原样")}</div>
+                                {ui("AI 译文 ·")}{translation.model} {ui("· 公式与样例保持原样")}
+                                <button type="button" className="text-button" disabled={translating===session.id} onClick={()=>void translateStatement(true)}>{ui(translating===session.id?"正在重新翻译…":"用当前模型重新翻译")}</button>
+                              </div>
+                              {translationErrors[session.id]&&<div className="form-error" role="alert">{ui(translationErrors[session.id])}</div>}
                               <ProblemStatement metadata={splitStatement(session.statement, session.statementMetadata).metadata} text={translation.text} render={(body) => <Text text={body} />} />
                             </>
                           ) : (
@@ -1384,12 +1392,12 @@ function Workspace({
                               {translating === session.id ? (
                                 <>
                                   <LoaderCircle size={19} className="spin" />
-                                  <p>{ui("正在生成中文译文，原文仍可随时查看…")}</p>
+                                  <p>{ui("正在准备中文译文，原文仍可随时查看…")}</p>
                                 </>
                               ) : (
                                 <>
                                   <p>
-                                    {ui("使用当前陪练模型翻译题面。生成后保存在服务器，再次查看直接读取缓存。")}</p>
+                                    {ui("优先读取已有译文；没有译文时才使用当前模型生成。切换陪练模型不会重新翻译。")}</p>
                                   {translationErrors[session.id] && (
                                     <div className="form-error" role="alert">
                                       {translationErrors[session.id]}
@@ -1402,7 +1410,7 @@ function Workspace({
                                     <Sparkles size={16} />
                                     {translationErrors[session.id]
                                       ? ui("重试翻译")
-                                      : ui("生成中文译文")}
+                                      : ui("查看中文译文")}
                                   </button>
                                 </>
                               )}

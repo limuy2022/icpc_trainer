@@ -1,6 +1,7 @@
 "use client";
 import {t as ui,useLocale} from "@/lib/locale";
 import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {normalizeMarkdownMath} from "@/lib/markdown-math";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -46,14 +47,7 @@ function CodeBlock({children,node,allowVisuals=false}: {children?:ReactNode;node
 export default memo(function MarkdownText({text,allowVisuals=false}:{text:string;allowVisuals?:boolean}) {
   useLocale();
   const Pre = useMemo(() => (props: {children?:ReactNode;node?:Element}) => <CodeBlock {...props} allowVisuals={allowVisuals}/>, [allowVisuals]);
-  const math = (part: string) => part.replace(/\\\[/g,"\n$$\n").replace(/\\\]/g,"\n$$\n").replace(/\\\(/g,"$").replace(/\\\)/g,"$");
-  let normalized = "", cursor = 0;
-  // Formula delimiter normalization must never rewrite string literals in code.
-  for (const match of text.matchAll(/(`{3,}|~{3,})[^\n]*\n[\s\S]*?\1|(`+)[^\n]*?\2/g)) {
-    normalized += math(text.slice(cursor, match.index)) + match[0];
-    cursor = match.index! + match[0].length;
-  }
-  normalized += math(text.slice(cursor));
+  const normalized=useMemo(()=>normalizeMarkdownMath(text),[text]);
   return <div className="message-text"><ReactMarkdown remarkPlugins={[remarkGfm,remarkMath]} rehypePlugins={[rehypeKatex,[rehypeHighlight,highlightOptions]]} components={{
     pre:Pre,
     img:({src,alt})=><img src={src} alt={alt||ui("题目插图")} loading="lazy" referrerPolicy="no-referrer"/>,

@@ -1,3 +1,4 @@
+import {memorySettings} from "./learner-memory";
 import {coachJobs,initCoachJobs} from "./coach-jobs";
 import { modelPreferences, saveModelPreferences } from "./model-preferences";
 import { profile } from "./profile";
@@ -87,6 +88,9 @@ const server = createServer(async (req, res) => {
         case "/api/model-preferences":
           if (req.method !== "PATCH") fail(405,"不支持的操作");
           response = await saveModelPreferences(request);
+          break;
+        case "/api/learner-memory":
+          response=await memorySettings(request);
           break;
         case "/api/profile":
           response = await profile(request);

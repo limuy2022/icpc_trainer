@@ -11,9 +11,11 @@ import { trainingStats } from "@/lib/training-stats";
 import { splitStatement } from "@/lib/statement-header";
 import {translationSource} from "@/lib/translation-source";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {assistantId,newAssistantSession} from "@/lib/assistant";
+import {assistantSessionTitle,newAssistantSession} from "@/lib/assistant";
 import {LessonLibrary,LessonProgress} from "@/components/lesson-learning";
 import {newLessonSession,lessonDefinition} from "@/lib/lessons";
+import AssistantSessions from "@/components/assistant-sessions";
+import LearnerMemoryEditor from "@/components/learner-memory-editor";
 import AssistantPreferences from "@/components/assistant-preferences";
 import BrowserModelManager from "@/components/browser-model-manager";
 import {readBrowserModels,browserModelMetadata,browserCompletion,browserModelPayload} from "@/lib/browser-models";
@@ -117,6 +119,8 @@ function Workspace({
   const { sessions, setSessions, loaded, syncState, save } = useTrainingSync(
     user.id,
   );
+  const [memoryOpen,setMemoryOpen]=useState(false);
+  const generationSessionId=useRef<string|null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
   useEffect(() => {
     if (!mobileMenu) return;
@@ -192,8 +196,13 @@ function Workspace({
   sessionsRef.current = sessions;
   const isLesson=view==="lesson";
   const isAssistant=view==="assistant"||isLesson;
-  const session = sessions.find((s) => s.id === (view==="assistant"?assistantId:current)&&(!isLesson||Boolean(lessonDefinition(s.lesson))));
-  useEffect(()=>{if(loaded&&view==="assistant")setSessions(prev=>prev.some(s=>s.id===assistantId)?prev:[newAssistantSession(),...prev]);},[loaded,view]);
+  const assistantChats=sessions.filter(s=>s.kind==="assistant"&&!s.lesson);
+  const session=view==="assistant"?(assistantChats.find(s=>s.id===current)||assistantChats.find(s=>!s.assistantArchived)):sessions.find(s=>s.id===current&&(!isLesson||Boolean(lessonDefinition(s.lesson))));
+  useEffect(()=>{
+    if(!loaded||view!=="assistant")return;
+    if(session){if(current!==session.id)openRoute("assistant",session.id,true);return;}
+    setSessions(prev=>prev.some(s=>s.kind==="assistant"&&!s.lesson&&!s.assistantArchived)?prev:[newAssistantSession(),...prev]);
+  },[loaded,view,current,session?.id]);
   const statementParts=useMemo(()=>splitStatement(session?.statement||"",session?.statementMetadata),[session?.statement,session?.statementMetadata]);
   const sourceText=useMemo(()=>translationSource(session?.statement||""),[session?.statement]);
   const translation =
@@ -311,7 +320,7 @@ function Workspace({
         if(!response.ok)throw Error("任务状态读取失败");
         const data=await response.json() as {jobs:CoachJob[]};if(stopped||attempt.signal.aborted)return;
         const running=data.jobs.find(job=>job.status==="running");
-        if(running){if(running.requestId)setChatRequestId(running.requestId);activeJob.current=running.id;sending.current=true;setBusy(true);sendStartedAt.current=new Date(running.createdAt).getTime();setChatError("");setPartialReply({sessionId:running.sessionId,text:running.text,reasoning:running.reasoning});}
+        if(running){generationSessionId.current=running.sessionId;if(running.requestId)setChatRequestId(running.requestId);activeJob.current=running.id;sending.current=true;setBusy(true);sendStartedAt.current=new Date(running.createdAt).getTime();setChatError("");setPartialReply({sessionId:running.sessionId,text:running.text,reasoning:running.reasoning});}
         for(const job of data.jobs){
           if(job.status==="running")continue;
           if(job.status==="done"&&job.result){
@@ -382,9 +391,24 @@ function Workspace({
       ),
     );
   }
+  function openAssistantConversation(id:string){setDraft("");setChatError("");setMessageEdit(null);openRoute("assistant",id);}
+  function newAssistantConversation(){const next=newAssistantSession();setSessions(prev=>[next,...prev]);openAssistantConversation(next.id);}
+  function updateAssistantConversation(id:string,change:Partial<Session>){
+    patch(id,change);
+    if(change.assistantArchived===true&&session?.id===id)openRoute("assistant",null,true);
+  }
+  async function rememberLesson(){
+    if(!session?.lesson)return;const definition=lessonDefinition(session.lesson);if(!definition)return;
+    try{
+      const response=await fetch("/api/learner-memory");const currentMemory=await response.json() as any;if(!response.ok)throw Error(currentMemory.error||"读取学习记忆失败");
+      const algorithms=[...currentMemory.memory.algorithms],index=algorithms.findIndex((entry:any)=>entry.name===definition.topic.name);
+      const entry={name:definition.topic.name,level:session.lesson.mastery,note:index>=0?algorithms[index].note:""};if(index>=0)algorithms[index]=entry;else algorithms.push(entry);
+      const saved=await fetch("/api/learner-memory",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({memory:{...currentMemory.memory,algorithms},revision:currentMemory.revision})});const data=await saved.json() as any;if(!saved.ok)throw Error(data.error||"保存失败");setToast("专题自评已存入学习记忆");
+    }catch(error){setToast((error as Error).message);}
+  }
   function startLesson(topicId:string){
     const existing=sessionsRef.current.find(s=>s.lesson?.topicId===topicId);
-    const next=existing||newLessonSession(topicId,sessionsRef.current.find(s=>s.id===assistantId)?.assistantProfile);
+    const next=existing||newLessonSession(topicId,sessionsRef.current.find(s=>s.kind==="assistant"&&!s.lesson)?.assistantProfile);
     if(!existing)setSessions(prev=>[next,...prev]);
     setDraft("");setChatError("");setMessageEdit(null);openRoute("lesson",next.id);
   }
@@ -626,6 +650,7 @@ function Workspace({
       : last?.role === "user" && last.content === content
         ? session.messages
         : [...session.messages, { role: "user", content }];
+    generationSessionId.current=id;
     sending.current=true;submittingJob.current=true;
     sendStartedAt.current=Date.now();
     setBusy(true);
@@ -636,6 +661,7 @@ function Workspace({
     setMessageEdit(null);
     patch(id, {
       messages,
+      ...(session.kind==="assistant"&&!session.lesson?{assistantArchived:false,...(!session.messages.length&&(!session.assistantTitle||session.assistantTitle==="新对话")?{assistantTitle:content.replace(/\s+/g," ").slice(0,36)}:{})}:{}),
       ...(revised ? {messagesVersion, recoveredVersions: revised.recoveredVersions} : {}),
       ...(mode.startsWith("hint")
         ? { hints: Math.max(session.hints, Number(mode.slice(-1))) }
@@ -648,7 +674,7 @@ function Workspace({
       activeJob.current=null;setRetryMode(mode);
       try{
         const expected=conversationBranch({messages,messagesVersion});
-        const response=await fetch("/api/coach",{method:"POST",headers:{"Content-Type":"application/json"},signal:controller.signal,body:JSON.stringify({prepareOnly:true,browserModel:browserModelMetadata(browserModel),assistant:isAssistant,lesson:session.lesson,assistantProfile:session.assistantProfile,statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))})});
+        const response=await fetch("/api/coach",{method:"POST",headers:{"Content-Type":"application/json"},signal:controller.signal,body:JSON.stringify({prepareOnly:true,browserModel:browserModelMetadata(browserModel),assistant:isAssistant,useLearningMemory:session.useLearningMemory!==false,lesson:session.lesson,assistantProfile:session.assistantProfile,statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))})});
         const prepared=await response.json() as any;if(!response.ok)throw Error(prepared.error||"请求失败");
         if(prepared.editorial)patch(id,{editorialReference:prepared.editorial});
         const result=await browserCompletion(user.id,browserModel,prepared.payload,{signal:controller.signal,
@@ -667,7 +693,7 @@ function Workspace({
       const hash=await branchHash(conversationBranch({messages,messagesVersion}));
       const response=await fetch("/api/coach-jobs",{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({jobId,sessionId:id,branchHash:hash,assistant:isAssistant,lesson:session.lesson,assistantProfile:session.assistantProfile,sessionSnapshot:{...session,messages:messages.map(({role,content,generationId,lessonStage})=>({role,content,...(generationId?{generationId}:{}),...(lessonStage?{lessonStage}:{})})),messagesVersion,startedAt:null,elapsed,hints:mode==="solution"?4:mode.startsWith("hint")?Math.max(session.hints,Number(mode.slice(-1))):session.hints,recoveredVersions:undefined},statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,modelId,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))}),
+        body:JSON.stringify({jobId,sessionId:id,branchHash:hash,assistant:isAssistant,useLearningMemory:session.useLearningMemory!==false,lesson:session.lesson,assistantProfile:session.assistantProfile,sessionSnapshot:{...session,messages:messages.map(({role,content,generationId,lessonStage})=>({role,content,...(generationId?{generationId}:{}),...(lessonStage?{lessonStage}:{})})),messagesVersion,startedAt:null,elapsed,hints:mode==="solution"?4:mode.startsWith("hint")?Math.max(session.hints,Number(mode.slice(-1))):session.hints,recoveredVersions:undefined},statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,modelId,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))}),
       });
       const data=await response.json() as {error?:string};if(!response.ok)throw Error(data.error||"回复生成失败，请重试");
     }catch(error){setChatError((error as Error).message);if(!edit&&!retry)setDraft(content);}
@@ -1315,7 +1341,7 @@ function Workspace({
                   {ui(isLesson?"专题列表":"题库")}</button>
                 <h1>
                   {!isAssistant&&<span>{session.problem.id}</span>}
-                  {isLesson?ui("专题学习")+" · "+ui(session.problem.name):isAssistant?ui("算法助教"):session.problem.name}
+                  {isLesson?ui("专题学习")+" · "+ui(session.problem.name):isAssistant?ui(assistantSessionTitle(session)):session.problem.name}
                 </h1>
                 {!isAssistant&&<div className="training-meta">
                   <span className="rating">
@@ -1359,7 +1385,7 @@ function Workspace({
             </div>
             <nav className="mobile-training-jump" aria-label={ui("训练区域")}><a href="#problem-reader" onClick={e=>{e.preventDefault();document.getElementById("problem-reader")?.scrollIntoView({block:"start"});}}>{ui(isLesson?"学习阶段":isAssistant?"学习偏好":"阅读题目")}</a><a href="#ai-coach" onClick={e=>{e.preventDefault();document.getElementById("ai-coach")?.scrollIntoView({block:"start"});}}>{ui("与 AI 讨论")}</a></nav>
             <div className="training-grid">
-              {isLesson?<LessonProgress session={session} busy={busy} onChange={change=>patch(session.id,change)} onExplain={()=>void send("lesson")}/>:isAssistant?<AssistantPreferences session={session} onChange={change=>patch(session.id,change)}/>:<section id="problem-reader" className="statement-panel">
+              {isLesson?<LessonProgress session={session} busy={busy} onChange={change=>patch(session.id,change)} onExplain={()=>void send("lesson")} onRemember={()=>void rememberLesson()}/>:isAssistant?<AssistantPreferences session={session} onChange={change=>patch(session.id,change)} navigation={<AssistantSessions sessions={sessions} current={session} onOpen={openAssistantConversation} onNew={newAssistantConversation} onChange={updateAssistantConversation} onMemory={()=>setMemoryOpen(true)}/>}/>:<section id="problem-reader" className="statement-panel">
                 <div className="panel-heading">
                   <h2>
                     <BookOpen size={17} />
@@ -1629,7 +1655,7 @@ function Workspace({
                     {partialReply.reasoning&&<ReasoningDetails text={partialReply.reasoning} live/>}
                     {partialReply.text&&<Text text={partialReply.text}/>}
                   </div>}
-                  {busy && (
+                  {busy && generationSessionId.current===session.id && (
                     <div className="thinking">
                       <LoaderCircle size={15} className="spin" />
                       {ui("正在检验思路… 已等待 {0} 秒",[Math.max(0,Math.floor((now-sendStartedAt.current)/1000))])}<button type="button" className="text-button" onClick={()=>void stopGeneration()}>{ui("停止生成")}</button></div>
@@ -1637,6 +1663,7 @@ function Workspace({
                   <div ref={chatEnd} />
                 </div>
                 {chatError && <div className="chat-error" role="alert">{ui(chatError)}{chatRequestId&&<small>{ui("请求编号")} · {chatRequestId}</small>}{session.messages.at(-1)?.role === "user" && <button disabled={busy} onClick={()=>void send(retryMode,undefined,true)}>{ui("重试回复")}</button>}</div>}
+                {busy&&generationSessionId.current!==session.id&&<p className="muted">{ui("另一个会话正在生成，完成后即可继续提问。")}</p>}
                 <div className="coach-controls">
                   <div className="hint-buttons">
                     {!isAssistant&&<button disabled={busy} onClick={()=>navigate("lessons")}>{ui("专题补课")}</button>}
@@ -1894,6 +1921,7 @@ function Workspace({
           </section>
         </div>
       )}
+      {memoryOpen&&<div className="modal-overlay" onPointerDown={e=>{if(e.target===e.currentTarget)setMemoryOpen(false);}}><section className="modal learner-memory-modal"><button type="button" className="modal-close" aria-label={ui("关闭学习记忆")} onClick={()=>setMemoryOpen(false)}><X size={20}/></button><LearnerMemoryEditor onSaved={()=>{setMemoryOpen(false);setToast("学习记忆已保存");}}/></section></div>}
       {personalModelsOpen&&<div className="modal-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setPersonalModelsOpen(false);}}><section className="modal personal-model-panel"><button type="button" className="modal-close" aria-label={ui("关闭设置")} onClick={()=>{setPersonalModelsOpen(false);setSettings(true);}}><X size={20}/></button><BrowserModelManager userId={user.id}/></section></div>}
       {settings && (
         <div className="modal-overlay" onPointerDown={e=>{if(e.target===e.currentTarget)setSettings(false);}}>

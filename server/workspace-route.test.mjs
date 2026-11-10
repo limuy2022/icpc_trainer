@@ -14,6 +14,7 @@ try {
  assert.deepEqual(parse('#/training/%XX',false),{view:'training',current:null});
  for(const invalid of ['#/unknown','#/history/unexpected','#/training/','javascript:alert(1)'])assert.equal(parse(invalid,true).view,'bank');
  assert.deepEqual(parse('#/lesson/lesson-dsu',false),{view:'lesson',current:'lesson-dsu'});assert.deepEqual(parse('#/lesson/%XX',false),{view:'lesson',current:null});
+ assert.deepEqual(parse('#/assistant/algorithm-assistant',false),{view:'assistant',current:'algorithm-assistant'});assert.deepEqual(parse('#/assistant/new-chat',false),{view:'assistant',current:'new-chat'});
  assert.equal(parse('#/admin',false).view,'bank');assert.equal(normalizeRoute({view:'admin'},false).view,'bank');
  assert.deepEqual(normalizeRoute(null,true),{view:'bank',current:null});
  assert.equal(normalizeRoute({view:'training',current:'x'.repeat(201)},true).current,null);

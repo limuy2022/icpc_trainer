@@ -9,13 +9,13 @@ export function normalizeRoute(value:unknown,admin:boolean):WorkspaceRoute {
 }
 export function parseWorkspaceHash(hash:string,admin:boolean,previous?:WorkspaceRoute):WorkspaceRoute {
   const match=hash.match(/^#\/(lessons|lesson|assistant|bank|training|history|statistics|admin)(?:\/([^/?#]+))?$/);
-  if(!match || (!["training","lesson"].includes(match[1])&&match[2]))return {view:"bank",current:previous?.current||null};
+  if(!match || (!["training","lesson","assistant"].includes(match[1])&&match[2]))return {view:"bank",current:previous?.current||null};
   let current=previous?.current||null;
-  if(["training","lesson"].includes(match[1])&&match[2]){
+  if(["training","lesson","assistant"].includes(match[1])&&match[2]){
     try{current=decodeURIComponent(match[2]);}catch{return {view:match[1] as WorkspaceView,current:null};}
   }
   return normalizeRoute({view:match[1],current},admin);
 }
 export function workspaceHash(route:WorkspaceRoute):string {
-  return "#/"+route.view+(["training","lesson"].includes(route.view)&&route.current?"/"+encodeURIComponent(route.current):"");
+  return "#/"+route.view+(["training","lesson","assistant"].includes(route.view)&&route.current?"/"+encodeURIComponent(route.current):"");
 }

@@ -7,4 +7,5 @@ assistantTopics.push(
  {id:"max-flow",name:"网络流：最大流",path:"graph/flow/max-flow",tag:"flows",match:/网络流|最大流|max.flow|dinic/i},
  {id:"persistent-seg",name:"可持久化线段树",path:"ds/persistent-seg",tag:"data structures",match:/可持久化|主席树|persistent.segment/i},
 );
-export function newAssistantSession():Session{return {id:assistantId,kind:"assistant",problem:{id:assistantId,contestId:0,index:"",name:"算法助教",rating:0,tags:[],solvedCount:0},messages:[],statement:"",notes:"",hints:0,elapsed:0,startedAt:null,createdAt:new Date().toISOString(),outcome:"training",takeaway:"",assistantProfile:{style:"auto",known:"",goal:"",topic:"auto"}};}
+export function assistantSessionTitle(session:Session){return session.assistantTitle||session.messages.find(m=>m.role==="user")?.content.slice(0,36)||"新对话";}
+export function newAssistantSession():Session{const id="assistant-"+crypto.randomUUID();return {id,assistantTitle:"新对话",useLearningMemory:true,kind:"assistant",problem:{id,contestId:0,index:"",name:"算法助教",rating:0,tags:[],solvedCount:0},messages:[],statement:"",notes:"",hints:0,elapsed:0,startedAt:null,createdAt:new Date().toISOString(),outcome:"training",takeaway:"",assistantProfile:{style:"auto",known:"",goal:"",topic:"auto"}};}

@@ -1,11 +1,12 @@
 "use client";
 import {useLocale,t as ui} from "@/lib/locale";
+import type {ReactNode} from "react";
 import type {Session} from "@/lib/types";
 import {assistantTopics} from "@/lib/assistant";
-export default function AssistantPreferences({session,onChange}:{session:Session;onChange:(change:Partial<Session>)=>void}){
+export default function AssistantPreferences({session,onChange,navigation}:{session:Session;navigation?:ReactNode;onChange:(change:Partial<Session>)=>void}){
  useLocale();const profile=session.assistantProfile||{style:"auto",known:"",goal:"",topic:"auto"};
  const update=(key:string,value:string)=>onChange({assistantProfile:{...profile,[key]:value}});
- return <section id="problem-reader" className="statement-panel assistant-preferences"><h2>{ui("你的算法助教")}</h2><p>{ui("自由讨论概念、证明、复杂度和代码，不需要绑定题目。偏好按账号保存。")}</p>
+ return <section id="problem-reader" className="statement-panel assistant-preferences">{navigation}<h2>{ui("本会话偏好")}</h2><p>{ui("自由讨论概念、证明、复杂度和代码。此处偏好只影响本会话；跨会话信息请放在学习记忆。")}</p>
  <label>{ui("讲解方式")}<select value={profile.style} onChange={e=>update("style",e.target.value)}>{[["auto","按问题自动选择"],["examples","先举例，再推导"],["socratic","逐步提问"],["direct","系统讲解"]].map(([value,label])=><option key={value} value={value}>{ui(label)}</option>)}</select></label>
  <label>{ui("已掌握的知识")}<textarea maxLength={1500} value={profile.known} placeholder={ui("例如：熟悉线段树，了解基础动态规划") } onChange={e=>update("known",e.target.value)}/></label>
  <label>{ui("当前学习目标")}<textarea maxLength={1500} value={profile.goal} placeholder={ui("例如：补齐贪心证明，提高区域赛读题后的观察能力")} onChange={e=>update("goal",e.target.value)}/></label>

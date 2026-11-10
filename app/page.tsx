@@ -268,6 +268,11 @@ function Workspace({
     };
   }, [min, max, tags, query, sort, page, exclusions]);
   useEffect(() => {
+    if(view!=="training"||!loaded)return;
+    const container=chatEnd.current?.parentElement;
+    if(container)container.scrollTop=container.scrollHeight;
+  },[view,session?.id,loaded]);
+  useEffect(() => {
     chatEnd.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [session?.messages.length, busy]);
   useEffect(()=>{

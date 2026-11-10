@@ -1,4 +1,5 @@
 "use client";
+import {t as ui,useLocale,currentLocale} from "@/lib/locale";
 import { useEffect, useState } from "react";
 import { api } from "./account-gate";
 import {
@@ -15,6 +16,7 @@ export default function AdminPanel({
 }: {
   onModelsChanged: () => void;
 }) {
+  useLocale();
   const [tab, setTab] = useState("users"),
     [users, setUsers] = useState<any[]>([]),
     [models, setModels] = useState<any[]>([]),
@@ -51,7 +53,7 @@ export default function AdminPanel({
       await api(path, body, method);
       await load();
       onModelsChanged();
-      setNotice("已保存");
+      setNotice(ui("已保存"));
       return true;
     } catch (e) {
       setError((e as Error).message);
@@ -65,25 +67,24 @@ export default function AdminPanel({
       <div className="section-title history-title">
         <div>
           <div className="eyebrow">SITE ADMINISTRATION</div>
-          <h1>管理这个小小的练习场。</h1>
-          <p>手动开通账号，配置模型，查看运行情况。</p>
+          <h1>{ui("管理这个小小的练习场。")}</h1>
+          <p>{ui("手动开通账号，配置模型，查看运行情况。")}</p>
         </div>
         <button className="secondary" onClick={load}>
           <RefreshCw size={15} />
-          刷新
-        </button>
+          {ui("刷新")}</button>
       </div>
       <div className="admin-stats">
-        <span>{status?.stats.users || 0} 个账号</span>
-        <span>{status?.stats.records || 0} 次训练</span>
-        <span>{status?.stats.calls || 0} 次模型调用</span>
+        <span>{status?.stats.users || 0} {ui("个账号")}</span>
+        <span>{status?.stats.records || 0} {ui("次训练")}</span>
+        <span>{status?.stats.calls || 0} {ui("次模型调用")}</span>
       </div>
       <div className="admin-tabs">
         {[
-          ["users", "账号管理"],
-          ["models", "模型管理"],
-          ["status", "运行与备份"],
-          ["statistics", "用户统计"],
+          ["users", ui("账号管理")],
+          ["models", ui("模型管理")],
+          ["status", ui("运行与备份")],
+          ["statistics", ui("用户统计")],
         ].map(([v, l]) => (
           <button
             className={tab === v ? "selected" : ""}
@@ -96,7 +97,7 @@ export default function AdminPanel({
       </div>
       {error && (
         <div className="form-error" role="alert">
-          {error}
+          {ui(error)}
         </div>
       )}
       {notice && (
@@ -111,8 +112,7 @@ export default function AdminPanel({
           <div className="panel-heading">
             <h2>
               <Users size={17} />
-              账号管理
-            </h2>
+              {ui("账号管理")}</h2>
             <button
               className="primary"
               onClick={() => {
@@ -123,35 +123,34 @@ export default function AdminPanel({
               }}
             >
               <Plus size={15} />
-              添加账号
-            </button>
+              {ui("添加账号")}</button>
           </div>
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>账号</th>
-                  <th>权限</th>
-                  <th>状态</th>
-                  <th>最近登录</th>
-                  <th>操作</th>
+                  <th>{ui("账号")}</th>
+                  <th>{ui("权限")}</th>
+                  <th>{ui("状态")}</th>
+                  <th>{ui("最近登录")}</th>
+                  <th>{ui("操作")}</th>
                 </tr>
               </thead>
               <tbody>
                 {users.map((u) => (
                   <tr key={u.id}>
                     <td>{u.username}</td>
-                    <td>{u.role === "admin" ? "管理员" : "成员"}</td>
+                    <td>{u.role === "admin" ? ui("管理员") : ui("成员")}</td>
                     <td>
                       {u.disabled
-                        ? "已停用"
+                        ? ui("已停用")
                         : u.must_change_password
-                          ? "待设置密码"
-                          : "正常"}
+                          ? ui("待设置密码")
+                          : ui("正常")}
                     </td>
                     <td>
                       {u.last_login
-                        ? new Date(u.last_login).toLocaleString("zh-CN")
+                        ? new Date(u.last_login).toLocaleString(currentLocale())
                         : "—"}
                     </td>
                     <td>
@@ -165,13 +164,13 @@ export default function AdminPanel({
                           )
                         }
                       >
-                        {u.disabled ? "启用" : "停用"}
+                        {u.disabled ? ui("启用") : ui("停用")}
                       </button>
                       <button
                         disabled={busy}
                         onClick={() => {
                           const newPassword = window.prompt(
-                            "输入临时新密码（至少12位），对方下次登录必须修改。此处不会显示旧密码。",
+                            ui("输入临时新密码（至少12位），对方下次登录必须修改。此处不会显示旧密码。"),
                           );
                           if (newPassword)
                             void mutate(
@@ -181,8 +180,7 @@ export default function AdminPanel({
                             );
                         }}
                       >
-                        重置密码
-                      </button>
+                        {ui("重置密码")}</button>
                     </td>
                   </tr>
                 ))}
@@ -196,8 +194,7 @@ export default function AdminPanel({
           <div className="panel-heading">
             <h2>
               <Settings2 size={17} />
-              模型管理
-            </h2>
+              {ui("模型管理")}</h2>
             <button
               className="primary"
               onClick={() =>
@@ -213,32 +210,29 @@ export default function AdminPanel({
               }
             >
               <Plus size={15} />
-              添加模型
-            </button>
+              {ui("添加模型")}</button>
           </div>
           <p className="admin-help">
-            支持 OpenAI Chat Completions
-            兼容接口。密钥加密保存，列表和编辑接口都不会返回原值。
-          </p>
+            {ui("支持 OpenAI Chat Completions 兼容接口。密钥加密保存，列表和编辑接口都不会返回原值。")}</p>
           {models.map((m) => (
             <article className="model-card" key={m.id}>
               <div>
                 <h3>
                   {m.label}
                   {Boolean(m.is_default) && (
-                    <span className="tag selected">默认</span>
+                    <span className="tag selected">{ui("默认")}</span>
                   )}
                 </h3>
                 <p>
                   {m.model} · {m.base_url}
                 </p>
                 <small>
-                  {m.enabled ? "启用" : "停用"} ·{" "}
+                  {m.enabled ? ui("启用") : ui("停用")} ·{" "}
                   {m.env_key
-                    ? "服务端环境密钥"
+                    ? ui("服务端环境密钥")
                     : m.has_key
-                      ? "密钥已加密保存"
-                      : "未配置密钥"}
+                      ? ui("密钥已加密保存")
+                      : ui("未配置密钥")}
                 </small>
               </div>
               <div>
@@ -253,8 +247,7 @@ export default function AdminPanel({
                     })
                   }
                 >
-                  编辑
-                </button>
+                  {ui("编辑")}</button>
                 <button
                   className="text-button"
                   disabled={busy || m.is_default}
@@ -266,61 +259,57 @@ export default function AdminPanel({
                     )
                   }
                 >
-                  设为默认
-                </button>
+                  {ui("设为默认")}</button>
                 <button
                   className="text-button"
                   disabled={busy || m.is_default}
                   onClick={() => {
-                    if (window.confirm("删除这个模型配置？训练记录仍然保留。"))
+                    if (window.confirm(ui("删除这个模型配置？训练记录仍然保留。")))
                       void mutate("/api/admin/models", { id: m.id }, "DELETE");
                   }}
                 >
-                  删除
-                </button>
+                  {ui("删除")}</button>
               </div>
             </article>
           ))}
         </section>
       )}
-      {tab === "statistics" && <section className="admin-section"><div className="panel-heading"><h2>各账号训练与用量 · 全部时间</h2></div><p className="usage-note">完成题目按题号去重；Token 为接口已报告用量，不含无法回溯的缺失数据。</p><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>账号</th><th>完成 / 独立题数</th><th>训练次数</th><th>模型调用 / 接口成功</th><th>输入 Token</th><th>输出 Token</th><th>总 Token</th><th>用量未报告</th></tr></thead><tbody>{status?.userStats?.map((row:any)=><tr key={row.id}><td>{row.username}</td><td>{row.completedProblems} / {row.independentProblems}</td><td>{row.sessions}</td><td>{row.calls} / {row.successfulCalls}</td><td>{row.inputTokens.toLocaleString()}</td><td>{row.outputTokens.toLocaleString()}</td><td>{row.totalTokens.toLocaleString()}</td><td>{row.unknownUsageCalls} 次</td></tr>)}</tbody></table></div></section>}
+      {tab === "statistics" && <section className="admin-section"><div className="panel-heading"><h2>{ui("各账号训练与用量 · 全部时间")}</h2></div><p className="usage-note">{ui("完成题目按题号去重；Token 为接口已报告用量，不含无法回溯的缺失数据。")}</p><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>{ui("账号")}</th><th>{ui("完成 / 独立题数")}</th><th>{ui("训练次数")}</th><th>{ui("模型调用 / 接口成功")}</th><th>{ui("输入 Token")}</th><th>{ui("输出 Token")}</th><th>{ui("总 Token")}</th><th>{ui("用量未报告")}</th></tr></thead><tbody>{status?.userStats?.map((row:any)=><tr key={row.id}><td>{row.username}</td><td>{row.completedProblems} / {row.independentProblems}</td><td>{row.sessions}</td><td>{row.calls} / {row.successfulCalls}</td><td>{row.inputTokens.toLocaleString()}</td><td>{row.outputTokens.toLocaleString()}</td><td>{row.totalTokens.toLocaleString()}</td><td>{row.unknownUsageCalls} {ui("次")}</td></tr>)}</tbody></table></div></section>}
       {tab === "status" && (
         <>
           <section className="admin-section">
             <div className="panel-heading">
-              <h2>数据库与备份</h2>
+              <h2>{ui("数据库与备份")}</h2>
               <a className="secondary" href="/api/admin/backup">
                 <Download size={15} />
-                下载数据库备份
-              </a>
+                {ui("下载数据库备份")}</a>
             </div>
             <p className="admin-help">
-              备份包含账号密码哈希、加密的模型密钥和训练记录，请妥善保管。恢复还需要服务器上的加密主密钥配置文件。服务器每天另存一份数据库备份。
-            </p>
+              {ui("备份包含账号密码哈希、加密的模型密钥和训练记录，请妥善保管。恢复还需要服务器上的加密主密钥配置文件。服务器每天另存一份数据库备份。")}</p>
           </section>
           <section className="admin-section">
             <div className="panel-heading">
-              <h2>最近模型调用</h2>
+              <h2>{ui("最近模型调用")}</h2>
             </div>
             <div className="admin-table-wrap">
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>用户</th>
-                    <th>状态 / 用途</th>
-                    <th>输入 / 输出 tokens</th>
-                    <th>时间</th>
+                    <th>{ui("用户")}</th>
+                    <th>{ui("状态 / 用途")}</th>
+                    <th>{ui("输入 / 输出 tokens")}</th>
+                    <th>{ui("时间")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {status?.usage.map((r: any) => (
                     <tr key={r.id}>
                       <td>{r.username}</td>
-                      <td>{r.status === 0 ? "网络失败" : r.status} / {r.kind === "coach" ? "陪练" : r.kind === "translation" ? "翻译" : "历史"}</td>
+                      <td>{r.status === 0 ? ui("网络失败") : r.status} / {r.kind === "coach" ? ui("陪练") : r.kind === "translation" ? ui("翻译") : ui("历史")}</td>
                       <td>
-                        {r.usage_reported ? `${r.input_tokens} / ${r.output_tokens}` : "未报告完整用量"}
+                        {r.usage_reported ? `${r.input_tokens} / ${r.output_tokens}` : ui("未报告完整用量")}
                       </td>
-                      <td>{new Date(r.created_at).toLocaleString("zh-CN")}</td>
+                      <td>{new Date(r.created_at).toLocaleString(currentLocale())}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -329,14 +318,14 @@ export default function AdminPanel({
           </section>
           <section className="admin-section">
             <div className="panel-heading">
-              <h2>最近管理操作</h2>
+              <h2>{ui("最近管理操作")}</h2>
             </div>
             {status?.audit.map((a: any, i: number) => (
               <div className="audit-row" key={i}>
                 <span>
-                  {a.username || "系统"} · {a.action}
+                  {a.username || ui("系统")} · {a.action}
                 </span>
-                <time>{new Date(a.created_at).toLocaleString("zh-CN")}</time>
+                <time>{new Date(a.created_at).toLocaleString(currentLocale())}</time>
               </div>
             ))}
           </section>
@@ -348,7 +337,7 @@ export default function AdminPanel({
             <button
               className="modal-close"
               onClick={() => setUserForm(false)}
-              aria-label="关闭添加账号"
+              aria-label={ui("关闭添加账号")}
             >
               <X size={19} />
             </button>
@@ -368,10 +357,9 @@ export default function AdminPanel({
                 }
               }}
             >
-              <h2>手动添加账号</h2>
+              <h2>{ui("手动添加账号")}</h2>
               <label>
-                用户名
-                <input
+                {ui("用户名")}<input
                   required
                   pattern="[a-zA-Z0-9_.\-]{3,40}"
                   value={username}
@@ -379,8 +367,7 @@ export default function AdminPanel({
                 />
               </label>
               <label>
-                临时密码
-                <input
+                {ui("临时密码")}<input
                   type="password"
                   autoComplete="new-password"
                   required
@@ -390,17 +377,15 @@ export default function AdminPanel({
                 />
               </label>
               <label>
-                权限
-                <select value={role} onChange={(e) => setRole(e.target.value)}>
-                  <option value="member">成员</option>
-                  <option value="admin">管理员</option>
+                {ui("权限")}<select value={role} onChange={(e) => setRole(e.target.value)}>
+                  <option value="member">{ui("成员")}</option>
+                  <option value="admin">{ui("管理员")}</option>
                 </select>
               </label>
-              <p>首次登录必须修改临时密码。</p>
-              {error && <div className="form-error">{error}</div>}
+              <p>{ui("首次登录必须修改临时密码。")}</p>
+              {error && <div className="form-error">{ui(error)}</div>}
               <button className="primary" disabled={busy}>
-                创建账号
-              </button>
+                {ui("创建账号")}</button>
             </form>
           </section>
         </div>
@@ -411,7 +396,7 @@ export default function AdminPanel({
             <button
               className="modal-close"
               onClick={() => setModelForm(null)}
-              aria-label="关闭模型编辑"
+              aria-label={ui("关闭模型编辑")}
             >
               <X size={19} />
             </button>
@@ -429,10 +414,9 @@ export default function AdminPanel({
                   setModelForm(null);
               }}
             >
-              <h2>{modelForm.id ? "编辑模型" : "添加模型"}</h2>
+              <h2>{modelForm.id ? ui("编辑模型") : ui("添加模型")}</h2>
               <label>
-                显示名称
-                <input
+                {ui("显示名称")}<input
                   required
                   value={modelForm.label}
                   onChange={(e) =>
@@ -441,16 +425,14 @@ export default function AdminPanel({
                 />
               </label>
               <label>
-                接口类型
-                <select
+                {ui("接口类型")}<select
                   value={modelForm.provider}
                   onChange={(e) =>
                     setModelForm({ ...modelForm, provider: e.target.value })
                   }
                 >
                   <option value="openai-compatible">
-                    OpenAI Chat Completions 兼容
-                  </option>
+                    {ui("OpenAI Chat Completions 兼容")}</option>
                   <option value="glm">GLM</option>
                 </select>
               </label>
@@ -467,8 +449,7 @@ export default function AdminPanel({
                 />
               </label>
               <label>
-                模型 ID
-                <input
+                {ui("模型 ID")}<input
                   required
                   value={modelForm.model}
                   onChange={(e) =>
@@ -477,7 +458,7 @@ export default function AdminPanel({
                 />
               </label>
               <label>
-                API Key {modelForm.id ? "（留空保留原密钥）" : ""}
+                API Key {modelForm.id ? ui("（留空保留原密钥）") : ""}
                 <input
                   type="password"
                   autoComplete="new-password"
@@ -497,8 +478,7 @@ export default function AdminPanel({
                       setModelForm({ ...modelForm, enabled: e.target.checked })
                     }
                   />
-                  启用
-                </label>
+                  {ui("启用")}</label>
                 <label>
                   <input
                     type="checkbox"
@@ -510,13 +490,11 @@ export default function AdminPanel({
                       })
                     }
                   />
-                  默认模型
-                </label>
+                  {ui("默认模型")}</label>
               </div>
-              {error && <div className="form-error">{error}</div>}
+              {error && <div className="form-error">{ui(error)}</div>}
               <button className="primary" disabled={busy}>
-                保存模型
-              </button>
+                {ui("保存模型")}</button>
             </form>
           </section>
         </div>

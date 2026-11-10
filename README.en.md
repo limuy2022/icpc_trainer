@@ -4,7 +4,7 @@
 
 A self-hosted AI coaching platform for ICPC problem solving. Find Codeforces problems by rating and tags, discuss observations, request progressive hints, test conjectures, and review your reasoning. Designed for individuals and small private groups.
 
-Model providers are configurable: no GLM subscription or specific vendor is required. Built with React, TypeScript, Vite, Node.js, and SQLite. **The current interface and default coaching language are Chinese**; this English documentation does not imply an English UI.
+Model providers are configurable: no GLM subscription or specific vendor is required. Built with React, TypeScript, Vite, Node.js, and SQLite. The interface supports **Simplified Chinese and English**, with selectors on the login page and in the sidebar. Preferences are saved in the current browser; first visits follow the browser language. New coaching replies and visualization labels follow your selected language. Existing conversations, notes, and original statements are preserved; Chinese statement translation remains a separate reading option. Switching the interface language does not call a model.
 
 ## Features
 

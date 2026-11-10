@@ -1,4 +1,6 @@
 "use client";
+import LanguageSwitch from "@/components/language-switch";
+import {t as ui,useLocale} from "@/lib/locale";
 import { useEffect, useState } from "react";
 import ThemeSwitch from "./theme-switch";
 import { ArrowRight, Code2, LoaderCircle, LogOut } from "lucide-react";
@@ -30,6 +32,7 @@ export function PasswordForm({
   done: () => void;
   required?: boolean;
 }) {
+  useLocale();
   const [current, setCurrent] = useState(""),
     [next, setNext] = useState(""),
     [confirm, setConfirm] = useState(""),
@@ -60,11 +63,10 @@ export function PasswordForm({
         }
       }}
     >
-      <h2>{required ? "首次登录，请设置自己的密码" : "修改密码"}</h2>
-      <p>账号由管理员创建。修改密码后，其他设备上的登录会失效。</p>
+      <h2>{required ? ui("首次登录，请设置自己的密码") : ui("修改密码")}</h2>
+      <p>{ui("账号由管理员创建。修改密码后，其他设备上的登录会失效。")}</p>
       <label>
-        当前密码
-        <input
+        {ui("当前密码")}<input
           autoComplete="current-password"
           type="password"
           required
@@ -73,8 +75,7 @@ export function PasswordForm({
         />
       </label>
       <label>
-        新密码
-        <input
+        {ui("新密码")}<input
           autoComplete="new-password"
           type="password"
           minLength={12}
@@ -85,8 +86,7 @@ export function PasswordForm({
         />
       </label>
       <label>
-        再次输入新密码
-        <input
+        {ui("再次输入新密码")}<input
           autoComplete="new-password"
           type="password"
           required
@@ -96,11 +96,11 @@ export function PasswordForm({
       </label>
       {error && (
         <div className="form-error" role="alert">
-          {error}
+          {ui(error)}
         </div>
       )}
       <button className="primary" disabled={busy}>
-        {busy ? <LoaderCircle className="spin" size={16} /> : "保存新密码"}
+        {busy ? <LoaderCircle className="spin" size={16} /> : ui("保存新密码")}
         <ArrowRight size={16} />
       </button>
     </form>
@@ -111,6 +111,7 @@ export default function AccountGate({
 }: {
   children: (user: Account, logout: () => Promise<void>) => React.ReactNode;
 }) {
+  useLocale();
   const [user, setUser] = useState<Account | null>(null),
     [ready, setReady] = useState(false),
     [username, setUsername] = useState(""),
@@ -145,13 +146,13 @@ export default function AccountGate({
   return (
     <main className="auth-shell">
       <div className="auth-card">
-        <ThemeSwitch />
+        <div className="appearance-controls"><LanguageSwitch /><ThemeSwitch /></div>
         <div className="auth-brand">
           <span className="brand-icon">
             <Code2 size={25} />
           </span>
           <span>
-            思维练习场<small>PRIVATE ICPC WORKSPACE</small>
+            {ui("思维练习场")}<small>PRIVATE ICPC WORKSPACE</small>
           </span>
         </div>
         {user ? (
@@ -159,8 +160,7 @@ export default function AccountGate({
             <PasswordForm required done={() => void refresh()} />
             <button className="text-button" onClick={logout}>
               <LogOut size={14} />
-              退出登录
-            </button>
+              {ui("退出登录")}</button>
           </>
         ) : (
           <form
@@ -180,12 +180,11 @@ export default function AccountGate({
               }
             }}
           >
-            <div className="eyebrow">一个小范围的训练空间</div>
-            <h1>从一次思考开始。</h1>
-            <p>仅限管理员开通的账号登录，不开放注册。</p>
+            <div className="eyebrow">{ui("一个小范围的训练空间")}</div>
+            <h1>{ui("从一次思考开始。")}</h1>
+            <p>{ui("仅限管理员开通的账号登录，不开放注册。")}</p>
             <label>
-              账号
-              <input
+              {ui("账号")}<input
                 autoComplete="username"
                 autoCapitalize="none"
                 required
@@ -194,8 +193,7 @@ export default function AccountGate({
               />
             </label>
             <label>
-              密码
-              <input
+              {ui("密码")}<input
                 autoComplete="current-password"
                 type="password"
                 required
@@ -205,18 +203,18 @@ export default function AccountGate({
             </label>
             {error && (
               <div className="form-error" role="alert">
-                {error}
+                {ui(error)}
               </div>
             )}
             <button className="primary" disabled={busy}>
               {busy ? (
                 <LoaderCircle className="spin" size={16} />
               ) : (
-                "登录训练空间"
+                ui("登录训练空间")
               )}
               <ArrowRight size={16} />
             </button>
-            <small>需要账号？请联系管理员。</small>
+            <small>{ui("需要账号？请联系管理员。")}</small>
           </form>
         )}
       </div>

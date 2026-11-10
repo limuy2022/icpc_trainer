@@ -96,7 +96,8 @@ export async function POST(request: Request) {
             {
               role: "system",
               content:
-                instructions + visualInstructions +
+                instructions.replace("使用中文", body.language === "en" ? "使用英文" : "使用中文") + visualInstructions +
+                (body.language === "en" ? "\nResponse language: English. Write all explanations, questions, and interactive visualization labels/buttons in English. Preserve problem names, code, mathematical notation and user data. Earlier Chinese conversation does not override this language choice." : "\n回复语言：简体中文。") +
                 "\n当前模式：" +
                 (modes[body.mode] || modes.discuss),
             },

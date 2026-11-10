@@ -31,6 +31,7 @@ try {
  globalThis.fetch=async(url,options)=>{calls++;sent=JSON.parse(options.body);return Response.json({choices:[{message:{content:'讨论当前观察。'}}]});};
  const request=(extra={})=>new Request('https://trainer.example/api/coach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({problemId:'123C',statement:paragraph,messages:[{role:'user',content:'My conjecture'}],mode:'hint1',...extra})});
  let response=await POST(request());assert.equal(response.status,200);let data=await response.json();assert.equal(data.editorial.status,'ready');assert.ok(sent.messages.some(m=>m.content.includes(result.text)));assert.ok(sent.messages[0].content.includes('只给一个观察方向'));assert.ok(!JSON.stringify(data).includes(paragraph));
+ response=await POST(request({language:'en'}));assert.equal(response.status,200);assert.ok(sent.messages[0].content.includes('Response language: English.'));assert.ok(sent.messages[0].content.includes('使用英文'));assert.ok(!sent.messages[0].content.includes('使用中文'));
  globalThis.__missing=true;calls=0;response=await POST(request());assert.equal(response.status,503);assert.equal(calls,0);assert.equal((await response.json()).editorial.status,'unavailable');
  response=await POST(request({allowUnverified:'true'}));assert.equal(response.status,503);assert.equal(calls,0);
  response=await POST(request({allowUnverified:true}));assert.equal(response.status,200);assert.equal(calls,1);assert.equal((await response.json()).editorial.status,'unavailable');assert.ok(sent.messages.some(m=>m.content.includes('本次未获取到官方题解')));

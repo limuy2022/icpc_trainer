@@ -1,4 +1,6 @@
 "use client";
+import LanguageSwitch from "@/components/language-switch";
+import {t as ui,useLocale,currentLocale} from "@/lib/locale";
 import { reasoningLabels, type ReasoningLevel } from "@/lib/reasoning";
 import RatingForm from "@/components/rating-form";
 import { ratingRange, difficultyOptions } from "@/lib/rating-range";
@@ -77,6 +79,7 @@ const outcomes = {
 const fmt = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 export default function Home() {
+  useLocale();
   return (
     <>
       <AccountGate>
@@ -94,6 +97,7 @@ function Workspace({
   user: Account;
   logout: () => Promise<void>;
 }) {
+  useLocale();
   const [view, setView] = useState<"bank" | "training" | "history" | "admin" | "statistics">(
     "bank",
   );
@@ -114,7 +118,7 @@ function Workspace({
     [modelId, setModelId] = useState(""),
     [passwordModal, setPasswordModal] = useState(false);
   const selectedModel=models.find(m=>m.id===modelId);
-  const supportedEfforts=selectedModel?.reasoningOptions || [{value:"default",label:"模型默认"}];
+  const supportedEfforts=selectedModel?.reasoningOptions || [{value:"default",label:ui("模型默认")}];
   const reasoningEffort:ReasoningLevel=supportedEfforts.some((option:any)=>option.value===efforts[modelId])?efforts[modelId]:"default";
   const importInput = useRef<HTMLInputElement>(null);
   const [bank, setBank] = useState<Bank | null>(null),
@@ -239,7 +243,7 @@ function Workspace({
         })
         .catch((e) => {
           if (e.name !== "AbortError")
-            setBankError(e.message || "题库加载失败，请重试");
+            setBankError(e.message || ui("题库加载失败，请重试"));
         })
         .finally(() => {
           if (!controller.signal.aborted) setLoading(false);
@@ -434,8 +438,8 @@ function Workspace({
     const message = session.messages[index];
     if (message?.role !== "user") return;
     const following = session.messages.length - index - 1;
-    if (!window.confirm(`撤回这条消息${following ? `，并移除后续 ${following} 条消息` : ""}？原内容会放回输入框，旧对话保留在历史版本中。`)) return;
-    if (draft.trim() && draft !== message.content && !window.confirm("输入框中有未发送内容，是否用撤回的消息替换？")) return;
+    if (!window.confirm(ui("撤回这条消息{0}？原内容会放回输入框，旧对话保留在历史版本中。",[following ? `，并移除后续 ${following} 条消息` : ""]))) return;
+    if (draft.trim() && draft !== message.content && !window.confirm(ui("输入框中有未发送内容，是否用撤回的消息替换？"))) return;
     const revised = reviseConversation(session,index);
     patch(session.id, {messages:revised.messages,messagesVersion:revised.messagesVersion,recoveredVersions:revised.recoveredVersions});
     setDraft(message.content);setMessageEdit(null);setChatError("");
@@ -455,19 +459,19 @@ function Workspace({
     if (
       mode === "solution" &&
       !window.confirm(
-        "确定现在查看完整解法吗？这道题将计入「看过解法」，你仍可以继续讨论。",
+        ui("确定现在查看完整解法吗？这道题将计入「看过解法」，你仍可以继续讨论。"),
       )
     )
       return;
     const prompts: Record<string, string> = {
-      visualize: "请用一个可交互、能逐步演示的小图解释我们当前讨论的观察或我的卡点，先不要揭晓后续解法。",
-      hint1: "我卡住了，请给一条观察方向，先不要揭晓关键解法。",
-      hint2: "请给第二层提示，帮我找到一个关键性质。",
-      hint3: "请给第三层提示，帮我建立主要模型，留下一步让我推。",
-      counterexample: "请检验我刚才的猜想。若不成立，给一个小反例。",
+      visualize: ui("请用一个可交互、能逐步演示的小图解释我们当前讨论的观察或我的卡点，先不要揭晓后续解法。"),
+      hint1: ui("我卡住了，请给一条观察方向，先不要揭晓关键解法。"),
+      hint2: ui("请给第二层提示，帮我找到一个关键性质。"),
+      hint3: ui("请给第三层提示，帮我建立主要模型，留下一步让我推。"),
+      counterexample: ui("请检验我刚才的猜想。若不成立，给一个小反例。"),
       review:
-        "请根据我们实际讨论的过程做一次复盘，指出我的卡点和可以迁移的思考方法。",
-      solution: "我选择查看完整解法，请解释推导和证明。",
+        ui("请根据我们实际讨论的过程做一次复盘，指出我的卡点和可以迁移的思考方法。"),
+      solution: ui("我选择查看完整解法，请解释推导和证明。"),
     };
     if (edit && session.messages[edit.index]?.content !== edit.original) {
       setChatError("这条消息已在另一页面修改，请取消编辑后重新打开。");return;
@@ -476,7 +480,7 @@ function Workspace({
     if (!content) return;
     const id = session.id;
     const last = session.messages[session.messages.length - 1];
-    if (edit && session.messages.length > edit.index + 1 && !window.confirm("修改后会移除这条消息之后的回复和讨论，并重新生成回答。旧对话将保留在历史版本中，是否继续？")) return;
+    if (edit && session.messages.length > edit.index + 1 && !window.confirm(ui("修改后会移除这条消息之后的回复和讨论，并重新生成回答。旧对话将保留在历史版本中，是否继续？"))) return;
     const revised = edit ? reviseConversation(session,edit.index,content) : undefined;
     const messagesVersion = revised?.messagesVersion || session.messagesVersion;
     const messages: Message[] = revised
@@ -505,6 +509,7 @@ function Workspace({
           problem: `${session.problem.id} ${session.problem.name}`,
           problemId: session.problem.id,
           allowUnverified,
+          language: currentLocale(),
           notes: session.notes,
           modelId,
           reasoningEffort,
@@ -584,9 +589,9 @@ function Workspace({
   const doneIds = new Set(completed.map((s) => s.problem.id));
   return (
     <div className="app-shell">
-      {mobileMenu && <button className="mobile-menu-backdrop" aria-label="关闭导航" onClick={() => setMobileMenu(false)} />}
+      {mobileMenu && <button className="mobile-menu-backdrop" aria-label={ui("关闭导航")} onClick={() => setMobileMenu(false)} />}
       <aside id="workspace-navigation" className={"sidebar" + (mobileMenu ? " mobile-open" : "")} onClick={(event) => { if ((event.target as HTMLElement).closest("button, a")) setMobileMenu(false); }}>
-        <button className="mobile-menu-close" aria-label="收起导航" onClick={() => setMobileMenu(false)}><X size={22} /></button>
+        <button className="mobile-menu-close" aria-label={ui("收起导航")} onClick={() => setMobileMenu(false)}><X size={22} /></button>
         <a
           className="brand"
           href="#"
@@ -599,16 +604,16 @@ function Workspace({
             <Code2 size={25} />
           </span>
           <span>
-            思维练习场<small>ICPC THINKING LAB</small>
+            {ui("思维练习场")}<small>ICPC THINKING LAB</small>
           </span>
         </a>
         <div className="nav-label">WORKSPACE</div>
         <nav>
           {[
-            { id: "bank", icon: BookOpen, label: "发现题目" },
-            { id: "training", icon: MessageCircle, label: "思维陪练" },
-            { id: "history", icon: History, label: "训练记录" },
-            { id: "statistics", icon: BarChart3, label: "训练统计" },
+            { id: "bank", icon: BookOpen, label: ui("发现题目") },
+            { id: "training", icon: MessageCircle, label: ui("思维陪练") },
+            { id: "history", icon: History, label: ui("训练记录") },
+            { id: "statistics", icon: BarChart3, label: ui("训练统计") },
           ].map(({ id, icon: Icon, label }) => (
             <button
               key={id}
@@ -616,7 +621,7 @@ function Workspace({
               onClick={() => navigate(id as typeof view)}
             >
               <Icon size={19} />
-              {label}
+              {ui(label)}
               {id === "training" &&
                 sessions.some((s) => s.outcome === "training") && (
                   <span className="nav-dot" />
@@ -625,31 +630,27 @@ function Workspace({
           ))}
         </nav>
         <div className="sidebar-note">
-          <span className="tiny-label">一点训练共识</span>
+          <span className="tiny-label">{ui("一点训练共识")}</span>
           <p>
-            先有一个观察，
-            <br />
-            再向答案走一步。
-          </p>
-          <span>允许卡住，也允许猜错。</span>
+            {ui("先有一个观察，")}<br />
+            {ui("再向答案走一步。")}</p>
+          <span>{ui("允许卡住，也允许猜错。")}</span>
           <div className="note-line" />
         </div>
         <div className="sidebar-bottom">
-          <ThemeSwitch />
+          <div className="appearance-controls"><LanguageSwitch /><ThemeSwitch /></div>
           {user.role === "admin" && (
             <button
               className={view === "admin" ? "nav-item active" : "nav-item"}
               onClick={() => navigate("admin")}
             >
               <ShieldCheck size={18} />
-              管理员面板
-            </button>
+              {ui("管理员面板")}</button>
           )}
-          <button className="nav-item" onClick={() => setRatingModal(true)}><Target size={18}/>个人等级分</button>
+          <button className="nav-item" onClick={() => setRatingModal(true)}><Target size={18}/>{ui("个人等级分")}</button>
           <button className="nav-item" onClick={() => setPasswordModal(true)}>
             <Settings2 size={18} />
-            修改密码
-          </button>
+            {ui("修改密码")}</button>
           <button
             className="nav-item"
             onClick={async () => {
@@ -659,12 +660,10 @@ function Workspace({
             }}
           >
             <LogOut size={18} />
-            退出登录
-          </button>
+            {ui("退出登录")}</button>
           <button className="nav-item" onClick={() => setSettings(true)}>
             <Settings2 size={18} />
-            陪练模型
-            <span className={aiConfigured ? "connection on" : "connection"} />
+            {ui("陪练模型")}<span className={aiConfigured ? "connection on" : "connection"} />
           </button>
           <div className="profile">
             <div className="avatar">
@@ -673,9 +672,7 @@ function Workspace({
             <div>
               {user.username}
               <small>
-                {user.role === "admin" ? "管理员" : "训练成员"} ·
-                记录保存到服务器
-              </small>
+                {user.role === "admin" ? ui("管理员") : ui("训练成员")} {ui("· 记录保存到服务器")}</small>
             </div>
           </div>
         </div>
@@ -683,24 +680,24 @@ function Workspace({
       <div className="workspace">
         <header className="topbar">
           <div>
-            <button className="mobile-menu-toggle" aria-label="打开导航" aria-expanded={mobileMenu} aria-controls="workspace-navigation" onClick={() => setMobileMenu(true)}><Menu size={22} /></button>
-            <span className="muted">我的工作台</span>
+            <button className="mobile-menu-toggle" aria-label={ui("打开导航")} aria-expanded={mobileMenu} aria-controls="workspace-navigation" onClick={() => setMobileMenu(true)}><Menu size={22} /></button>
+            <span className="muted">{ui("我的工作台")}</span>
             <ChevronRight size={14} />
             <span>
               {view === "bank"
-                ? "发现题目"
+                ? ui("发现题目")
                 : view === "training"
-                  ? "思维陪练"
+                  ? ui("思维陪练")
                   : view === "statistics"
-                    ? "训练统计"
+                    ? ui("训练统计")
                   : view === "admin"
-                    ? "管理后台"
-                    : "训练记录"}
+                    ? ui("管理后台")
+                    : ui("训练记录")}
             </span>
           </div>
           <button className="quiet" onClick={() => setSettings(true)}>
             <span className={aiConfigured ? "connection on" : "connection"} />
-            {aiConfigured ? "AI 已配置" : "连接你的 AI"}
+            {aiConfigured ? ui("AI 已配置") : ui("连接你的 AI")}
             <ArrowUpRight size={14} />
           </button>
         </header>
@@ -713,26 +710,20 @@ function Workspace({
             <section className="hero">
               <div>
                 <div className="eyebrow">
-                  <span />从 OI 到 ICPC，每次多一个观察
-                </div>
+                  <span />{ui("从 OI 到 ICPC，每次多一个观察")}</div>
                 <h1>
-                  把「没思路」，
-                  <br />
-                  练成<span>「再想一步」。</span>
+                  {ui("把「没思路」，")}<br />
+                  {ui("练成")}<span>{ui("「再想一步」。")}</span>
                 </h1>
                 <p>
-                  找到刚好有挑战的题。把第一反应说出来，
-                  <br className="desktop-break" />让 AI
-                  陪你举例、找反例、推导，直到自己走通。
-                </p>
+                  {ui("找到刚好有挑战的题。把第一反应说出来，")}<br className="desktop-break" />{ui("让 AI 陪你举例、找反例、推导，直到自己走通。")}</p>
                 <button className="primary" onClick={random} disabled={loading}>
                   <Shuffle size={17} />
-                  为我挑一道题
-                  <ArrowRight size={17} />
+                  {ui("为我挑一道题")}<ArrowRight size={17} />
                 </button>
                 <span className="hero-caption">
-                  当前筛选 · {min}–{max}
-                  {tags.length ? ` · ${tags.length} 个标签` : ""}
+                  {ui("当前筛选 ·")}{min}–{max}
+                  {tags.length ? ui(" · {0} 个标签",[tags.length]) : ""}
                 </span>
               </div>
               <div className="hero-art" aria-hidden="true">
@@ -785,20 +776,16 @@ function Workspace({
                     strokeWidth="2.5"
                   />
                   <text x="14" y="162">
-                    观察
-                  </text>
+                    {ui("观察")}</text>
                   <text x="110" y="33">
-                    猜想
-                  </text>
+                    {ui("猜想")}</text>
                   <text x="206" y="143">
-                    验证
-                  </text>
+                    {ui("验证")}</text>
                   <text x="314" y="83">
-                    突破
-                  </text>
+                    {ui("突破")}</text>
                 </svg>
                 <div className="art-foot">
-                  <span>01 — 不是每条路都笔直</span>
+                  <span>{ui("01 — 不是每条路都笔直")}</span>
                   <span>↗</span>
                 </div>
               </div>
@@ -809,10 +796,10 @@ function Workspace({
                   <Target size={19} />
                 </span>
                 <div>
-                  <span>已完成训练</span>
+                  <span>{ui("已完成训练")}</span>
                   <strong>
                     {summary.completedProblems}
-                    <small>道</small>
+                    <small>{ui("道")}</small>
                   </strong>
                 </div>
               </div>
@@ -821,10 +808,10 @@ function Workspace({
                   <Clock3 size={19} />
                 </span>
                 <div>
-                  <span>累计思考时间</span>
+                  <span>{ui("累计思考时间")}</span>
                   <strong>
                     {totalMinutes}
-                    <small>分钟</small>
+                    <small>{ui("分钟")}</small>
                   </strong>
                 </div>
               </div>
@@ -833,10 +820,10 @@ function Workspace({
                   <Lightbulb size={19} />
                 </span>
                 <div>
-                  <span>独立解出</span>
+                  <span>{ui("独立解出")}</span>
                   <strong>
                     {summary.independentProblems}
-                    <small>道</small>
+                    <small>{ui("道")}</small>
                   </strong>
                 </div>
               </div>
@@ -845,7 +832,7 @@ function Workspace({
                   <TrendingUp size={19} />
                 </span>
                 <div>
-                  <span>我的起步区间</span>
+                  <span>{ui("我的起步区间")}</span>
                   <strong className="rating-stat">
                     {min}
                     <span>—</span>
@@ -857,24 +844,23 @@ function Workspace({
             <div className="section-title">
               <div>
                 <h2>
-                  找到你的下一道题<span>PROBLEM EXPLORER</span>
+                  {ui("找到你的下一道题")}<span>PROBLEM EXPLORER</span>
                 </h2>
-                <p>难一点点，刚好能让思考发生。</p>
+                <p>{ui("难一点点，刚好能让思考发生。")}</p>
               </div>
               <div className="bank-indicator">
                 <span className="connection on" />
                 {bank
-                  ? `${bank.bankTotal.toLocaleString()} 道 CF 题目`
-                  : "正在连接 Codeforces"}
+                  ? ui("{0} 道 CF 题目",[bank.bankTotal.toLocaleString()])
+                  : ui("正在连接 Codeforces")}
               </div>
             </div>
-            <div className="rating-preset"><div><strong>{cfRating == null ? "尚未设置个人等级分" : `我的 CF 等级分 · ${cfRating}`}</strong><span>默认难度 {preset.min}–{preset.max}{cfRating == null ? "" : " · 等级分 −100 / +300"}</span></div><div><button className="text-button" onClick={()=>setRatingModal(true)}>{cfRating==null?"设置等级分":"修改等级分"}</button>{(min!==preset.min||max!==preset.max)&&<button className="secondary" onClick={()=>{setMin(preset.min);setMax(preset.max);setPage(1);}}>应用个人预设</button>}</div></div>
+            <div className="rating-preset"><div><strong>{cfRating == null ? ui("尚未设置个人等级分") : ui("我的 CF 等级分 · {0}",[cfRating])}</strong><span>{ui("默认难度")}{preset.min}–{preset.max}{cfRating == null ? "" : ui(" · 等级分 −100 / +300")}</span></div><div><button className="text-button" onClick={()=>setRatingModal(true)}>{cfRating==null?ui("设置等级分"):ui("修改等级分")}</button>{(min!==preset.min||max!==preset.max)&&<button className="secondary" onClick={()=>{setMin(preset.min);setMax(preset.max);setPage(1);}}>{ui("应用个人预设")}</button>}</div></div>
             <section className="filter-panel">
               <div className="filter-top">
                 <label className="range-label">
-                  难度范围
-                  <select
-                    aria-label="最低难度"
+                  {ui("难度范围")}<select
+                    aria-label={ui("最低难度")}
                     value={min}
                     onChange={(e) => {
                       const v = Number(e.target.value);
@@ -891,7 +877,7 @@ function Workspace({
                   </select>
                   <span>—</span>
                   <select
-                    aria-label="最高难度"
+                    aria-label={ui("最高难度")}
                     value={max}
                     onChange={(e) => {
                       const v = Number(e.target.value);
@@ -910,8 +896,8 @@ function Workspace({
                 <label className="search-box">
                   <Search size={16} />
                   <input
-                    aria-label="搜索题目"
-                    placeholder="搜索题号或题名"
+                    aria-label={ui("搜索题目")}
+                    placeholder={ui("搜索题号或题名")}
                     value={query}
                     onChange={(e) => {
                       setQuery(e.target.value);
@@ -921,20 +907,20 @@ function Workspace({
                 </label>
                 <select
                   className="sort-select"
-                  aria-label="排序方式"
+                  aria-label={ui("排序方式")}
                   value={sort}
                   onChange={(e) => {
                     setSort(e.target.value);
                     setPage(1);
                   }}
                 >
-                  <option value="popular">最多人通过</option>
-                  <option value="rating">难度从低到高</option>
-                  <option value="recent">最近的比赛</option>
+                  <option value="popular">{ui("最多人通过")}</option>
+                  <option value="rating">{ui("难度从低到高")}</option>
+                  <option value="recent">{ui("最近的比赛")}</option>
                 </select>
               </div>
               <div className="tag-filter">
-                <span className="filter-label">训练标签</span>
+                <span className="filter-label">{ui("训练标签")}</span>
                 <button
                   className={!tags.length ? "tag selected" : "tag"}
                   onClick={() => {
@@ -942,8 +928,7 @@ function Workspace({
                     setPage(1);
                   }}
                 >
-                  全部
-                </button>
+                  {ui("全部")}</button>
                 {Object.entries(tagLabels)
                   .slice(0, 12)
                   .map(([tag, label]) => (
@@ -959,11 +944,11 @@ function Workspace({
                         setPage(1);
                       }}
                     >
-                      {label}
+                      {ui(label)}
                     </button>
                   ))}
                 <select
-                  aria-label="更多标签"
+                  aria-label={ui("更多标签")}
                   value=""
                   onChange={(e) => {
                     if (e.target.value)
@@ -973,12 +958,12 @@ function Workspace({
                     setPage(1);
                   }}
                 >
-                  <option value="">更多标签 ＋</option>
+                  <option value="">{ui("更多标签 ＋")}</option>
                   {Object.entries(tagLabels)
                     .slice(12)
                     .map(([v, l]) => (
                       <option key={v} value={v}>
-                        {l}
+                        {ui(l)}
                       </option>
                     ))}
                 </select>
@@ -1000,7 +985,7 @@ function Workspace({
                           setPage(1);
                         }}
                       >
-                        {tagLabels[t]} ×
+                        {ui(tagLabels[t])} ×
                       </button>
                     ))}
                 </div>
@@ -1015,8 +1000,7 @@ function Workspace({
                       setPage(1);
                     }}
                   />
-                  排除已完成训练的题
-                </label>
+                  {ui("排除已完成训练的题")}</label>
                 <label>
                   <input
                     type="checkbox"
@@ -1024,20 +1008,19 @@ function Workspace({
                     onChange={(e) => setHideTags(e.target.checked)}
                   />
                   <EyeOff size={14} />
-                  隐藏题目标签，保留思考空间
-                </label>
-                <span>多标签按「全部符合」筛选</span>
+                  {ui("隐藏题目标签，保留思考空间")}</label>
+                <span>{ui("多标签按「全部符合」筛选")}</span>
               </div>
             </section>
             <div className="result-heading">
               <span>
                 {loading
-                  ? "正在筛选…"
-                  : `找到 ${bank?.total.toLocaleString() || 0} 道题目`}
+                  ? ui("正在筛选…")
+                  : ui("找到 {0} 道题目",[bank?.total.toLocaleString() || 0])}
                 <span className="result-sub">
                   {bank?.source === "snapshot"
-                    ? `CF 暂不可用 · 使用 ${new Date(bank.updatedAt).toLocaleDateString("zh-CN")} 快照`
-                    : "来自 Codeforces 官方题库"}
+                    ? ui("CF 暂不可用 · 使用 {0} 快照",[new Date(bank.updatedAt).toLocaleDateString("zh-CN")])
+                    : ui("来自 Codeforces 官方题库")}
                 </span>
               </span>
               <button
@@ -1046,36 +1029,34 @@ function Workspace({
                 disabled={loading}
               >
                 <Shuffle size={14} />
-                随机挑一题
-              </button>
+                {ui("随机挑一题")}</button>
             </div>
             <DifficultyGuide />
             <div className="problem-table">
               <div className="table-head">
-                <span>题目 / PROBLEM</span>
-                <span>难度</span>
-                <span>通过人数</span>
-                <span>开始训练</span>
+                <span>{ui("题目 / PROBLEM")}</span>
+                <span>{ui("难度")}</span>
+                <span>{ui("通过人数")}</span>
+                <span>{ui("开始训练")}</span>
               </div>
               {bankError ? (
                 <div className="empty">
                   <CircleHelp />
-                  <h3>题库暂时没加载出来</h3>
+                  <h3>{ui("题库暂时没加载出来")}</h3>
                   <p>{bankError}</p>
                   <button onClick={() => setPage((p) => (p === 1 ? 2 : 1))}>
-                    重新加载
-                  </button>
+                    {ui("重新加载")}</button>
                 </div>
               ) : loading ? (
                 <div className="empty">
                   <LoaderCircle className="spin" />
-                  <p>正在寻找下一道挑战…</p>
+                  <p>{ui("正在寻找下一道挑战…")}</p>
                 </div>
               ) : !bank?.items.length ? (
                 <div className="empty">
                   <Search />
-                  <h3>暂时没有匹配的题目</h3>
-                  <p>试试放宽难度范围，或减少标签。</p>
+                  <h3>{ui("暂时没有匹配的题目")}</h3>
+                  <p>{ui("试试放宽难度范围，或减少标签。")}</p>
                   <button
                     onClick={() => {
                       setTags([]);
@@ -1085,8 +1066,7 @@ function Workspace({
                       setPage(1);
                     }}
                   >
-                    重置筛选
-                  </button>
+                    {ui("重置筛选")}</button>
                 </div>
               ) : (
                 bank.items.map((p) => (
@@ -1107,15 +1087,14 @@ function Workspace({
                           {hideTags ? (
                             <span>
                               <EyeOff size={11} />
-                              标签已隐藏
-                            </span>
+                              {ui("标签已隐藏")}</span>
                           ) : (
                             p.tags.map((t) => (
-                              <span key={t}>{tagLabels[t] || t}</span>
+                              <span key={t}>{ui(tagLabels[t] || t)}</span>
                             ))
                           )}
                           {doneIds.has(p.id) && (
-                            <span className="done-tag">已训练</span>
+                            <span className="done-tag">{ui("已训练")}</span>
                           )}
                         </div>
                       </div>
@@ -1134,18 +1113,17 @@ function Workspace({
                       {p.solvedCount.toLocaleString()}
                     </span>
                     <button className="row-start" onClick={() => start(p)}>
-                      去思考
-                      <ArrowUpRight size={15} />
+                      {ui("去思考")}<ArrowUpRight size={15} />
                     </button>
                   </div>
                 ))
               )}
             </div>
             <div className="pagination">
-              <span>CF Rating 用于选题参考 · 完成记录由你手动标记</span>
+              <span>{ui("CF Rating 用于选题参考 · 完成记录由你手动标记")}</span>
               <div>
                 <button
-                  aria-label="上一页"
+                  aria-label={ui("上一页")}
                   disabled={page <= 1 || loading}
                   onClick={() => setPage((p) => p - 1)}
                 >
@@ -1155,7 +1133,7 @@ function Workspace({
                   {page} / {Math.max(1, Math.ceil((bank?.total || 0) / 12))}
                 </span>
                 <button
-                  aria-label="下一页"
+                  aria-label={ui("下一页")}
                   disabled={page * 12 >= (bank?.total || 0) || loading}
                   onClick={() => setPage((p) => p + 1)}
                 >
@@ -1165,8 +1143,7 @@ function Workspace({
             </div>
             <footer>
               <Code2 size={15} />
-              训练的是走向答案的过程。
-              <span>BUILT FOR THE NEXT OBSERVATION</span>
+              {ui("训练的是走向答案的过程。")}<span>BUILT FOR THE NEXT OBSERVATION</span>
             </footer>
           </main>
         )}
@@ -1174,11 +1151,10 @@ function Workspace({
           <main className="main-content">
             <div className="empty large-empty">
               <MessageCircle size={38} />
-              <h2>从一道题，一句话开始。</h2>
-              <p>挑一道题，把你的第一反应告诉 AI 陪练。</p>
+              <h2>{ui("从一道题，一句话开始。")}</h2>
+              <p>{ui("挑一道题，把你的第一反应告诉 AI 陪练。")}</p>
               <button className="primary" onClick={() => navigate("bank")}>
-                去发现题目
-                <ArrowRight size={16} />
+                {ui("去发现题目")}<ArrowRight size={16} />
               </button>
               {sessions
                 .filter((s) => s.outcome === "training")
@@ -1188,7 +1164,7 @@ function Workspace({
                     key={s.id}
                     onClick={() => resume(s)}
                   >
-                    继续 {s.problem.id} · {s.problem.name}
+                    {ui("继续")}{s.problem.id} · {s.problem.name}
                     <ArrowRight size={14} />
                   </button>
                 ))}
@@ -1204,8 +1180,7 @@ function Workspace({
                   onClick={() => navigate("bank")}
                 >
                   <ChevronLeft size={15} />
-                  题库
-                </button>
+                  {ui("题库")}</button>
                 <h1>
                   <span>{session.problem.id}</span>
                   {session.problem.name}
@@ -1221,10 +1196,9 @@ function Workspace({
                     target="_blank"
                     rel="noreferrer"
                   >
-                    打开 CF 原题
-                    <ExternalLink size={13} />
+                    {ui("打开 CF 原题")}<ExternalLink size={13} />
                   </a>
-                  <span>{outcomes[session.outcome]}</span>
+                  <span>{ui(outcomes[session.outcome])}</span>
                 </div>
               </div>
               <div className="training-actions">
@@ -1248,54 +1222,49 @@ function Workspace({
                   }}
                 >
                   <Flag size={15} />
-                  结束并记录
-                </button>
+                  {ui("结束并记录")}</button>
               </div>
             </div>
-            <nav className="mobile-training-jump" aria-label="训练区域"><a href="#problem-reader">阅读题目</a><a href="#ai-coach">与 AI 讨论</a></nav>
+            <nav className="mobile-training-jump" aria-label={ui("训练区域")}><a href="#problem-reader">{ui("阅读题目")}</a><a href="#ai-coach">{ui("与 AI 讨论")}</a></nav>
             <div className="training-grid">
               <section id="problem-reader" className="statement-panel">
                 <div className="panel-heading">
                   <h2>
                     <BookOpen size={17} />
-                    题目工作区
-                  </h2>
+                    {ui("题目工作区")}</h2>
                   <button
                     className="text-button"
                     onClick={() => setEditor(!editor)}
                   >
-                    {editor ? "保存题面" : "编辑 / 粘贴题面"}
+                    {editor ? ui("保存题面") : ui("编辑 / 粘贴题面")}
                   </button>
                 </div>
                 <div className="statement-help">
-                  题面会自动读取并缓存，来源显示在正文下方。可编辑或粘贴修正。
-                </div>
+                  {ui("题面会自动读取并缓存，来源显示在正文下方。可编辑或粘贴修正。")}</div>
                 {statementBusy && (
                   <div className="inline-loading">
                     <LoaderCircle size={16} className="spin" />
-                    正在读取 CF 题面…
-                  </div>
+                    {ui("正在读取 CF 题面…")}</div>
                 )}
                 {statementError && (
                   <div className="warning">
-                    {statementError}
-                    <button onClick={() => setEditor(true)}>粘贴题面</button>
+                    {ui(statementError)}
+                    <button onClick={() => setEditor(true)}>{ui("粘贴题面")}</button>
                     <button
                       onClick={() => loadStatement(session.problem, session.id)}
                     >
-                      重试读取
-                    </button>
+                      {ui("重试读取")}</button>
                   </div>
                 )}
                 {editor ? (
                   <textarea
                     className="statement-editor"
-                    aria-label="题面内容"
+                    aria-label={ui("题面内容")}
                     value={session.statement}
                     onChange={(e) =>
                       patch(session.id, { statement: e.target.value })
                     }
-                    placeholder="粘贴完整题面、输入输出约束与样例。AI 会基于这里的内容陪练。"
+                    placeholder={ui("粘贴完整题面、输入输出约束与样例。AI 会基于这里的内容陪练。")}
                   />
                 ) : session.statement ? (
                   <>
@@ -1303,7 +1272,7 @@ function Workspace({
                       <div
                         className="statement-language"
                         role="group"
-                        aria-label="题面语言"
+                        aria-label={ui("题面语言")}
                       >
                         <button
                           className={
@@ -1311,8 +1280,7 @@ function Workspace({
                           }
                           onClick={() => setStatementLanguage("original")}
                         >
-                          英文原文
-                        </button>
+                          {ui("英文原文")}</button>
                         <button
                           className={
                             statementLanguage === "zh" ? "selected" : ""
@@ -1322,20 +1290,18 @@ function Workspace({
                             void translateStatement();
                           }}
                         >
-                          中文译文
-                        </button>
+                          {ui("中文译文")}</button>
                         <button
                           className={
                             statementLanguage === "compare" ? "selected" : ""
                           }
                           onClick={() => setStatementLanguage("compare")}
                         >
-                          中英对照
-                        </button>
+                          {ui("中英对照")}</button>
                       </div>
                       <div className="statement-font">
                         <button
-                          aria-label="缩小题面字体"
+                          aria-label={ui("缩小题面字体")}
                           onClick={() =>
                             setStatementFont((v) => Math.max(15, v - 1))
                           }
@@ -1344,7 +1310,7 @@ function Workspace({
                         </button>
                         <span>{statementFont}px</span>
                         <button
-                          aria-label="放大题面字体"
+                          aria-label={ui("放大题面字体")}
                           onClick={() =>
                             setStatementFont((v) => Math.min(22, v + 1))
                           }
@@ -1365,7 +1331,7 @@ function Workspace({
                       {statementLanguage !== "zh" && (
                         <section>
                           {statementLanguage === "compare" && (
-                            <h3 className="statement-column-label">英文原文</h3>
+                            <h3 className="statement-column-label">{ui("英文原文")}</h3>
                           )}
                           <ProblemStatement
                             text={session.statement}
@@ -1377,14 +1343,12 @@ function Workspace({
                       {statementLanguage !== "original" && (
                         <section>
                           {statementLanguage === "compare" && (
-                            <h3 className="statement-column-label">中文译文</h3>
+                            <h3 className="statement-column-label">{ui("中文译文")}</h3>
                           )}
                           {translation ? (
                             <>
                               <div className="translation-notice">
-                                AI 译文 · {translation.model} ·
-                                公式与样例保持原样
-                              </div>
+                                {ui("AI 译文 ·")}{translation.model} {ui("· 公式与样例保持原样")}</div>
                               <ProblemStatement metadata={splitStatement(session.statement, session.statementMetadata).metadata} text={translation.text} render={(body) => <Text text={body} />} />
                             </>
                           ) : (
@@ -1392,13 +1356,12 @@ function Workspace({
                               {translating === session.id ? (
                                 <>
                                   <LoaderCircle size={19} className="spin" />
-                                  <p>正在生成中文译文，原文仍可随时查看…</p>
+                                  <p>{ui("正在生成中文译文，原文仍可随时查看…")}</p>
                                 </>
                               ) : (
                                 <>
                                   <p>
-                                    使用当前陪练模型翻译题面。生成后保存在服务器，再次查看直接读取缓存。
-                                  </p>
+                                    {ui("使用当前陪练模型翻译题面。生成后保存在服务器，再次查看直接读取缓存。")}</p>
                                   {translationErrors[session.id] && (
                                     <div className="form-error" role="alert">
                                       {translationErrors[session.id]}
@@ -1410,8 +1373,8 @@ function Workspace({
                                   >
                                     <Sparkles size={16} />
                                     {translationErrors[session.id]
-                                      ? "重试翻译"
-                                      : "生成中文译文"}
+                                      ? ui("重试翻译")
+                                      : ui("生成中文译文")}
                                   </button>
                                 </>
                               )}
@@ -1422,8 +1385,7 @@ function Workspace({
                     </div>
                     {session.statementSource && (
                       <div className="statement-source">
-                        来源：
-                        <a
+                        {ui("来源：")}<a
                           href={session.statementSource.url}
                           target="_blank"
                           rel="noreferrer"
@@ -1433,10 +1395,10 @@ function Workspace({
                         </a>
                         {session.statementFetchedAt && (
                           <span>
-                            读取于{" "}
+                            {ui("读取于")}{" "}
                             {new Date(
                               session.statementFetchedAt,
-                            ).toLocaleDateString("zh-CN")}
+                            ).toLocaleDateString(currentLocale())}
                           </span>
                         )}
                       </div>
@@ -1444,32 +1406,31 @@ function Workspace({
                   </>
                 ) : !statementBusy && !statementError ? (
                   <div className="empty">
-                    <p>请从 CF 原题复制题面到这里。</p>
-                    <button onClick={() => setEditor(true)}>粘贴题面</button>
+                    <p>{ui("请从 CF 原题复制题面到这里。")}</p>
+                    <button onClick={() => setEditor(true)}>{ui("粘贴题面")}</button>
                   </div>
                 ) : null}
                 <div className="notes-heading">
                   <NotebookPen size={16} />
-                  我的观察与草稿<span>{syncState}</span>
+                  {ui("我的观察与草稿")}<span>{ui(syncState)}</span>
                 </div>
                 {Boolean(session.recoveredVersions?.length) && (
                   <details className="recovered-versions">
                     <summary>
-                      查看保留的历史版本（{session.recoveredVersions!.length} 个）
-                    </summary>
+                      {ui("查看保留的历史版本（")}{session.recoveredVersions!.length} {ui("个）")}</summary>
                     {session.recoveredVersions!.map((v, i) => (
                       <details key={i}>
                         <summary>
                           {(
                             {
-                              notes: "草稿",
-                              statement: "题面",
-                              takeaway: "复盘",
-                              outcome: "训练结果",
-                              messages: "对话历史",
+                              notes: ui("草稿"),
+                              statement: ui("题面"),
+                              takeaway: ui("复盘"),
+                              outcome: ui("训练结果"),
+                              messages: ui("对话历史"),
                             } as Record<string, string>
                           )[v.field] || v.field}{" "}
-                          · {new Date(v.savedAt).toLocaleString("zh-CN")}
+                          · {new Date(v.savedAt).toLocaleString(currentLocale())}
                         </summary>
                         <pre>
                           {typeof v.value === "string"
@@ -1482,9 +1443,9 @@ function Workspace({
                 )}
                 <textarea
                   className="notes-editor"
-                  aria-label="观察草稿"
+                  aria-label={ui("观察草稿")}
                   placeholder={
-                    "暴力怎么做？最小例子是什么？哪个量不会变？\n先留住一个可以确定的事实。"
+                    ui("暴力怎么做？最小例子是什么？哪个量不会变？\n先留住一个可以确定的事实。")
                   }
                   value={session.notes}
                   onChange={(e) => patch(session.id, { notes: e.target.value })}
@@ -1496,29 +1457,25 @@ function Workspace({
                     <span className="coach-avatar">
                       <Sparkles size={16} />
                     </span>
-                    AI 思维陪练
-                  </h2>
+                    {ui("AI 思维陪练")}</h2>
                   <span className="coach-state">
                     {aiConfigured ? (
                       <>
                         <span className="connection on" />
-                        按需调用
-                      </>
+                        {ui("按需调用")}</>
                     ) : (
                       <button onClick={() => setSettings(true)}>
-                        连接 AI
-                        <ArrowUpRight size={12} />
+                        {ui("连接 AI")}<ArrowUpRight size={12} />
                       </button>
                     )}
                   </span>
                 </div>
                 <div className="coach-principle">
                   <Lightbulb size={15} />
-                  每次只推进一小步，先把你的想法说出来。
-                </div>
+                  {ui("每次只推进一小步，先把你的想法说出来。")}</div>
                 <div className="editorial-reference">
-                  {session.editorialReference?.status === "ready" ? <span>最近回复已参考官方题解{session.editorialReference.stale ? "（旧缓存）" : ""} · <a href={session.editorialReference.url} target="_blank" rel="noreferrer">来源链接（含剧透）</a></span> : <span>{session.editorialReference?.status === "unavailable" ? "官方题解暂不可用；独立推导尚未核验" : "回复前会获取当前题目的官方题解，仅供教练核验"}</span>}
-                  <label><input type="checkbox" checked={allowUnverified} disabled={busy} onChange={e=>setAllowUnverified(e.target.checked)}/>允许无题解推导</label>
+                  {session.editorialReference?.status === "ready" ? <span>{ui("最近回复已参考官方题解")}{session.editorialReference.stale ? ui("（旧缓存）") : ""} · <a href={session.editorialReference.url} target="_blank" rel="noreferrer">{ui("来源链接（含剧透）")}</a></span> : <span>{session.editorialReference?.status === "unavailable" ? ui("官方题解暂不可用；独立推导尚未核验") : ui("回复前会获取当前题目的官方题解，仅供教练核验")}</span>}
+                  <label><input type="checkbox" checked={allowUnverified} disabled={busy} onChange={e=>setAllowUnverified(e.target.checked)}/>{ui("允许无题解推导")}</label>
                 </div>
                 <div className="chat-messages" aria-live="polite">
                   {!session.messages.length && (
@@ -1526,14 +1483,13 @@ function Workspace({
                       <span className="intro-symbol">
                         <MessageCircle size={24} />
                       </span>
-                      <h3>你读完后的第一反应是什么？</h3>
+                      <h3>{ui("你读完后的第一反应是什么？")}</h3>
                       <p>
-                        一个猜想、一个暴力，甚至一句「我卡在这里」，都可以作为起点。
-                      </p>
+                        {ui("一个猜想、一个暴力，甚至一句「我卡在这里」，都可以作为起点。")}</p>
                       <div>
-                        <span>举例观察</span>
-                        <span>检验猜想</span>
-                        <span>证明与建模</span>
+                        <span>{ui("举例观察")}</span>
+                        <span>{ui("检验猜想")}</span>
+                        <span>{ui("证明与建模")}</span>
                       </div>
                     </div>
                   )}
@@ -1541,34 +1497,33 @@ function Workspace({
                     <div key={i} className={"chat-message " + m.role}>
                       <div className="message-label">
                         {m.role === "user"
-                          ? "你 · 正在思考"
-                          : "AI · 陪你推一步"}
+                          ? ui("你 · 正在思考")
+                          : ui("AI · 陪你推一步")}
                       </div>
                       {messageEdit?.sessionId === session.id && messageEdit.index === i ? (
                         <div className="message-edit">
-                          <textarea autoFocus aria-label="编辑已发送消息" value={messageEdit.content} disabled={busy} onChange={e=>setMessageEdit({...messageEdit,content:e.target.value})}/>
-                          <p>保存后将从这里重新生成回复，后续对话会移入历史版本。</p>
-                          <div><button className="secondary" disabled={busy} onClick={()=>setMessageEdit(null)}>取消</button><button className="primary" disabled={busy || !messageEdit.content.trim() || messageEdit.content.trim()===messageEdit.original} onClick={()=>void send("discuss",messageEdit)}>保存并重新生成</button></div>
+                          <textarea autoFocus aria-label={ui("编辑已发送消息")} value={messageEdit.content} disabled={busy} onChange={e=>setMessageEdit({...messageEdit,content:e.target.value})}/>
+                          <p>{ui("保存后将从这里重新生成回复，后续对话会移入历史版本。")}</p>
+                          <div><button className="secondary" disabled={busy} onClick={()=>setMessageEdit(null)}>{ui("取消")}</button><button className="primary" disabled={busy || !messageEdit.content.trim() || messageEdit.content.trim()===messageEdit.original} onClick={()=>void send("discuss",messageEdit)}>{ui("保存并重新生成")}</button></div>
                         </div>
                       ) : <Text text={m.content} allowVisuals={m.role === "assistant"} />}
                       {m.role === "user" && !(messageEdit?.sessionId === session.id && messageEdit.index === i) && <div className="message-actions">
-                        <button disabled={busy} aria-label={`编辑第 ${i+1} 条消息`} onClick={()=>setMessageEdit({sessionId:session.id,index:i,original:m.content,content:m.content})}><Pencil size={13}/>编辑</button>
-                        <button disabled={busy} aria-label={`撤回第 ${i+1} 条消息`} onClick={()=>recallMessage(i)}><Undo2 size={13}/>撤回</button>
+                        <button disabled={busy} aria-label={ui("编辑第 {0} 条消息",[i+1])} onClick={()=>setMessageEdit({sessionId:session.id,index:i,original:m.content,content:m.content})}><Pencil size={13}/>{ui("编辑")}</button>
+                        <button disabled={busy} aria-label={ui("撤回第 {0} 条消息",[i+1])} onClick={()=>recallMessage(i)}><Undo2 size={13}/>{ui("撤回")}</button>
                       </div>}
                     </div>
                   ))}
                   {busy && (
                     <div className="thinking">
                       <LoaderCircle size={15} className="spin" />
-                      正在检验思路…
-                    </div>
+                      {ui("正在检验思路…")}</div>
                   )}
                   <div ref={chatEnd} />
                 </div>
-                {chatError && <div className="chat-error" role="alert">{chatError}{session.messages.at(-1)?.role === "user" && <button disabled={busy} onClick={()=>void send(retryMode,undefined,true)}>重试回复</button>}</div>}
+                {chatError && <div className="chat-error" role="alert">{ui(chatError)}{session.messages.at(-1)?.role === "user" && <button disabled={busy} onClick={()=>void send(retryMode,undefined,true)}>{ui("重试回复")}</button>}</div>}
                 <div className="coach-controls">
                   <div className="hint-buttons">
-                    <button disabled={busy} onClick={() => send("visualize")}><Sparkles size={13}/>画图讲解</button>
+                    <button disabled={busy} onClick={() => send("visualize")}><Sparkles size={13}/>{ui("画图讲解")}</button>
                     {[1, 2, 3].map((level) => (
                       <button
                         key={level}
@@ -1577,16 +1532,14 @@ function Workspace({
                         onClick={() => send("hint" + level)}
                       >
                         <Lightbulb size={13} />
-                        {level} 级提示
-                      </button>
+                        {level} {ui("级提示")}</button>
                     ))}
                     <button
                       disabled={busy || !session.messages.length}
                       onClick={() => send("counterexample")}
                     >
                       <Target size={13} />
-                      检验猜想
-                    </button>
+                      {ui("检验猜想")}</button>
                   </div>
                   <form
                     className="composer"
@@ -1596,8 +1549,8 @@ function Workspace({
                     }}
                   >
                     <textarea
-                      aria-label="你的解题思路"
-                      placeholder="写下你的想法，点击发送…"
+                      aria-label={ui("你的解题思路")}
+                      placeholder={ui("写下你的想法，点击发送…")}
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => {
@@ -1613,9 +1566,9 @@ function Workspace({
                       }}
                     />
                     <div>
-                      <span>先尝试表达，再获得提示</span>
+                      <span>{ui("先尝试表达，再获得提示")}</span>
                       <button
-                        aria-label="发送思路"
+                        aria-label={ui("发送思路")}
                         className="send-button"
                         type="submit"
                         disabled={busy || !draft.trim()}
@@ -1634,11 +1587,9 @@ function Workspace({
                       onClick={() => send("review")}
                     >
                       <NotebookPen size={13} />
-                      复盘这次思考
-                    </button>
+                      {ui("复盘这次思考")}</button>
                     <button disabled={busy} onClick={() => send("solution")}>
-                      查看完整解法
-                      <ArrowUpRight size={12} />
+                      {ui("查看完整解法")}<ArrowUpRight size={12} />
                     </button>
                   </div>
                 </div>
@@ -1651,10 +1602,9 @@ function Workspace({
             <div className="section-title history-title">
               <div>
                 <div className="eyebrow">MY THINKING JOURNAL</div>
-                <h1>每一次卡住，都留下线索。</h1>
+                <h1>{ui("每一次卡住，都留下线索。")}</h1>
                 <p>
-                  {sessions.length} 次训练 · {sessions.filter(s => s.outcome === "training" || s.outcome === "review").length} 道待继续 · {sessions.filter(s => s.outcome === "independent" || s.outcome === "assisted").length} 道已完成
-                </p>
+                  {sessions.length} {ui("次训练 ·")}{sessions.filter(s => s.outcome === "training" || s.outcome === "review").length} {ui("道待继续 ·")}{sessions.filter(s => s.outcome === "independent" || s.outcome === "assisted").length} {ui("道已完成")}</p>
               </div>
               <button
                 className="secondary"
@@ -1662,30 +1612,28 @@ function Workspace({
                 disabled={!sessions.length}
               >
                 <Download size={16} />
-                导出记录
-              </button>
+                {ui("导出记录")}</button>
             </div>
             {!sessions.length ? (
               <div className="empty large-empty">
                 <NotebookPen size={36} />
-                <h3>你的第一条思考记录，还在下一道题里。</h3>
+                <h3>{ui("你的第一条思考记录，还在下一道题里。")}</h3>
                 <button className="primary" onClick={() => navigate("bank")}>
-                  挑一道题
-                  <ArrowRight size={15} />
+                  {ui("挑一道题")}<ArrowRight size={15} />
                 </button>
               </div>
             ) : (
               <div className="history-groups">
                 {[
-                  { title: "未完成", subtitle: "接着上次的观察，继续向前一步。", icon: Clock3, items: sessions.filter(s => s.outcome === "training" || s.outcome === "review"), empty: "目前没有未完成的训练，去挑一道新题吧。", kind: "pending" },
-                  { title: "已完成", subtitle: "已经走通的题，和留下的思考。", icon: CheckCircle2, items: sessions.filter(s => s.outcome === "independent" || s.outcome === "assisted"), empty: "完成训练并标记解出后，会收录在这里。", kind: "finished" },
+                  { title: ui("未完成"), subtitle: ui("接着上次的观察，继续向前一步。"), icon: Clock3, items: sessions.filter(s => s.outcome === "training" || s.outcome === "review"), empty: ui("目前没有未完成的训练，去挑一道新题吧。"), kind: "pending" },
+                  { title: ui("已完成"), subtitle: ui("已经走通的题，和留下的思考。"), icon: CheckCircle2, items: sessions.filter(s => s.outcome === "independent" || s.outcome === "assisted"), empty: ui("完成训练并标记解出后，会收录在这里。"), kind: "finished" },
                 ].map(group => <section className={"history-group " + group.kind} key={group.kind}>
                   <div className="history-group-heading"><div><h2><group.icon size={18} />{group.title}<span>{group.items.length}</span></h2><p>{group.subtitle}</p></div></div>
                   {group.items.length ? <div className="history-list">
                 {group.items.map((s) => (
                   <article key={s.id}>
                     <div className="history-date">
-                      {new Date(s.createdAt).toLocaleDateString("zh-CN", {
+                      {new Date(s.createdAt).toLocaleDateString(currentLocale(), {
                         month: "short",
                         day: "numeric",
                       })}
@@ -1699,7 +1647,7 @@ function Workspace({
                       <div>
                         <DifficultyBadge rating={s.problem.rating} />
                         <span className={"outcome " + s.outcome}>
-                          {outcomes[s.outcome]}
+                          {ui(outcomes[s.outcome])}
                         </span>
                         <span>
                           <Clock3 size={13} />
@@ -1714,17 +1662,16 @@ function Workspace({
                           )}
                         </span>
                         <span>
-                          {s.hints === 4 ? "已查看解法" : `${s.hints} 级提示`}
+                          {s.hints === 4 ? ui("已查看解法") : ui("{0} 级提示",[s.hints])}
                         </span>
                         <span>
                           {s.messages.filter((m) => m.role === "user").length}{" "}
-                          轮思考
-                        </span>
+                          {ui("轮思考")}</span>
                       </div>
                       {s.takeaway && <p>{s.takeaway}</p>}
                     </div>
                     <button className="row-start" onClick={() => resume(s)}>
-                      {s.outcome === "training" ? "继续训练" : s.outcome === "review" ? "重新练习" : "查看复盘"}
+                      {s.outcome === "training" ? ui("继续训练") : s.outcome === "review" ? ui("重新练习") : ui("查看复盘")}
                       <ArrowUpRight size={15} />
                     </button>
                   </article>
@@ -1733,15 +1680,14 @@ function Workspace({
                 </section>)}
               </div>
             )}
-            <div className="history-data-heading"><span>记录与备份</span><span className="history-sync" role="status"><span className="connection on" />{syncState}</span></div>
+            <div className="history-data-heading"><span>{ui("记录与备份")}</span><span className="history-sync" role="status"><span className="connection on" />{ui(syncState)}</span></div>
         <div className="import-toolbar">
           <button
             className="secondary"
             onClick={() => importInput.current?.click()}
           >
             <Upload size={15} />
-            导入 JSON 备份
-          </button>
+            {ui("导入 JSON 备份")}</button>
           <button
             className="text-button"
             onClick={() => {
@@ -1755,7 +1701,7 @@ function Workspace({
                 }
                 if (
                   !window.confirm(
-                    "将本浏览器旧版训练记录导入当前账号？请确认这些记录属于你。",
+                    ui("将本浏览器旧版训练记录导入当前账号？请确认这些记录属于你。"),
                   )
                 )
                   return;
@@ -1772,8 +1718,7 @@ function Workspace({
               }
             }}
           >
-            迁移本浏览器旧版记录
-          </button>
+            {ui("迁移本浏览器旧版记录")}</button>
 
         </div>
           </main>
@@ -1811,14 +1756,14 @@ function Workspace({
         }}
       />
 
-      {ratingModal && <div className="modal-overlay"><section className="modal"><button className="modal-close" aria-label="关闭等级分设置" onClick={()=>setRatingModal(false)}><X size={19}/></button><RatingForm rating={cfRating} onSaved={rating=>{setCfRating(rating);const next=ratingRange(rating);setMin(next.min);setMax(next.max);setPage(1);setRatingModal(false);setToast("个人等级分已保存，选题难度已更新");}}/></section></div>}
+      {ratingModal && <div className="modal-overlay"><section className="modal"><button className="modal-close" aria-label={ui("关闭等级分设置")} onClick={()=>setRatingModal(false)}><X size={19}/></button><RatingForm rating={cfRating} onSaved={rating=>{setCfRating(rating);const next=ratingRange(rating);setMin(next.min);setMax(next.max);setPage(1);setRatingModal(false);setToast("个人等级分已保存，选题难度已更新");}}/></section></div>}
       {passwordModal && (
         <div className="modal-overlay">
           <section className="modal">
             <button
               className="modal-close"
               onClick={() => setPasswordModal(false)}
-              aria-label="关闭修改密码"
+              aria-label={ui("关闭修改密码")}
             >
               <X size={19} />
             </button>
@@ -1837,12 +1782,12 @@ function Workspace({
             className="modal"
             role="dialog"
             aria-modal="true"
-            aria-label="陪练模型"
+            aria-label={ui("陪练模型")}
             onClick={(e) => e.stopPropagation()}
           >
             <button
               className="modal-close"
-              aria-label="关闭设置"
+              aria-label={ui("关闭设置")}
               onClick={() => setSettings(false)}
             >
               <X size={20} />
@@ -1850,14 +1795,11 @@ function Workspace({
             <span className="modal-icon">
               <Sparkles size={25} />
             </span>
-            <h2>选择陪练模型</h2>
+            <h2>{ui("选择陪练模型")}</h2>
             <p>
-              选择管理员已启用的模型。API Key
-              只保存在服务端，页面无法读取。题面、草稿和对话会发送给你选择的模型服务商。
-            </p>
+              {ui("选择管理员已启用的模型。API Key 只保存在服务端，页面无法读取。题面、草稿和对话会发送给你选择的模型服务商。")}</p>
             <label>
-              当前陪练模型
-              <select
+              {ui("当前陪练模型")}<select
                 value={modelId}
                 disabled={modelSettingsBusy}
                 onChange={(e) => {
@@ -1871,30 +1813,30 @@ function Workspace({
                 {models.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.label} · {m.model}
-                    {m.is_default ? "（默认）" : ""}
+                    {m.is_default ? ui("（默认）") : ""}
                   </option>
                 ))}
               </select>
             </label>
-            <label>推理等级<select aria-label="推理等级" value={reasoningEffort} disabled={modelSettingsBusy||!models.length} onChange={e=>setEfforts(prev=>({...prev,[modelId]:e.target.value as ReasoningLevel}))}>{supportedEfforts.map((option:any)=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-            <p className="reasoning-help">{/glm-5\.3/i.test(selectedModel?.model||"")?"GLM-5.3 始终开启思考，可选择轻度、增强或深度；模型默认使用服务商默认等级。":/glm-/i.test(selectedModel?.model||"")?"按当前 GLM 型号提供可用思考选项。":"非默认等级通过 reasoning_effort 发送，兼容接口需要支持该参数；不支持时请选模型默认。"}更高等级可能增加等待时间与 Token 消耗。设置用于后续陪练和翻译，按账号和模型保存。</p>
-            {modelSettingsError&&<div className="form-error" role="alert">{modelSettingsError}</div>}
+            <label>{ui("推理等级")}<select aria-label={ui("推理等级")} value={reasoningEffort} disabled={modelSettingsBusy||!models.length} onChange={e=>setEfforts(prev=>({...prev,[modelId]:e.target.value as ReasoningLevel}))}>{supportedEfforts.map((option:any)=><option key={option.value} value={option.value}>{ui(option.label)}</option>)}</select></label>
+            <p className="reasoning-help">{/glm-5\.3/i.test(selectedModel?.model||"")?ui("GLM-5.3 始终开启思考，可选择轻度、增强或深度；模型默认使用服务商默认等级。"):/glm-/i.test(selectedModel?.model||"")?ui("按当前 GLM 型号提供可用思考选项。"):ui("非默认等级通过 reasoning_effort 发送，兼容接口需要支持该参数；不支持时请选模型默认。")}{ui("更高等级可能增加等待时间与 Token 消耗。设置用于后续陪练和翻译，按账号和模型保存。")}</p>
+            {modelSettingsError&&<div className="form-error" role="alert">{ui(modelSettingsError)}</div>}
             <div className="settings-note">
               <CheckCircle2 size={16} />
               <span>
-                {syncState}。
+                {ui(syncState)}。
                 {user.role === "admin"
-                  ? "添加或修改模型请进入管理员面板。"
-                  : "模型配置由管理员维护。"}
+                  ? ui("添加或修改模型请进入管理员面板。")
+                  : ui("模型配置由管理员维护。")}
               </span>
             </div>
             <div className="modal-actions">
-              <span className="muted">密钥不会返回浏览器</span>
+              <span className="muted">{ui("密钥不会返回浏览器")}</span>
               <button className="primary" disabled={modelSettingsBusy||!models.length} onClick={async () => {
                 setModelSettingsBusy(true);setModelSettingsError("");
-                try {const response=await fetch("/api/model-preferences",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({modelId,reasoningEffort})});const data=await response.json() as {error?:string;preferences:{efforts:Record<string,ReasoningLevel>}};if(!response.ok)throw Error(data.error||"设置保存失败");setEfforts(data.preferences.efforts);setSettings(false);setToast(`已保存模型设置：${reasoningLabels[reasoningEffort]}`);}catch(e){setModelSettingsError((e as Error).message);}finally{setModelSettingsBusy(false);}
+                try {const response=await fetch("/api/model-preferences",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({modelId,reasoningEffort})});const data=await response.json() as {error?:string;preferences:{efforts:Record<string,ReasoningLevel>}};if(!response.ok)throw Error(data.error||"设置保存失败");setEfforts(data.preferences.efforts);setSettings(false);setToast(ui("已保存模型设置：{0}",[ui(reasoningLabels[reasoningEffort])]));}catch(e){setModelSettingsError((e as Error).message);}finally{setModelSettingsBusy(false);}
               }}>
-                {modelSettingsBusy?"正在保存…":"保存并开始思考"}
+                {modelSettingsBusy?ui("正在保存…"):ui("保存并开始思考")}
                 <ArrowRight size={16} />
               </button>
             </div>
@@ -1907,12 +1849,12 @@ function Workspace({
             className="modal"
             role="dialog"
             aria-modal="true"
-            aria-label="记录训练结果"
+            aria-label={ui("记录训练结果")}
             onClick={(e) => e.stopPropagation()}
           >
             <button
               className="modal-close"
-              aria-label="关闭"
+              aria-label={ui("关闭")}
               onClick={() => setFinish(false)}
             >
               <X size={20} />
@@ -1920,21 +1862,19 @@ function Workspace({
             <span className="modal-icon">
               <Flag size={25} />
             </span>
-            <h2>这次思考，带走什么？</h2>
+            <h2>{ui("这次思考，带走什么？")}</h2>
             <p>
               {session.problem.id} · {fmt(elapsed)} ·{" "}
               {session.hints === 4
-                ? "查看过完整解法"
-                : `使用至 ${session.hints} 级提示`}
-              。训练结果由你标记，不代表 CF 已通过。
-            </p>
+                ? ui("查看过完整解法")
+                : ui("使用至 {0} 级提示",[session.hints])}
+              {ui("。训练结果由你标记，不代表 CF 已通过。")}</p>
             <label>
-              一句可以迁移的观察
-              <textarea
+              {ui("一句可以迁移的观察")}<textarea
                 rows={4}
                 value={takeaway}
                 onChange={(e) => setTakeaway(e.target.value)}
-                placeholder="比如：遇到拆分很难维护时，试着把操作顺序倒过来。"
+                placeholder={ui("比如：遇到拆分很难维护时，试着把操作顺序倒过来。")}
               />
             </label>
             <div className="finish-options">
@@ -1945,11 +1885,10 @@ function Workspace({
                 }
               >
                 <CheckCircle2 size={16} />
-                {session.hints ? "提示后解出" : "独立解出"}
+                {session.hints ? ui("提示后解出") : ui("独立解出")}
               </button>
               <button className="secondary" onClick={() => complete("review")}>
-                还没走通，待重练
-              </button>
+                {ui("还没走通，待重练")}</button>
             </div>
           </section>
         </div>
@@ -1957,7 +1896,7 @@ function Workspace({
       {toast && (
         <div className="toast" role="status">
           <CheckCircle2 size={17} />
-          {toast}
+          {ui(toast)}
         </div>
       )}
     </div>

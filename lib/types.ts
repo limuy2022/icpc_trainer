@@ -8,9 +8,10 @@ export type Problem = {
   tags: string[];
   solvedCount: number;
 };
-export type Message = { role: "user" | "assistant"; content: string; reasoning?: string; generationId?:string; sources?:{title:string;url:string}[] };
+export type Message = { role: "user" | "assistant"; content: string; reasoning?: string; generationId?:string; lessonStage?:string; sources?:{title:string;url:string}[] };
 export type Session = {
   kind?:"assistant";
+  lesson?:{topicId:string;stage:string;completed:string[];mastery:"learning"|"explain"|"implement"};
   assistantProfile?:{style:string;known:string;goal:string;topic:string};
   id: string;
   problem: Problem;

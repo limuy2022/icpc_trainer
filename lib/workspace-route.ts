@@ -1,6 +1,6 @@
-export type WorkspaceView="assistant"|"bank"|"training"|"history"|"statistics"|"admin";
+export type WorkspaceView="lessons"|"lesson"|"assistant"|"bank"|"training"|"history"|"statistics"|"admin";
 export type WorkspaceRoute={view:WorkspaceView;current:string|null};
-const views:WorkspaceView[]=["assistant","bank","training","history","statistics","admin"];
+const views:WorkspaceView[]=["lessons","lesson","assistant","bank","training","history","statistics","admin"];
 export function normalizeRoute(value:unknown,admin:boolean):WorkspaceRoute {
   const route=value as Partial<WorkspaceRoute>|null;
   const view=route && views.includes(route.view as WorkspaceView) && (route.view!=="admin"||admin)?route.view!:"bank";
@@ -8,14 +8,14 @@ export function normalizeRoute(value:unknown,admin:boolean):WorkspaceRoute {
   return {view,current};
 }
 export function parseWorkspaceHash(hash:string,admin:boolean,previous?:WorkspaceRoute):WorkspaceRoute {
-  const match=hash.match(/^#\/(assistant|bank|training|history|statistics|admin)(?:\/([^/?#]+))?$/);
-  if(!match || (match[1]!=="training"&&match[2]))return {view:"bank",current:previous?.current||null};
+  const match=hash.match(/^#\/(lessons|lesson|assistant|bank|training|history|statistics|admin)(?:\/([^/?#]+))?$/);
+  if(!match || (!["training","lesson"].includes(match[1])&&match[2]))return {view:"bank",current:previous?.current||null};
   let current=previous?.current||null;
-  if(match[1]==="training"&&match[2]){
-    try{current=decodeURIComponent(match[2]);}catch{return {view:"training",current:null};}
+  if(["training","lesson"].includes(match[1])&&match[2]){
+    try{current=decodeURIComponent(match[2]);}catch{return {view:match[1] as WorkspaceView,current:null};}
   }
   return normalizeRoute({view:match[1],current},admin);
 }
 export function workspaceHash(route:WorkspaceRoute):string {
-  return "#/"+route.view+(route.view==="training"&&route.current?"/"+encodeURIComponent(route.current):"");
+  return "#/"+route.view+(["training","lesson"].includes(route.view)&&route.current?"/"+encodeURIComponent(route.current):"");
 }

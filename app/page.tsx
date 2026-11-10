@@ -12,6 +12,8 @@ import { splitStatement } from "@/lib/statement-header";
 import {translationSource} from "@/lib/translation-source";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {assistantId,newAssistantSession} from "@/lib/assistant";
+import {LessonLibrary,LessonProgress} from "@/components/lesson-learning";
+import {newLessonSession,lessonDefinition} from "@/lib/lessons";
 import AssistantPreferences from "@/components/assistant-preferences";
 import BrowserModelManager from "@/components/browser-model-manager";
 import {readBrowserModels,browserModelMetadata,browserCompletion,browserModelPayload} from "@/lib/browser-models";
@@ -188,9 +190,10 @@ function Workspace({
     requestId = useRef(0),
     sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
-  const isAssistant=view==="assistant";
-  const session = sessions.find((s) => s.id === (isAssistant?assistantId:current));
-  useEffect(()=>{if(loaded&&isAssistant)setSessions(prev=>prev.some(s=>s.id===assistantId)?prev:[newAssistantSession(),...prev]);},[loaded,isAssistant]);
+  const isLesson=view==="lesson";
+  const isAssistant=view==="assistant"||isLesson;
+  const session = sessions.find((s) => s.id === (view==="assistant"?assistantId:current)&&(!isLesson||Boolean(lessonDefinition(s.lesson))));
+  useEffect(()=>{if(loaded&&view==="assistant")setSessions(prev=>prev.some(s=>s.id===assistantId)?prev:[newAssistantSession(),...prev]);},[loaded,view]);
   const statementParts=useMemo(()=>splitStatement(session?.statement||"",session?.statementMetadata),[session?.statement,session?.statementMetadata]);
   const sourceText=useMemo(()=>translationSource(session?.statement||""),[session?.statement]);
   const translation =
@@ -283,7 +286,7 @@ function Workspace({
     };
   }, [min, max, tags, query, sort, page, exclusions]);
   useEffect(() => {
-    if((view!=="training"&&view!=="assistant")||!loaded)return;
+    if(!["training","assistant","lesson"].includes(view)||!loaded)return;
     const container=chatEnd.current?.parentElement;
     if(container)container.scrollTop=container.scrollHeight;
   },[view,session?.id,loaded]);
@@ -378,6 +381,12 @@ function Workspace({
           : s,
       ),
     );
+  }
+  function startLesson(topicId:string){
+    const existing=sessionsRef.current.find(s=>s.lesson?.topicId===topicId);
+    const next=existing||newLessonSession(topicId,sessionsRef.current.find(s=>s.id===assistantId)?.assistantProfile);
+    if(!existing)setSessions(prev=>[next,...prev]);
+    setDraft("");setChatError("");setMessageEdit(null);openRoute("lesson",next.id);
   }
   function navigate(next: typeof view) {
     if (next !== "training") pauseAll();
@@ -591,6 +600,7 @@ function Workspace({
     )
       return;
     const prompts: Record<string, string> = {
+      lesson:ui("请开始讲解当前学习阶段，结合小例子逐步推进；如果是小测，先提问并等待我的回答。"),
       practice:ui("请根据当前讨论的知识点和我的等级分推荐几道练习，并说明筛选依据；没有题面时不要编造具体解法。"),
       visualize: ui("请用一个可交互、能逐步演示的小图解释我们当前讨论的观察或我的卡点，先不要揭晓后续解法。"),
       hint1: ui("我卡住了，请给一条观察方向，先不要揭晓关键解法。"),
@@ -638,14 +648,14 @@ function Workspace({
       activeJob.current=null;setRetryMode(mode);
       try{
         const expected=conversationBranch({messages,messagesVersion});
-        const response=await fetch("/api/coach",{method:"POST",headers:{"Content-Type":"application/json"},signal:controller.signal,body:JSON.stringify({prepareOnly:true,browserModel:browserModelMetadata(browserModel),assistant:isAssistant,assistantProfile:session.assistantProfile,statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))})});
+        const response=await fetch("/api/coach",{method:"POST",headers:{"Content-Type":"application/json"},signal:controller.signal,body:JSON.stringify({prepareOnly:true,browserModel:browserModelMetadata(browserModel),assistant:isAssistant,lesson:session.lesson,assistantProfile:session.assistantProfile,statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))})});
         const prepared=await response.json() as any;if(!response.ok)throw Error(prepared.error||"请求失败");
         if(prepared.editorial)patch(id,{editorialReference:prepared.editorial});
         const result=await browserCompletion(user.id,browserModel,prepared.payload,{signal:controller.signal,
           delta:text=>setPartialReply(previous=>({sessionId:id,text:(previous?.sessionId===id?previous.text:"")+text,reasoning:previous?.sessionId===id?previous.reasoning:undefined})),
           reasoning:text=>setPartialReply(previous=>({sessionId:id,text:previous?.sessionId===id?previous.text:"",reasoning:(previous?.sessionId===id?previous.reasoning||"":"")+text})),
         });
-        const job:CoachJob={id:"browser-"+crypto.randomUUID(),sessionId:id,branchHash:"",status:"done",text:result.text,reasoning:result.reasoning||"",result:{...result,editorial:prepared.editorial,sources:prepared.sources},createdAt:new Date().toISOString()};
+        const job:CoachJob={id:"browser-"+crypto.randomUUID(),sessionId:id,branchHash:"",status:"done",text:result.text,reasoning:result.reasoning||"",result:{...result,editorial:prepared.editorial,sources:prepared.sources,lesson:prepared.lesson},createdAt:new Date().toISOString()};
         setSessions(prev=>prev.map(s=>s.id===id?applyJobReply(s,job,conversationBranch(s)===expected):s));setPartialReply(null);
       }catch(error){setChatError(controller.signal.aborted?"已停止生成，未完成内容未写入历史。":(error as Error).message);if(!edit&&!retry)setDraft(content);}
       finally{directAbort.current=null;directGeneration.current=false;submittingJob.current=false;sending.current=false;setBusy(false);pollJobs.current();}
@@ -657,7 +667,7 @@ function Workspace({
       const hash=await branchHash(conversationBranch({messages,messagesVersion}));
       const response=await fetch("/api/coach-jobs",{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({jobId,sessionId:id,branchHash:hash,assistant:isAssistant,assistantProfile:session.assistantProfile,sessionSnapshot:{...session,messages:messages.map(({role,content,generationId})=>({role,content,...(generationId?{generationId}:{})})),messagesVersion,startedAt:null,elapsed,hints:mode==="solution"?4:mode.startsWith("hint")?Math.max(session.hints,Number(mode.slice(-1))):session.hints,recoveredVersions:undefined},statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,modelId,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))}),
+        body:JSON.stringify({jobId,sessionId:id,branchHash:hash,assistant:isAssistant,lesson:session.lesson,assistantProfile:session.assistantProfile,sessionSnapshot:{...session,messages:messages.map(({role,content,generationId,lessonStage})=>({role,content,...(generationId?{generationId}:{}),...(lessonStage?{lessonStage}:{})})),messagesVersion,startedAt:null,elapsed,hints:mode==="solution"?4:mode.startsWith("hint")?Math.max(session.hints,Number(mode.slice(-1))):session.hints,recoveredVersions:undefined},statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,modelId,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))}),
       });
       const data=await response.json() as {error?:string};if(!response.ok)throw Error(data.error||"回复生成失败，请重试");
     }catch(error){setChatError((error as Error).message);if(!edit&&!retry)setDraft(content);}
@@ -731,12 +741,13 @@ function Workspace({
             { id: "bank", icon: BookOpen, label: ui("发现题目") },
             { id: "training", icon: MessageCircle, label: ui("思维陪练") },
             { id:"assistant",icon:Sparkles,label:ui("算法助教") },
+            { id:"lessons",icon:BookOpen,label:ui("专题学习") },
             { id: "history", icon: History, label: ui("训练记录") },
             { id: "statistics", icon: BarChart3, label: ui("训练统计") },
           ].map(({ id, icon: Icon, label }) => (
             <button
               key={id}
-              className={view === id ? "nav-item active" : "nav-item"}
+              className={view === id || (id==="lessons"&&isLesson) ? "nav-item active" : "nav-item"}
               onClick={() => navigate(id as typeof view)}
             >
               <Icon size={19} />
@@ -807,7 +818,7 @@ function Workspace({
                 ? ui("发现题目")
                 : view === "training"
                   ? ui("思维陪练")
-                  : view === "assistant" ? ui("算法助教") : view === "statistics"
+                  : view === "assistant" ? ui("算法助教") : ["lesson","lessons"].includes(view) ? ui("专题学习") : view === "statistics"
                     ? ui("训练统计")
                   : view === "admin"
                     ? ui("管理后台")
@@ -824,6 +835,7 @@ function Workspace({
           <AdminPanel onModelsChanged={refreshModels} />
         )}
         {view === "statistics" && <StatisticsPanel save={save} />}
+        {(view==="lessons"||(isLesson&&!session&&loaded))&&<LessonLibrary sessions={sessions} onStart={startLesson}/>}
         {view === "bank" && (
           <main className="main-content">
             <section className="hero">
@@ -1291,19 +1303,19 @@ function Workspace({
             </div>
           </main>
         )}
-        {(view === "training"||view === "assistant") && session && (
+        {(view === "training"||view === "assistant"||isLesson) && session && (
           <main className="training-content">
             <div className="training-heading">
               <div>
                 <button
                   className="back-button"
-                  onClick={() => navigate("bank")}
+                  onClick={() => navigate(isLesson?"lessons":"bank")}
                 >
                   <ChevronLeft size={15} />
-                  {ui("题库")}</button>
+                  {ui(isLesson?"专题列表":"题库")}</button>
                 <h1>
                   {!isAssistant&&<span>{session.problem.id}</span>}
-                  {isAssistant?ui("算法助教"):session.problem.name}
+                  {isLesson?ui("专题学习")+" · "+ui(session.problem.name):isAssistant?ui("算法助教"):session.problem.name}
                 </h1>
                 {!isAssistant&&<div className="training-meta">
                   <span className="rating">
@@ -1345,9 +1357,9 @@ function Workspace({
                   {ui("结束并记录")}</button>
               </div>}
             </div>
-            <nav className="mobile-training-jump" aria-label={ui("训练区域")}><a href="#problem-reader" onClick={e=>{e.preventDefault();document.getElementById("problem-reader")?.scrollIntoView({block:"start"});}}>{ui(isAssistant?"学习偏好":"阅读题目")}</a><a href="#ai-coach" onClick={e=>{e.preventDefault();document.getElementById("ai-coach")?.scrollIntoView({block:"start"});}}>{ui("与 AI 讨论")}</a></nav>
+            <nav className="mobile-training-jump" aria-label={ui("训练区域")}><a href="#problem-reader" onClick={e=>{e.preventDefault();document.getElementById("problem-reader")?.scrollIntoView({block:"start"});}}>{ui(isLesson?"学习阶段":isAssistant?"学习偏好":"阅读题目")}</a><a href="#ai-coach" onClick={e=>{e.preventDefault();document.getElementById("ai-coach")?.scrollIntoView({block:"start"});}}>{ui("与 AI 讨论")}</a></nav>
             <div className="training-grid">
-              {isAssistant?<AssistantPreferences session={session} onChange={change=>patch(session.id,change)}/>:<section id="problem-reader" className="statement-panel">
+              {isLesson?<LessonProgress session={session} busy={busy} onChange={change=>patch(session.id,change)} onExplain={()=>void send("lesson")}/>:isAssistant?<AssistantPreferences session={session} onChange={change=>patch(session.id,change)}/>:<section id="problem-reader" className="statement-panel">
                 <div className="panel-heading">
                   <h2>
                     <BookOpen size={17} />
@@ -1605,7 +1617,7 @@ function Workspace({
                           <div><button className="secondary" disabled={busy} onClick={()=>setMessageEdit(null)}>{ui("取消")}</button><button className="primary" disabled={busy || !messageEdit.content.trim() || messageEdit.content.trim()===messageEdit.original} onClick={()=>void send("discuss",messageEdit)}>{ui("保存并重新生成")}</button></div>
                         </div>
                       ) : <Text text={m.content} allowVisuals={m.role === "assistant"} />}
-                      {m.sources?.length&&<div className="assistant-sources">{m.sources.map(source=><a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title}<ExternalLink size={12}/></a>)}</div>}
+                      {Boolean(m.sources?.length)&&<div className="assistant-sources">{m.sources?.map(source=><a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title}<ExternalLink size={12}/></a>)}</div>}
                       {m.role === "user" && !(messageEdit?.sessionId === session.id && messageEdit.index === i) && <div className="message-actions">
                         <button disabled={busy} aria-label={ui("编辑第 {0} 条消息",[i+1])} onClick={()=>setMessageEdit({sessionId:session.id,index:i,original:m.content,content:m.content})}><Pencil size={13}/>{ui("编辑")}</button>
                         <button disabled={busy} aria-label={ui("撤回第 {0} 条消息",[i+1])} onClick={()=>recallMessage(i)}><Undo2 size={13}/>{ui("撤回")}</button>
@@ -1627,6 +1639,7 @@ function Workspace({
                 {chatError && <div className="chat-error" role="alert">{ui(chatError)}{chatRequestId&&<small>{ui("请求编号")} · {chatRequestId}</small>}{session.messages.at(-1)?.role === "user" && <button disabled={busy} onClick={()=>void send(retryMode,undefined,true)}>{ui("重试回复")}</button>}</div>}
                 <div className="coach-controls">
                   <div className="hint-buttons">
+                    {!isAssistant&&<button disabled={busy} onClick={()=>navigate("lessons")}>{ui("专题补课")}</button>}
                     {isAssistant&&<button disabled={busy} onClick={()=>send("practice")}>{ui("推荐练习")}</button>}
                     <button disabled={busy} onClick={() => send("visualize")}><Sparkles size={13}/>{ui("画图讲解")}</button>
                     {(isAssistant?[]:[1, 2, 3]).map((level) => (

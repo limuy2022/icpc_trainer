@@ -8,7 +8,7 @@ export function hasJobReply(session:Session,id:string):boolean {
 }
 export function applyJobReply(session:Session,job:CoachJob,branchMatches:boolean):Session {
   if(!job.result?.text||hasJobReply(session,job.id))return session;
-  const message:Message={role:"assistant",content:job.result.text,generationId:job.id,...(job.result.sources?{sources:job.result.sources}:{}),...(job.result.reasoning?{reasoning:job.result.reasoning}:{})};
+  const message:Message={role:"assistant",content:job.result.text,generationId:job.id,...(job.result.lesson?{lessonStage:job.result.lesson.stage}:{}),...(job.result.sources?{sources:job.result.sources}:{}),...(job.result.reasoning?{reasoning:job.result.reasoning}:{})};
   return branchMatches?{...session,messages:[...session.messages,message],editorialReference:job.result.editorial||session.editorialReference}:{...session,recoveredVersions:[...(session.recoveredVersions||[]),{field:"messages",value:[...(job.context?.messages||[]),message],savedAt:job.createdAt}]};
 }
 

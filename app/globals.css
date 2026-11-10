@@ -3536,3 +3536,17 @@ html[lang="en"] .stat-label,html[lang="en"] .stat-value { overflow-wrap:anywhere
 .browser-model-manager .remember-browser-key { display:flex; flex-direction:row; align-items:center; gap:10px; }
 .browser-model-manager .remember-browser-key input { width:auto; }
 @media(max-width:600px) { .model-options > button { font-size:16px; } .browser-model-manager input,.browser-model-manager select { font-size:16px; } }
+.lesson-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr)); gap:20px; margin-top:24px; }
+.lesson-card { border:1px solid var(--line); border-radius:14px; padding:24px; background:var(--paper); display:flex; flex-direction:column; align-items:flex-start; gap:14px; }
+.lesson-card h2,.lesson-card p { margin:0; }
+.lesson-card p { line-height:1.8; flex:1; }
+.lesson-card small { color:var(--muted); line-height:1.7; }
+.lesson-card > div { display:flex; align-items:center; gap:12px; width:100%; }
+.lesson-card progress { width:100%; height:8px; accent-color:var(--green); }
+.lesson-card .primary { margin-top:4px; }
+.lesson-stages { display:flex; flex-direction:column; gap:8px; margin:20px 0; }
+.lesson-stages button { display:flex; gap:12px; align-items:center; border:1px solid var(--line); border-radius:8px; padding:12px; text-align:left; background:var(--paper); }
+.lesson-stages button[aria-current="step"] { border-color:var(--green); color:var(--green); box-shadow:inset 0 0 0 1px var(--green); }
+.lesson-stages button > span { min-width:24px; }
+.lesson-progress > .primary,.lesson-progress > .secondary { display:block; margin:14px 0; width:100%; }
+.lesson-progress > small { display:block; color:var(--muted); line-height:1.7; }

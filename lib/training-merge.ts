@@ -106,6 +106,10 @@ export function mergeTraining(
         continue;
       }
       if (rv === undefined) continue;
+      if(key==="lesson"&&lv?.topicId===rv?.topicId&&Array.isArray(lv?.completed)&&Array.isArray(rv?.completed)){
+        (result as any).lesson={...rv,...lv,completed:[...new Set([...rv.completed,...lv.completed])]};
+        continue;
+      }
       if (key === "notes" && typeof lv === "string" && typeof rv === "string") {
         if (lv.includes(rv)) {
           result.notes = lv;

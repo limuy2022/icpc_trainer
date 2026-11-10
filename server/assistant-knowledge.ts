@@ -2,7 +2,7 @@ import {assistantTopics} from "../lib/assistant";
 import {GET as problems} from "../app/api/problems/route";
 const cache=new Map<string,{at:number;text:string}>();
 export async function assistantKnowledge(question:string,topicId:unknown,practice:boolean,rating:number|null){
- const topic=assistantTopics.find(t=>t.id===topicId)||question.split("\0").map(text=>assistantTopics.find(t=>t.match.test(text))).find(Boolean);
+ const topic=assistantTopics.find(t=>t.id===topicId)||question.split("\0").map(text=>assistantTopics.filter(t=>t.match.test(text)).slice(-1)[0]).find(Boolean);
  const sources:{title:string;url:string}[]=[];let context="";
  if(!topic)return {sources,context:"未匹配到已接入的 OI Wiki 专题；不得声称已检索资料，不得编造来源。"};
  const url="https://oi-wiki.org/"+topic.path+"/";

@@ -48,6 +48,11 @@ try {
    const response=await mod.POST(new Request('http://localhost/api/coach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prepareOnly:true,browserModel:{model:'browser-glm',provider:'glm',key:'NEVER_ECHO_THIS'},statement:header+body,problemId:'1A',messages:[],reasoningEffort:'on'})}));
    assert.equal(response.status,200);const result=await response.json();assert.ok(!JSON.stringify(result).includes('NEVER_ECHO_THIS'));assert.ok(result.payload.messages.some(m=>m.content.includes('OFFICIAL_REFERENCE_FIXTURE')));assert.equal(result.payload.thinking.type,'enabled');
   }
+  if(name==='coach'){
+   globalThis.fetch=async(url)=>{assert.ok(url.startsWith('https://raw.githubusercontent.com/'));return new Response('## Verified DSU reference. Union and find operations.');};
+   const request=lesson=>new Request('http://localhost/api/coach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prepareOnly:true,browserModel:{model:'browser-model',provider:'openai-compatible'},assistant:true,lesson,messages:[{role:'user',content:'Teach this stage.'}]})});
+   const response=await mod.POST(request({topicId:'dsu',stage:'quiz'}));assert.equal(response.status,200);const prepared=await response.json();assert.equal(prepared.lesson.stage,'quiz');assert.equal(prepared.lesson.topicId,'dsu');assert.ok(prepared.payload.messages[0].content.includes('等待用户回答'));assert.ok(prepared.payload.messages[0].content.includes('不要把自评'));assert.equal((await mod.POST(request({topicId:'dsu',stage:'invented'}))).status,400);
+  }
   if(name==='translate'){const result=await response.json();assert.ok(result.text.includes('3\n1 2 3'));}
  }
  console.log('PASS: translation and coaching send body only; constraints, Input/Output sections and samples preserved');

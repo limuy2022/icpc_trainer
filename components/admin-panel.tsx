@@ -204,7 +204,7 @@ export default function AdminPanel({
                 setModelForm({
                   label: "",
                   provider: "openai-compatible",
-                  base_url: "https://api.openai.com/v1",
+                  base_url: "",
                   model: "",
                   key: "",
                   enabled: true,
@@ -217,7 +217,7 @@ export default function AdminPanel({
             </button>
           </div>
           <p className="admin-help">
-            支持 GLM 与 OpenAI Chat Completions
+            支持 OpenAI Chat Completions
             兼容接口。密钥加密保存，列表和编辑接口都不会返回原值。
           </p>
           {models.map((m) => (
@@ -459,6 +459,7 @@ export default function AdminPanel({
                 <input
                   type="url"
                   required
+                  placeholder="https://api.example.com/v1"
                   value={modelForm.base_url}
                   onChange={(e) =>
                     setModelForm({ ...modelForm, base_url: e.target.value })

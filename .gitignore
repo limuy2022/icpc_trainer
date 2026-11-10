@@ -57,3 +57,6 @@ yarn-error.log*
 
 # pnpm is the project package manager.
 /package-lock.json
+
+# Personal legacy hosting identity is not part of the self-hosted project.
+/.openai/hosting.json

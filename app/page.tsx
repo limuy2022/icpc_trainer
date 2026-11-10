@@ -133,7 +133,7 @@ function Workspace({
     [exclude, setExclude] = useState(true);
   const [settings, setSettings] = useState(false),
     [aiConfigured, setAiConfigured] = useState(false),
-    [model, setModel] = useState("GLM-5.3");
+    [model, setModel] = useState("");
   const [retryMode, setRetryMode] = useState("discuss");
   const [messageEdit, setMessageEdit] = useState<{ sessionId: string; index: number; original: string; content: string } | null>(null);
   const [draft, setDraft] = useState(""),

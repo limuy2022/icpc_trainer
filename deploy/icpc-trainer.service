@@ -5,8 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/limuy/apps/icpc-trainer/current
-ExecStart=/usr/bin/node --env-file=/home/limuy/apps/icpc-trainer/shared/app.env /home/limuy/apps/icpc-trainer/current/server.mjs
+WorkingDirectory=%h/apps/icpc-trainer/current
+ExecStart=/usr/bin/node --env-file=%h/apps/icpc-trainer/shared/app.env %h/apps/icpc-trainer/current/server.mjs
 Environment=NODE_ENV=production
 Restart=on-failure
 RestartSec=5

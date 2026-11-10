@@ -1,15 +1,27 @@
 # 思维练习场 · ICPC Thinking Lab
 
-面向 OI → ICPC 过渡的私人 AI 思维陪练平台：按 Codeforces 难度与标签选题，通过表达观察、分级提示、检验猜想和复盘训练解题思维。
+**简体中文** | [English](README.en.md)
 
-React + TypeScript 前端、Node.js 服务、SQLite 持久化。支持管理员手动开户、模型管理、中英题面、公式渲染、深浅主题和手机浏览器布局。
+可自托管的 ICPC AI 思维陪练平台。按 Codeforces 难度和标签选题，通过讨论观察、分级提示、检验猜想和复盘，练习从「没思路」走到「再想一步」。适合个人和朋友小范围使用。
 
-## 本地快速开始
+模型服务可配置，不绑定 GLM 或任何单一厂商。前端使用 React + TypeScript + Vite，后端使用 Node.js + SQLite。当前产品界面和默认陪练语言为中文；英文 README 不代表界面已支持英文。
 
-需要 Node.js >= 22.13 和 pnpm 12.17.0（由 `packageManager` 固定）。如果环境提供 Corepack，可用 `corepack enable` 后执行下面的命令。
+## 功能
+
+- Codeforces 题库按评分、标签、题号和题名筛选；个人等级分预设为 `rating−100` 至 `rating+300`。
+- 获取题面、提取时间/内存限制、AI 中文翻译、原文对照和缓存；公式与样例保留。
+- 分级提示、反例检验、复盘与按需完整解法；支持 LaTeX、代码高亮和消息编辑/撤回。
+- AI 可在聊天中生成交互图示，也可点击「画图讲解」请求逐步演示。
+- 训练记录、草稿、跨设备同步、JSON 导入导出、同难度用时趋势和模型调用/Token 统计。
+- 管理员手动开户，无公开注册；后台管理多个模型、独立密钥和默认模型。
+- 深浅主题、跟随系统、手机布局、SQLite 备份。
+
+## 快速开始
+
+需要 **Node.js ≥ 22.13** 和 **pnpm 12.17.0**（由 `packageManager` 固定）。
 
 ```bash
-git clone git@github.com:limuy2022/icpc_trainer.git
+git clone https://github.com/limuy2022/icpc_trainer.git
 cd icpc_trainer
 pnpm install --frozen-lockfile
 pnpm run build:standalone
@@ -18,9 +30,9 @@ cp .env.example .env.local
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-将最后生成的随机值填入 `.env.local` 的 `MODEL_ENCRYPTION_KEY`，长期保存，不要提交。可选填写自己的 `GLM_API_KEY`，也可以登录后在管理面板添加模型。
+将生成的随机值填入 `.env.local` 的 `MODEL_ENCRYPTION_KEY`。模型变量可全部留空，首次登录后通过管理员面板配置。
 
-创建首个管理员（自动生成密码，写入本地文件）：
+创建首个管理员（生成随机密码，写入本地文件，不打印密码）：
 
 ```bash
 cd release
@@ -28,170 +40,138 @@ printf '%s' '{"username":"admin","output":"../data/initial-admin.txt"}' | node -
 node --env-file=../.env.local server.mjs
 ```
 
-打开 <http://127.0.0.1:5182>，使用 `data/initial-admin.txt` 中的凭据登录，按页面提示设置密码。没有公开注册入口，也没有内置默认密码。管理员初始化只运行一次。
+访问 <http://127.0.0.1:5182>，使用 `data/initial-admin.txt` 中的凭据登录并修改密码。没有内置默认密码；管理员初始化仅运行一次。后续账号由管理员创建。
 
-前端热更新开发时，将 `.env.local` 中的 `PORT` 改为 `5180`、`APP_ORIGIN` 改为 `http://127.0.0.1:5174`，重新启动后端，再在项目根目录另开终端运行 `pnpm run dev:standalone`，访问 `http://127.0.0.1:5174`。Vite 会将 `/api` 代理到本地 5180 端口。生产环境使用下面的独立部署方式。
+### 本地开发
 
-
-## 账号与管理
-
-只接受管理员手动开户，没有注册接口。密码使用独立随机盐的 scrypt 哈希。登录令牌为随机值，数据库只存令牌哈希。生产 Cookie 为 HttpOnly、Secure、SameSite=Lax。首次登录或管理员重置密码后必须设置自己的密码。停用账号或重置密码会撤销旧会话。
-
-管理员面板提供添加/停用账号、重置密码，添加/编辑/切换默认模型，以及调用记录、操作记录和数据库备份。成员不能访问管理接口。模型 Key 只在服务端使用，后台保存的 Key 用 AES-256-GCM 加密，API 不返回原值。
-
-## 数据
-
-训练记录按账号存入 SQLite，启用 WAL、外键和写入锁等待。浏览器保留按账号隔离的未同步备份。保存使用版本比较和三方合并。保存响应丢失时可幂等重试；另一页面先保存时会读取最新版本并合并独立改动。并发草稿保留双方内容，其他字段的不同版本可在训练页“保留的版本”中查看。旧版冲突缓存会在重新加载时自动恢复。支持个人 JSON 导出、导入和旧版浏览器记录迁移。
-
-服务端训练保存会在编辑停止 1 秒后触发，计时每 10 秒同步。尚未发送的对话输入不保存。退出页面前应确认显示“已保存到服务器”。数据库有每日备份，保留最近 14 份，管理员也可以下载完整 SQLite 备份。同一服务器上的备份不能替代异地备份。
-
-## 独立部署构建
-
-需要 Node.js >=22.13（推荐当前 LTS）。生产发布包没有额外包管理器运行依赖。
+支持的账号版应用使用独立 Node.js 后端。将 `.env.local` 的 `PORT` 设为 `5180`、`APP_ORIGIN` 设为 `http://127.0.0.1:5174`；从 `release/` 运行上述后端，再在仓库根目录另开终端：
 
 ```bash
-pnpm install --frozen-lockfile
-pnpm run build:standalone
-node server/integration.test.mjs
-node server/statement.test.mjs
-node server/sync-translation.test.mjs
-node server/statement-header.test.mjs
+pnpm run dev:standalone
 ```
 
-产物在 `release/`，不要把本地数据库或密钥打包进去。
+访问 <http://127.0.0.1:5174>。前端热更新，`/api` 代理到后端；修改后端需重新构建并重启。`pnpm run dev` / `build` 及 Cloudflare/Sites 文件是早期脚手架入口，不是当前账号版的部署方式。
 
-环境变量配置在发布目录之外的权限 0600 文件中，参考以下变量名（不要提交真实值）：
+## 配置模型
+
+### 推荐：管理员面板
+
+登录后添加模型，填写显示名称、提供方、API Base URL、模型 ID 和 API Key。支持多个模型、不同服务商和不同密钥；可切换默认模型、停用模型。用户只选择已启用模型，无法读取密钥。
+
+通用提供方使用 **OpenAI Chat Completions 兼容接口**：请求发送到 `Base URL + /chat/completions`，采用 Bearer 鉴权及标准 messages/content 响应。不直接支持仅提供 Responses API 或 Anthropic Messages 协议的接口，需要兼容网关。服务商自己的套餐和端点限制仍需自行确认。
+
+Base URL 必须是标准公网 HTTPS 地址，不包含 `/chat/completions`、账号或查询参数，不支持 localhost/内网模型。示意：`https://api.example.com/v1`。GLM 也可以使用，但应选择 GLM 提供方以启用相应思考参数。
+
+### 可选：环境变量初始化
 
 ```dotenv
-PORT=18461
-APP_ORIGIN=https://icpc.limuy.top
-COOKIE_SECURE=true
-DATABASE_PATH=/home/limuy/apps/icpc-trainer/shared/icpc.sqlite
-MODEL_ENCRYPTION_KEY=64位十六进制随机密钥
-GLM_API_KEY=服务端密钥
-GLM_MODEL=GLM-5.3
+AI_API_KEY=your-server-side-key
+AI_BASE_URL=https://api.example.com/v1
+AI_MODEL=your-model-id
+AI_MODEL_LABEL=My coaching model
+AI_PROVIDER=openai-compatible
 ```
 
-`MODEL_ENCRYPTION_KEY` 必须长期保留，丢失后无法解密数据库中的模型 Key。GLM 环境密钥会在数据库还没有模型时作为默认模型加入。以后可通过后台配置其他 OpenAI Chat Completions 兼容模型。
+这些是占位示例，不是可直接使用的服务。填写 `AI_API_KEY` 时，必须同时填写 `AI_BASE_URL` 与 `AI_MODEL`；`AI_PROVIDER` 可选 `openai-compatible`（默认）或 `glm`。
 
-从 `release/` 运行 `node --env-file=/absolute/path/app.env server.mjs`。服务只监听 127.0.0.1，TLS 由现有 Nginx 提供。
+环境变量仅在数据库**没有任何模型**时创建首个模型，不会覆盖后台现有配置。环境密钥每次调用从服务端读取；修改环境密钥需重启服务。后续修改模型地址、名称或新增模型请使用后台。
 
-首次管理员初始化使用 `node --env-file=/absolute/path/app.env admin.mjs init-admin`，标准输入为 JSON。支持 username、password，以及用于写入初始密码的 output 文件路径。省略 password 会生成随机密码。初始凭据文件权限为 0600，密码不打印到日志。已有管理员时不能重复初始化。
+旧的 `GLM_API_KEY` / `GLM_MODEL` 配置仍兼容。新初始化优先使用通用配置；已有 `builtin-glm` 模型继续读取旧 GLM 密钥，不会误用通用密钥。若要迁移旧模型，可在后台给它保存新 Key，或添加新的模型后切换默认模型。
 
-## 更新应用（单份程序）
+推理等级按账号和模型保存。通用接口默认不发送额外推理参数，非默认等级使用 `reasoning_effort`，要求服务商支持；不支持时选「模型默认」。GLM 使用型号对应的思考参数。AI 陪练与翻译共用所选模型和等级。
 
-从 Git 检出需要部署的提交后，在本地运行：
+## 环境变量
 
-```bash
-bash deploy/update.sh limuy.top
-```
-
-脚本构建并上传临时包、在临时目录解包验证，先备份数据库，再短暂停止服务、替换 `current/` 并启动检查。成功后不保留旧代码版本，临时包和解包目录会清理。服务器没有 `releases/` 目录。失败时可从 Git 重新构建所需提交再部署；数据库和模型加密主密钥仍需通过独立备份保护，Git 不包含这些数据。
-
-## 服务器布局与操作
-
-- 应用 `/home/limuy/apps/icpc-trainer/current/` 为普通目录，只保留当前构建，不使用版本目录或软链接。
-- 数据与环境配置 `/home/limuy/apps/icpc-trainer/shared/`。
-- 用户服务 `icpc-trainer.service`，由 `systemctl --user` 管理，开机常驻依赖用户 Linger。
-- 备份定时器 `icpc-trainer-backup.timer`，每天运行并保留最近 14 份。
-- Nginx 新配置 `/etc/nginx/icpc-trainer.conf`。当前服务器 443 由已有 stream 转到 127.0.0.1:8443，新虚拟主机沿用此结构。
-
-```bash
-systemctl --user status icpc-trainer
-journalctl --user -u icpc-trainer -n 50
-systemctl --user restart icpc-trainer
-systemctl --user start icpc-trainer-backup.service
-```
-
-部署目录中的 `deploy/install-nginx.sh` 需要 sudo。它先备份现有配置，只添加本项目独立 include，先测试再 reload，不改现有虚拟主机或 stream 分流。首次 TLS 证书通过现有 Certbot/ACME 账号申请，DNS 的 icpc 记录须已指向本服务器。证书申请失败时不会启用错误的 TLS 配置。
-
-`deploy/install-renewal.sh` 由管理员用 sudo 执行，按用户要求启用服务器自带的 `certbot-renew.timer`，自动检查所有 Certbot 管理的证书。续期成功时执行 Nginx 配置检查和 reload。脚本也会做一次全站 staging dry-run；若有旧域名验证失败，定时器仍然启用，但应根据失败输出修复相应域名。
-
-恢复数据库前，先停止应用和备份任务，将现有数据库及 WAL/SHM 文件保留到单独目录，再放回所选备份。恢复时必须使用匹配的加密主密钥配置。先验证备份后再覆盖运行数据。
-
-## CF 和 AI
-
-CF 题库按难度、标签交集、题号和题名筛选，API 不可用时显示快照来源和时间。CF 题面优先尝试原站；遇到网络拦截时，使用 Codeforces Pro 的公开题面存档 https://github.com/codewithsathya/codeforces-problems 。该来源非官方，界面会标注来源链接和读取时间。正文提取仅限 problem-statement 区域，不读取侧栏、题解或用户信息。数学公式和样例转为 Markdown 显示。读取成功后缓存到 SQLite 七天，过期刷新失败时保留旧缓存。两个来源都失败时仍可粘贴题面。
-
-2026-11-09 核验存档目录有 11,450 个 HTML 文件，对本项目 11,194 道带 Rating 的题库快照覆盖 11,122 道，覆盖率约 99.36%。这是当次目录比对结果，不代表未来一直完整。读取按需进行，不批量下载整个存档。题面默认使用 17px 字体，可调至 15–22px。题面支持英文、中文译文和对照视图；首次点击中文译文使用当前陪练模型翻译，后续从服务器缓存读取。公式、样例代码块与插图在翻译前保护并在生成后原样恢复，不完整返回不会缓存。翻译为 AI 生成，仍可随时切回原文核对。
-
-AI 回复支持 Markdown、表格、代码和公式。分级提示、检验猜想、复盘与完整解法均按需调用，不能代替实际判题。
-
-GLM Coding Plan 的套餐适用范围由智谱规定。当前按用户要求使用 Coding 专用端点，不自动切换按量计费服务。
-
-- CF API https://codeforces.com/apiHelp/methods#problemset.problems
-- GLM 套餐 https://docs.bigmodel.cn/cn/coding-plan/faq
-
-原有 `.openai/hosting.json` 保留旧 Sites 项目身份，当前账号版以独立 Node 部署为准，不覆盖旧站点。
-
-
-## 开源许可与第三方内容
-
-本项目代码采用 [MIT License](LICENSE)，版权归 limuy2022 所有。依赖及随仓库提供的第三方文件遵循各自许可证，参见 `vendor/` 和 `scripts/vite/` 中的许可文件。
-
-Codeforces 题目、题面、插图及公共存档内容的权利归其原作者或权利人所有，不因本项目的 MIT 许可而改变。请遵守对应服务的使用条款。AI 译文和陪练回复可能有误，应结合原题核对。
-
-## 洛谷风格难度估算
-
-题库、训练页和训练记录在保留原始 CF 题目评分的同时，展示带“估”标记的彩色难度。使用洛谷现行八档体系，非洛谷对本题的实际评级，也不是选手 Rating 的换算。
-
-| CF 题目评分 | 本站估算 |
+| 变量 | 说明 |
 | --- | --- |
-| 800 | 入门（红） |
-| 900–1100 | 普及-（橙） |
-| 1200–1500 | 普及（黄） |
-| 1600–1900 | 普及+/提高-（绿） |
-| 2000–2200 | 提高（青） |
-| 2300–2600 | 提高+/省选-（蓝） |
-| 2700–3000 | 省选/NOI-（紫） |
-| 3100+ | NOI/NOI+/CTS（黑） |
+| `PORT` | 本地示例 `5182`，生产示例 `18461`；只监听 `127.0.0.1` |
+| `APP_ORIGIN` | 浏览器访问地址；生产环境填写自己的 HTTPS 域名 |
+| `COOKIE_SECURE` | 本地 HTTP 为 `false`，生产 HTTPS 为 `true` |
+| `DATABASE_PATH` | SQLite 路径，相对路径基于服务工作目录；生产建议绝对路径 |
+| `MODEL_ENCRYPTION_KEY` | 64 位十六进制随机值，必须长期保存，用于加密后台模型密钥 |
+| `AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL` | 可选的首个模型配置 |
+| `AI_MODEL_LABEL` / `AI_PROVIDER` | 可选显示名称和提供方 |
 
-参考 [洛谷难度体系](https://help.luogu.com.cn/manual/luogu/problem/difficulty) 与 [社区难度对照表](https://www.luogu.com/article/my22kz4j)，核验于 2026-11-09。社区参考范围存在重叠，本站按表中分界统一归类；不同题目的思维和实现难度可能偏离估算。规则集中在 `lib/difficulty.ts`，可运行 `node server/difficulty.test.mjs` 验证边界。
+密钥、数据库及环境文件不应进入 Git 或前端。后台密钥采用 AES-256-GCM 加密，密码采用带独立盐的 scrypt，数据库仅保存登录令牌哈希。**丢失加密主密钥后，数据库中的模型 Key 无法恢复。**
 
+## 自托管部署
 
-题面读取时会把标题、时间限制、内存限制和输入输出文件方式从 HTML 头部提取为独立 `metadata`，训练记录保存在 `statementMetadata`；`text` / `statement` 只存正文。中英文界面共用这份信息栏，不让模型翻译限制字段。翻译和陪练接口在服务端再次拆分旧格式，发给模型的题面只包含正文；数据范围、输入输出格式说明及样例仍保留。翻译缓存使用新的正文版本键。首次启动新版时，在事务内迁移旧训练记录和题面缓存，保留草稿和对话并更新记录版本；迁移前请保留数据库备份。
+构建产物在 `release/`，生产只需 Node.js，不需要 pnpm。推荐代码与数据分离：
 
-相关回归检查：`node server/metadata-ai.test.mjs`、`node server/metadata-migration.test.mjs`。
+```text
+~/apps/icpc-trainer/
+├── current/             # release/ 内容，普通目录，仅保留一份构建
+└── shared/
+    ├── app.env          # 权限 0600
+    ├── icpc.sqlite
+    └── backups/
+```
 
+1. 将构建产物复制到 `current/`。将 `.env.example` 复制到 `shared/app.env`，填写独立随机加密密钥、自己的 `APP_ORIGIN`、`COOKIE_SECURE=true`、`PORT=18461` 和数据库绝对路径。
+2. 从 `current/` 运行管理员初始化命令，将 `--env-file` 指向 `../shared/app.env`；初始凭据写入 `../shared/initial-admin.txt`。
+3. `deploy/*.service` 使用 systemd 用户服务的 `%h`，默认安装位置为 `~/apps/icpc-trainer`，Node 路径为 `/usr/bin/node`；使用其他位置时先编辑模板。
 
-## 用户训练与模型用量统计
+```bash
+mkdir -p ~/.config/systemd/user
+cp deploy/icpc-trainer.service deploy/icpc-trainer-backup.service deploy/icpc-trainer-backup.timer ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now icpc-trainer.service icpc-trainer-backup.timer
+```
 
-导航中的“训练统计”展示当前账号完成题数、独立解出题数、训练与思考时间、讨论轮数、实际模型调用及输入/输出/总 Token；可按模型、用途和最近 30 天（北京时间）查看明细。管理员在“用户统计”查看各账号汇总，普通成员只能访问自己的 `/api/stats`。
+需要开机后无登录常驻时，由服务器管理员为部署账号启用 Linger。检查 `systemctl --user status icpc-trainer`，通过 Nginx/Caddy 等反向代理提供 HTTPS。
 
-- 完成题数按题号去重，仅“独立解出”“提示后解出”计入；训练中和待重练不计入完成。
-- 每个实际发出的模型请求记一次，区分陪练、翻译、旧版未分类调用。HTTP 失败、超时和网络失败保留记录；缓存命中不新增调用，共享在途翻译只记实际发起者的一次调用。
-- 优先保存接口报告的 `total_tokens`，未报告总量时仅在输入、输出均有效时相加。缺失或部分用量标记为“未报告完整用量”，不估算消耗。Token 是已知用量累计，不代表账单或套餐剩余额度。
-- 历史输入/输出日志可以汇总，旧版没有保存的请求失败或 Token 无法补回。旧版总 Token 从已记录输入和输出相加，不推断用途。
-- 模型名称随请求保存，删除模型配置后仍能查看后续日志中的历史模型名称；不保存模型密钥到用量表。
+`deploy/icpc-trainer.nginx.conf` 是带占位符的模板。可根据服务器布局手动替换；可选的自动脚本适用于 Nginx 主配置内有顶层 `http {` 的系统，需先检查与已有站点的兼容性：
 
-验证：`node server/model-request.test.mjs` 与 `node server/integration.test.mjs`。
+```bash
+sudo env DOMAIN=trainer.example.com APP_PORT=18461 bash deploy/install-nginx.sh
+```
 
-Markdown 代码块支持 C/C++、Python、Java、JavaScript/TypeScript、Rust、Go、Shell 和 JSON 语法高亮，随深浅主题切换，并提供语言标签与复制按钮。支持 `cpp17` / `c++17` 等常见 C++ 标记；未标注语言或不支持的语言保持原文，`text` / 样例数据不做语言猜测。长行在代码块内部横向滚动。复制保留缩进与换行，公式分隔符处理不会改写代码块中的字符串。验证：`node server/markdown.test.mjs`。
+脚本需要 Nginx、Certbot 和正确 DNS；会备份主配置、添加独立 include、申请证书（首次申请时按 Certbot 提示完成账号设置）并在 reload 前检查配置。默认 TLS 监听 `443`；已有 stream 分流时可显式设置 `TLS_LISTEN=127.0.0.1:8443`。不要直接复制与自己服务器不同的监听布局。
 
+续期优先使用发行版现有 Certbot 定时任务。可选 `deploy/install-renewal.sh` **仅适用于提供 `certbot-renew.service/timer` 的系统**，它为所有 Certbot 证书启用续期，并添加 Nginx reload hook，不是单站点脚本。
 
-聊天中每条用户消息提供“编辑”“撤回”。编辑保存后从修改处重新生成回复；撤回会将原内容放回输入框。两者都移除当前对话中受影响的后续消息，操作前提示范围，旧对话保存在“历史版本”中以便查看。回复生成期间禁用编辑/撤回；失败可重试回复。编辑保留输入框中原有未发送内容，撤回覆盖未发送内容前会询问。
+可选 `python3 deploy/provision-env.py user@your-server --origin https://trainer.example.com` 通过隐藏输入创建初次配置，留空 Key 后从后台配置模型；它不会覆盖已有环境文件。使用环境模型时另传 `--base-url`、`--model`，Key 仍由隐藏输入提供。
 
-编辑/撤回创建新的对话分支版本。跨页面同步时，旧分支不会重新追加到新分支；并发修改选择较新分支，另一份内容保存在历史版本。提示暴露等级与已发生的模型调用/Token 用量不回退。当前训练统计中的讨论轮数只统计当前分支。验证：`node server/conversation.test.mjs`、`node server/sync-translation.test.mjs`。
+### 更新
 
-个人 CF 等级分可从导航或题库筛选区设置，保存到账号的 `users.cf_rating`，跨刷新和设备生效。下次加载默认按 `rating−100` 到 `rating+300` 筛选（按题库 800–3500 边界截取），非整百等级分保持精确范围。保存等级分立即应用新范围；手动筛选在当前页面保留，并提供“应用个人预设”按钮。留空恢复未设置状态与默认 1400–1800。`/api/profile` 只允许读取和修改当前账号的等级分，支持 0–5000 的整数。验证：`node server/rating-range.test.mjs` 与 `node server/integration.test.mjs`。
+已有上述目录、服务和备份任务后，在本地运行：
 
-“训练统计”新增同难度用时曲线：选择精确 CF 题目评分与独立/提示后解出方式，查看单题用时、近 5 题滚动中位数和记录明细。默认排除同题重做，只取该题首次有效解出记录；可手动包含重做。未完成、待重练、非正用时、无有效日期的记录不进入图表。累计至少 6 条符合筛选的记录时，使用最近 N 题与此前 N 题中位数比较（N=min(5, floor(样本数/2))），少量样本不生成变化百分比。
+```bash
+bash deploy/update.sh user@your-server
+# 自定义远端目录、健康检查端口（服务配置也需匹配）：
+bash deploy/update.sh user@your-server /srv/icpc-trainer 18461
+```
 
-新完成训练保存 `completedAt`；旧记录没有完成日期时使用 `createdAt` 并标明。图表使用训练计时器的累计时长（含讨论），不是 CF 提交耗时；曲线仅反映已解出样本，不能单独作为能力结论。图表按需加载，不增加题库首屏的图表代码开销。验证：`node server/time-trend.test.mjs`、`node server/integration.test.mjs`。
+脚本构建、上传并验证临时包，先备份数据库，再短暂停止应用、替换 `current/` 并检查健康状态。不保留旧构建，失败时从 Git 重新构建所需提交。更新不会修改 Nginx、证书或模型环境文件。
 
-模型选择窗口支持推理等级，按账号、模型分别保存到 `users.model_preferences`，刷新或换设备后恢复。GLM-5.3 提供默认/轻度 low/增强 high/深度 max，始终发送 `thinking.type=enabled`；GLM-5.2 提供默认/关闭/增强/深度；较早 GLM 提供默认/开关。其他兼容模型提供默认/low/medium/high，非默认等级要求该接口支持 `reasoning_effort`。默认档对通用兼容接口不附加推理参数。依据：[智谱深度思考文档](https://docs.bigmodel.cn/cn/guide/capabilities/thinking)，核验于 2026-11-09。
+## 数据与统计口径
 
-陪练与翻译都使用所选推理等级，翻译缓存也按等级隔离。显式开启推理时增大输出上限以留出推理空间，实际用量按接口返回记录；高等级可能增加耗时和 Token。应用仅显示最终回答，不把模型内部推理内容拼入聊天。验证：`node server/reasoning.test.mjs`、`node server/metadata-ai.test.mjs`、`node server/integration.test.mjs`。
+- 训练按账号保存到 SQLite（WAL），浏览器保留未同步副本。编辑停止约 1 秒后保存，计时约 10 秒同步；离开前确认「已保存到服务器」。尚未发送的聊天输入不保存。
+- 并发保存进行版本比较和合并，冲突内容保留在历史版本中。支持个人 JSON 导入导出；编辑/撤回消息不退回已消耗的 Token 或提示等级。
+- 备份程序在数据库旁的 `backups/` 保存最近 14 份；每日自动备份需启用上述 timer。后台可下载备份，同机备份不能替代异地备份。恢复前停止服务，并保留现有数据库与 WAL/SHM；使用匹配的加密主密钥。
+- 用时趋势按精确 CF 题目评分展示，默认排除重做，使用训练计时器（含讨论），并非 CF 提交时间。少量样本不应当作能力结论。
+- 调用量与 Token 按接口实际返回记录，缺失用量标记为未报告；成员只看自己的数据，管理员可查看站点用量。
 
-用时趋势图采用协调交互布局：图表置于统计页首屏，集中显示当前中位数、此前中位数与变化；曲线使用主题配色和轻量面积填充。切换难度或解出方式时同步更新数字与图表，点击曲线可以固定查看一条记录，上一条/下一条按钮便于手机和键盘逐题浏览；明细与统计口径可展开。首次显示不动画，筛选切换的过渡尊重系统减少动态效果设置。计算口径与账号数据来源保持一致，无需调用模型或第三方绘图服务。
+## 题目、AI 与限制
 
+题库使用 [Codeforces API](https://codeforces.com/apiHelp/methods#problemset.problems)；不可用时使用随仓库提供的快照并显示时间。题面优先读取原站，受阻时尝试[非官方公开存档](https://github.com/codewithsathya/codeforces-problems)，并标注来源；均失败时可手动粘贴。题面缓存七天，刷新失败保留旧缓存。
 
-## 包管理器
+标题与时间/内存限制单独存储，只有正文发给翻译和陪练模型。译文保护公式、样例与插图，可随时对照原文。题面、草稿和对话会发送给所选服务商；AI 可能出错，本项目不提供在线判题。
 
-项目统一使用 pnpm，提交 `pnpm-lock.yaml`，不再维护 npm 锁文件。安装依赖使用 `pnpm install --frozen-lockfile`；添加依赖使用 `pnpm add` / `pnpm add -D`。构建、开发、CI 安装入口和部署脚本均使用 pnpm。`pnpm-workspace.yaml` 保留依赖覆盖与明确允许的原生构建脚本。服务器仍直接运行构建后的 Node.js 程序，不需要安装 pnpm 或在线下载运行依赖。
+交互图示通过 `icpc-visual` 围栏承载 HTML/SVG/JavaScript，在无同源权限的隔离 iframe 中运行，CSP 限制网络请求，只对 AI 回复启用。支持重新演示和查看源码；图示准确性取决于模型。
 
-### 陪练中的交互图示
+洛谷风格彩色难度是基于 CF 题目分数的**近似分档**，不是官方评级或选手等级分换算。分界见 [`lib/difficulty.ts`](lib/difficulty.ts)。
 
-陪练 AI 可以在回复中直接生成交互式算法图示，用小例子展示窗口移动、区间、树、合并与状态变化；也可以点击「画图讲解」主动请求。图示支持模型生成的逐步控件，遵守当前提示层级。原始内容随聊天记录保存，刷新或重新打开对话后可再次演示。
+## 验证与贡献
 
-实现通过 `icpc-visual` Markdown 代码围栏承载自包含 HTML/SVG/JavaScript，由隔离 iframe 渲染；禁止网络与父页面访问，不加载第三方脚本。仅 AI 消息启用，题面与用户消息仍按普通代码显示。图示运行错误时显示提示，并保留源码供重新生成；具体图示内容和准确性取决于所选模型。
+```bash
+pnpm exec tsc --noEmit
+pnpm run build:standalone
+node --test server/*.test.mjs
+```
+
+欢迎提交 Issue 和 PR。请提供复现步骤、Node/pnpm 版本和已脱敏的错误信息；不要提交 Key、真实环境文件、数据库或用户对话。变更依赖请使用 pnpm，并提交 `pnpm-lock.yaml`。
+
+## 许可
+
+代码采用 [MIT License](LICENSE)。依赖及第三方文件遵循各自许可证，见 `vendor/` 与 `scripts/vite/`。Codeforces 题目、题面和插图的权利归原作者或权利人所有，不因本项目的 MIT 许可而改变。

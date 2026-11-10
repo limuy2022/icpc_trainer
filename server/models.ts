@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { db, transaction } from "./database";
+import { environmentModel, environmentModelKey } from "../lib/model-environment";
 import {
   audit,
   checkOrigin,
@@ -23,18 +24,17 @@ export type ModelConfig = {
   is_default: number;
 };
 export function initModels() {
-  if (
-    process.env.GLM_API_KEY &&
-    !db.prepare("SELECT id FROM models LIMIT 1").get()
-  )
+  if (db.prepare("SELECT id FROM models LIMIT 1").get()) return;
+  const initial = environmentModel(process.env);
+  if (initial)
     db.prepare(
       "INSERT INTO models(id,label,provider,base_url,model,env_key,enabled,is_default,created_at) VALUES(?,?,?,?,?,1,1,1,?)",
     ).run(
-      "builtin-glm",
-      "GLM 思维陪练",
-      "glm",
-      "https://open.bigmodel.cn/api/coding/paas/v4",
-      process.env.GLM_MODEL || "GLM-5.3",
+      initial.id,
+      initial.label,
+      initial.provider,
+      initial.base_url,
+      initial.model,
       new Date().toISOString(),
     );
 }
@@ -110,7 +110,7 @@ export function selectModel(id?: string) {
 }
 export function modelKey(model: ModelConfig) {
   const key = model.env_key
-    ? process.env.GLM_API_KEY
+    ? environmentModelKey(process.env, model.id)
     : model.encrypted_key
       ? decryptKey(model.encrypted_key)
       : "";
@@ -178,7 +178,7 @@ export async function modelsAdmin(request: Request) {
     ).run(
       id,
       label,
-      body.provider === "glm" ? "glm" : "openai-compatible",
+      (body.provider ?? old?.provider) === "glm" ? "glm" : "openai-compatible",
       base,
       model,
       encrypted,

@@ -3501,3 +3501,6 @@ html[lang="en"] .stat-label,html[lang="en"] .stat-value { overflow-wrap:anywhere
 .chat-error small { display:block; overflow-wrap:anywhere; font-size:12px; margin:6px 0; }
 .partial-reply { border-left:2px solid var(--line); padding-left:12px; }
 .provider-preset-help a { text-decoration:underline; text-underline-offset:3px; }
+.model-discovery { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.model-discovery button { display:inline-flex; align-items:center; gap:6px; }
+.model-discovery small { flex:1; min-width:180px; color:var(--muted); line-height:1.6; }

@@ -638,5 +638,19 @@
   "阿里云百炼 · 新加坡": "Alibaba Cloud · Singapore",
   "硅基流动 SiliconFlow": "SiliconFlow",
   "（更换接口后需重新填写）": "(required again after changing the endpoint)",
-  "更换模型接口地址时需要重新填写密钥": "Enter a new API key when changing the model endpoint."
+  "更换模型接口地址时需要重新填写密钥": "Enter a new API key when changing the model endpoint.",
+  "正在获取模型…": "Fetching models…",
+  "获取模型列表": "Fetch models",
+  "从已获取列表选择": "Select a fetched model",
+  "选择模型，或在上方手动填写": "Choose a model or enter its ID above",
+  "先填写 API Key；编辑已有模型时可使用服务端保存的密钥。": "Enter your API key first. Existing models can use their server-stored key.",
+  "已获取 {0} 个模型；列表不代表每个模型都支持聊天。": "Fetched {0} models; not every listed model necessarily supports chat.",
+  "获取模型列表失败，请手动填写模型 ID": "Could not fetch models. Enter a model ID manually.",
+  "接口没有返回可选模型，请手动填写模型 ID": "No models were returned. Enter a model ID manually.",
+  "请先填写 API Key，再获取模型列表": "Enter an API key before fetching models.",
+  "获取模型列表失败，请检查接口地址或稍后重试；也可手动填写模型 ID": "Could not fetch models. Check the endpoint, retry later, or enter a model ID manually.",
+  "密钥无效或没有模型列表访问权限": "The key is invalid or cannot access the model list.",
+  "该接口不支持自动获取模型列表，请手动填写模型 ID": "This endpoint does not support model discovery. Enter a model ID manually.",
+  "模型列表请求过于频繁，请稍后重试": "Too many model-list requests. Please retry later.",
+  "模型列表格式无效或内容过大，请手动填写模型 ID": "The model list was invalid or too large. Enter a model ID manually."
 }

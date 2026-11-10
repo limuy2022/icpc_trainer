@@ -1,6 +1,6 @@
 "use client";
 import {t as ui,useLocale,currentLocale} from "@/lib/locale";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./account-gate";
 import {modelPresets,detectModelPreset,applyModelPreset} from "@/lib/model-presets";
 import {
@@ -32,6 +32,25 @@ export default function AdminPanel({
     [role, setRole] = useState("member");
   const [presetId,setPresetId]=useState("custom");
   const selectedPreset=modelPresets.find(p=>p.id===presetId);
+  const [discovered,setDiscovered]=useState<string[]>([]),[discovering,setDiscovering]=useState(false),[discoveryError,setDiscoveryError]=useState("");
+  const discoveryAbort=useRef<AbortController|null>(null);
+  const discoveryKey=JSON.stringify([modelForm?.id,modelForm?.base_url,modelForm?.key]);
+  const discoveryContext=useRef(discoveryKey);discoveryContext.current=discoveryKey;
+  useEffect(()=>{discoveryAbort.current?.abort();setDiscovered([]);setDiscoveryError("");setDiscovering(false);return()=>discoveryAbort.current?.abort();},[discoveryKey]);
+  async function fetchModelList(){
+    if(!modelForm||discovering)return;
+    const context=discoveryKey,controller=new AbortController();discoveryAbort.current=controller;
+    setDiscovering(true);setDiscoveryError("");setDiscovered([]);
+    try{
+      const response=await fetch("/api/admin/models/discover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:modelForm.id,base_url:modelForm.base_url,key:modelForm.key}),signal:controller.signal});
+      const data=await response.json() as {models?:string[];error?:string};
+      if(controller.signal.aborted||context!==discoveryContext.current)return;
+      if(!response.ok)throw Error(data.error||"获取模型列表失败，请手动填写模型 ID");
+      setDiscovered(data.models||[]);
+      if(!data.models?.length)setDiscoveryError("接口没有返回可选模型，请手动填写模型 ID");
+    }catch(error){if(!controller.signal.aborted&&context===discoveryContext.current)setDiscoveryError((error as Error).message);}
+    finally{if(context===discoveryContext.current)setDiscovering(false);}
+  }
   async function load() {
     try {
       const [u, m, s] = await Promise.all([
@@ -466,6 +485,12 @@ export default function AdminPanel({
                   }
                 />
               </label>
+              <div className="model-discovery">
+                <button type="button" className="secondary" disabled={discovering||!modelForm.base_url.trim()} onClick={()=>void fetchModelList()}><RefreshCw size={14} className={discovering?"spin":""}/>{ui(discovering?"正在获取模型…":"获取模型列表")}</button>
+                <small>{ui("先填写 API Key；编辑已有模型时可使用服务端保存的密钥。")}</small>
+              </div>
+              {discovered.length>0&&<label>{ui("从已获取列表选择")}<select aria-label={ui("从已获取列表选择")} value={discovered.includes(modelForm.model)?modelForm.model:""} onChange={e=>{if(e.target.value)setModelForm({...modelForm,model:e.target.value});}}><option value="">{ui("选择模型，或在上方手动填写")}</option>{discovered.map(id=><option key={id} value={id}>{id}</option>)}</select><small>{ui("已获取 {0} 个模型；列表不代表每个模型都支持聊天。",[discovered.length])}</small></label>}
+              {discoveryError&&<p className="form-error" role="alert">{ui(discoveryError)}</p>}
               <label>
                 API Key {modelForm.id ? ui(modelForm.base_url.replace(/\/+$/,"")===modelForm.original_base_url.replace(/\/+$/,"")?"（留空保留原密钥）":"（更换接口后需重新填写）") : ""}
                 <input

@@ -1,6 +1,7 @@
 import { modelPreferences, saveModelPreferences } from "./model-preferences";
 import { profile } from "./profile";
 import { statistics } from "./statistics";
+import {discoverModels} from "./model-discovery";
 import { createServer } from "node:http";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -131,6 +132,9 @@ const server = createServer(async (req, res) => {
           break;
         case "/api/admin/models":
           response = await modelsAdmin(request);
+          break;
+        case "/api/admin/models/discover":
+          response = await discoverModels(request);
           break;
         case "/api/admin/status":
           response = adminStatus(request);

@@ -197,3 +197,9 @@ Navigation updates the URL fragment, such as `#/history`, `#/statistics`, or `#/
 Admin panel → Model management → Add/Edit model includes presets for OpenAI, DeepSeek, Zhipu GLM (standard API / Coding Plan), Alibaba Cloud (Beijing / Singapore), Moonshot/Kimi, SiliconFlow, and OpenRouter. Presets fill the Base URL and API type and link to official documentation. Enter a model ID available to your account; custom endpoints remain supported. Sources are maintained in `lib/model-presets.ts`, checked on 2026-11-10.
 
 Changing to a preset with a different endpoint clears unsaved keys and model IDs. Changing an existing model's endpoint also requires a new key on the server. Renaming a model or changing its model ID without changing the endpoint can retain its stored key.
+
+### Discovering model IDs
+
+When adding or editing a model, fill in its Base URL and API key, then click **Fetch models**. The server requests the compatible `GET /models` endpoint and returns IDs for the picker; manual entry remains available. Existing models can reuse their server-stored key when the endpoint is unchanged. Changing the endpoint requires a new key. Changing the endpoint or key clears earlier discovery results.
+
+Discovery is admin-only and generates no completions or coaching usage. Only deduplicated model IDs are returned, not raw provider responses or credentials. Some providers do not expose a model directory, restrict access, or include non-chat models; consult their documentation and use manual entry where needed.

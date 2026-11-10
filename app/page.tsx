@@ -459,6 +459,7 @@ function Workspace({
     )
       return;
     const prompts: Record<string, string> = {
+      visualize: "请用一个可交互、能逐步演示的小图解释我们当前讨论的观察或我的卡点，先不要揭晓后续解法。",
       hint1: "我卡住了，请给一条观察方向，先不要揭晓关键解法。",
       hint2: "请给第二层提示，帮我找到一个关键性质。",
       hint3: "请给第三层提示，帮我建立主要模型，留下一步让我推。",
@@ -1541,7 +1542,7 @@ function Workspace({
                           <p>保存后将从这里重新生成回复，后续对话会移入历史版本。</p>
                           <div><button className="secondary" disabled={busy} onClick={()=>setMessageEdit(null)}>取消</button><button className="primary" disabled={busy || !messageEdit.content.trim() || messageEdit.content.trim()===messageEdit.original} onClick={()=>void send("discuss",messageEdit)}>保存并重新生成</button></div>
                         </div>
-                      ) : <Text text={m.content} />}
+                      ) : <Text text={m.content} allowVisuals={m.role === "assistant"} />}
                       {m.role === "user" && !(messageEdit?.sessionId === session.id && messageEdit.index === i) && <div className="message-actions">
                         <button disabled={busy} aria-label={`编辑第 ${i+1} 条消息`} onClick={()=>setMessageEdit({sessionId:session.id,index:i,original:m.content,content:m.content})}><Pencil size={13}/>编辑</button>
                         <button disabled={busy} aria-label={`撤回第 ${i+1} 条消息`} onClick={()=>recallMessage(i)}><Undo2 size={13}/>撤回</button>
@@ -1559,6 +1560,7 @@ function Workspace({
                 {chatError && <div className="chat-error" role="alert">{chatError}{session.messages.at(-1)?.role === "user" && <button disabled={busy} onClick={()=>void send(retryMode,undefined,true)}>重试回复</button>}</div>}
                 <div className="coach-controls">
                   <div className="hint-buttons">
+                    <button disabled={busy} onClick={() => send("visualize")}><Sparkles size={13}/>画图讲解</button>
                     {[1, 2, 3].map((level) => (
                       <button
                         key={level}

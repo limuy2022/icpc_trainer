@@ -3467,3 +3467,15 @@ html[data-theme="dark"] .time-trend { --trend-raw:#9bcab6; --trend-median:#8dbff
   .studio-selected-time small { display:block; margin:4px 0 0; text-align:right; }
 }
 .trend-studio { --muted:color-mix(in srgb,var(--ink) 75%,var(--paper)); }
+
+/* Model-authored explainers stay inside the assistant's conversation bubble. */
+.coach-visual { min-width:0; max-width:100%; margin:16px 0; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--paper); }
+.coach-visual-toolbar { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding:10px 12px; border-bottom:1px solid var(--line); color:var(--ink); font-size:13px; }
+.coach-visual-toolbar button { display:inline-flex; align-items:center; gap:6px; padding:4px 6px; min-height:32px; border-radius:6px; }
+.coach-visual-toolbar button:hover { background:var(--bg); }
+.coach-visual iframe { display:block; width:100%; border:0; background:var(--paper); }
+.coach-visual > p { padding:12px; }
+.coach-visual details { border-top:1px solid var(--line); padding:8px 12px; font-size:13px; }
+.coach-visual summary { cursor:pointer; }
+.coach-visual details pre { max-height:320px; overflow:auto; font-size:12px; }
+@media(pointer:coarse) { .coach-visual-toolbar button,.coach-visual summary { min-height:44px; display:flex; align-items:center; } }

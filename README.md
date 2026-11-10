@@ -189,3 +189,9 @@ Markdown 代码块支持 C/C++、Python、Java、JavaScript/TypeScript、Rust、
 ## 包管理器
 
 项目统一使用 pnpm，提交 `pnpm-lock.yaml`，不再维护 npm 锁文件。安装依赖使用 `pnpm install --frozen-lockfile`；添加依赖使用 `pnpm add` / `pnpm add -D`。构建、开发、CI 安装入口和部署脚本均使用 pnpm。`pnpm-workspace.yaml` 保留依赖覆盖与明确允许的原生构建脚本。服务器仍直接运行构建后的 Node.js 程序，不需要安装 pnpm 或在线下载运行依赖。
+
+### 陪练中的交互图示
+
+陪练 AI 可以在回复中直接生成交互式算法图示，用小例子展示窗口移动、区间、树、合并与状态变化；也可以点击「画图讲解」主动请求。图示支持模型生成的逐步控件，遵守当前提示层级。原始内容随聊天记录保存，刷新或重新打开对话后可再次演示。
+
+实现通过 `icpc-visual` Markdown 代码围栏承载自包含 HTML/SVG/JavaScript，由隔离 iframe 渲染；禁止网络与父页面访问，不加载第三方脚本。仅 AI 消息启用，题面与用户消息仍按普通代码显示。图示运行错误时显示提示，并保留源码供重新生成；具体图示内容和准确性取决于所选模型。

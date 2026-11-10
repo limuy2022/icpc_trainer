@@ -8,7 +8,7 @@ export type Problem = {
   tags: string[];
   solvedCount: number;
 };
-export type Message = { role: "user" | "assistant"; content: string; reasoning?: string };
+export type Message = { role: "user" | "assistant"; content: string; reasoning?: string; generationId?:string };
 export type Session = {
   id: string;
   problem: Problem;

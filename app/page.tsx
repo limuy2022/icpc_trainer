@@ -5,8 +5,8 @@ import { reasoningLabels, type ReasoningLevel } from "@/lib/reasoning";
 import RatingForm from "@/components/rating-form";
 import { ratingRange, difficultyOptions } from "@/lib/rating-range";
 import StatisticsPanel from "@/components/statistics-panel";
-import { reviseConversation, matchesConversation } from "@/lib/conversation";
-import { readChatResponse } from "@/lib/chat-response";
+import { reviseConversation } from "@/lib/conversation";
+import {conversationBranch,branchHash,hasJobReply,applyJobReply,recoverJobSession,type CoachJob} from "@/lib/coach-job";
 import { trainingStats } from "@/lib/training-stats";
 import { splitStatement } from "@/lib/statement-header";
 import {translationSource} from "@/lib/translation-source";
@@ -146,8 +146,7 @@ function Workspace({
   const sending=useRef(false);
   const sendStartedAt=useRef(0);
   const [partialReply,setPartialReply]=useState<{sessionId:string;text:string;reasoning?:string}|null>(null);
-  const chatAbort=useRef<AbortController|null>(null);
-  useEffect(()=>()=>chatAbort.current?.abort(),[]);
+  const activeJob=useRef<string|null>(null),submittingJob=useRef(false),pollJobs=useRef<()=>void>(()=>{});
   const [chatRequestId,setChatRequestId]=useState("");
   const [personalModelsOpen,setPersonalModelsOpen]=useState(false);
   const [allowUnverified, setAllowUnverified] = useState(false);
@@ -281,6 +280,68 @@ function Workspace({
     if(partialReply?.sessionId===session?.id && container && container.scrollHeight-container.scrollTop-container.clientHeight<180)
       chatEnd.current?.scrollIntoView({block:"nearest"});
   },[partialReply,session?.id]);
+  useEffect(()=>{
+    if(!loaded)return;
+    let stopped=false,inFlight=false,timer:ReturnType<typeof setTimeout>|undefined,controller:AbortController|undefined;
+    const poll=async(force=false)=>{
+      if(stopped||(inFlight&&!force))return;
+      if(force)controller?.abort();if(timer)clearTimeout(timer);
+      const attempt=new AbortController();controller=attempt;inFlight=true;
+      try{
+        const response=await fetch("/api/coach-jobs",{signal:attempt.signal});
+        if(!response.ok)throw Error("任务状态读取失败");
+        const data=await response.json() as {jobs:CoachJob[]};if(stopped||attempt.signal.aborted)return;
+        const running=data.jobs.find(job=>job.status==="running");
+        if(running){if(running.requestId)setChatRequestId(running.requestId);activeJob.current=running.id;sending.current=true;setBusy(true);sendStartedAt.current=new Date(running.createdAt).getTime();setChatError("");setPartialReply({sessionId:running.sessionId,text:running.text,reasoning:running.reasoning});}
+        for(const job of data.jobs){
+          if(job.status==="running")continue;
+          if(job.status==="done"&&job.result){
+            let snapshot=sessionsRef.current.find(s=>s.id===job.sessionId);
+            if(!snapshot||!hasJobReply(snapshot,job.id)){
+              if(!snapshot||await branchHash(conversationBranch(snapshot))!==job.branchHash){
+                const contextResponse=await fetch("/api/coach-jobs?context="+encodeURIComponent(job.id),{signal:attempt.signal});
+                if(!contextResponse.ok)throw Error("任务状态读取失败");
+                const details=await contextResponse.json() as {job:CoachJob};job.context=details.job.context;
+                if(job.context)snapshot=recoverJobSession(snapshot,job.context);
+              }
+              if(!snapshot)continue;
+              const before=conversationBranch(snapshot),matches=await branchHash(before)===job.branchHash;
+              if(stopped||attempt.signal.aborted)return;
+              setSessions(prev=>{
+                const existing=prev.find(s=>s.id===job.sessionId);
+                const seed=job.context?recoverJobSession(existing,job.context):existing;
+                if(!seed)return prev;
+                const next=applyJobReply(seed,job,matches&&conversationBranch(seed)===before);
+                return existing?prev.map(s=>s.id===job.sessionId?next:s):[next,...prev];
+              });
+              if(!matches)setToast("对话已变化，回复已保存在历史版本中。");
+            }
+            if(activeJob.current===job.id){setChatError("");if(job.result.requestId)setChatRequestId(job.result.requestId);}
+            // Server acknowledges only after training sync has durably stored the reply.
+            void fetch("/api/coach-jobs",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:job.id,action:"ack"})}).catch(()=>{});
+            if(!running)setPartialReply(null);
+          }else{
+            if(job.requestId)setChatRequestId(job.requestId);setChatError(job.error||"回复生成失败，请重试");
+            setPartialReply({sessionId:job.sessionId,text:job.text,reasoning:job.reasoning});
+            void fetch("/api/coach-jobs",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:job.id,action:"ack"})}).catch(()=>{});
+          }
+        }
+        if(!running&&!submittingJob.current){activeJob.current=null;sending.current=false;setBusy(false);}
+      }catch{
+        if(!stopped&&!attempt.signal.aborted&&activeJob.current)setChatError("连接已断开，服务器仍会继续生成，返回页面后自动恢复。");
+      }finally{
+        if(controller===attempt){inFlight=false;if(!stopped)timer=setTimeout(()=>void poll(),activeJob.current?1000:5000);}
+      }
+    };
+    const resume=()=>{if(document.visibilityState==="visible")void poll(true);};
+    pollJobs.current=()=>void poll(true);void poll();
+    window.addEventListener("focus",resume);window.addEventListener("online",resume);document.addEventListener("visibilitychange",resume);
+    return()=>{stopped=true;controller?.abort();if(timer)clearTimeout(timer);window.removeEventListener("focus",resume);window.removeEventListener("online",resume);document.removeEventListener("visibilitychange",resume);pollJobs.current=()=>{};};
+  },[loaded,user.id]);
+  async function stopGeneration(){
+    const id=activeJob.current;if(!id)return;
+    try{const response=await fetch("/api/coach-jobs",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,action:"cancel"})});if(!response.ok)throw Error();pollJobs.current();}catch{setChatError("停止请求未送达，请恢复网络后重试。");}
+  }
   function patch(id: string, change: Partial<Session>) {
     setSessions((prev) =>
       prev.map((s) => (s.id === id ? { ...s, ...change } : s)),
@@ -526,7 +587,7 @@ function Workspace({
       : last?.role === "user" && last.content === content
         ? session.messages
         : [...session.messages, { role: "user", content }];
-    sending.current=true;
+    sending.current=true;submittingJob.current=true;
     sendStartedAt.current=Date.now();
     setBusy(true);
     setPartialReply(null);
@@ -542,58 +603,17 @@ function Workspace({
         : {}),
       ...(mode === "solution" ? { hints: 4 } : {}),
     });
-    const controller=new AbortController();chatAbort.current=controller;
+    const jobId=crypto.randomUUID();activeJob.current=jobId;
+    setRetryMode(mode);
     try {
-      const res = await fetch("/api/coach", {
-        signal:controller.signal,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          statement: splitStatement(session.statement).text,
-          problem: `${session.problem.id} ${session.problem.name}`,
-          problemId: session.problem.id,
-          allowUnverified,
-          language: currentLocale(),
-          stream: true,
-          notes: session.notes,
-          modelId,
-          reasoningEffort,
-          mode,
-          messages,
-        }),
+      const hash=await branchHash(conversationBranch({messages,messagesVersion}));
+      const response=await fetch("/api/coach-jobs",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({jobId,sessionId:id,branchHash:hash,sessionSnapshot:{...session,messages:messages.map(({role,content,generationId})=>({role,content,...(generationId?{generationId}:{})})),messagesVersion,startedAt:null,elapsed,hints:mode==="solution"?4:mode.startsWith("hint")?Math.max(session.hints,Number(mode.slice(-1))):session.hints,recoveredVersions:undefined},statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,modelId,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))}),
       });
-      const data = await readChatResponse(res,{
-        delta:text=>setPartialReply(previous=>({sessionId:id,text:(previous?.sessionId===id?previous.text:"")+text,reasoning:previous?.sessionId===id?previous.reasoning:undefined})),
-        reasoning:text=>setPartialReply(previous=>({sessionId:id,text:previous?.sessionId===id?previous.text:"",reasoning:(previous?.sessionId===id?previous.reasoning||"":"")+text})),
-        status:data=>{if(data.editorial)patch(id,{editorialReference:data.editorial});if(data.requestId)setChatRequestId(data.requestId);},
-      });
-      const latest = sessionsRef.current.find(s => s.id === id);
-      if (!latest || !matchesConversation(latest,messages,messagesVersion)) {
-        throw Error("对话已在另一页面变化，本次回复未写入旧分支。请在当前对话重试。");
-      }
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === id && matchesConversation(s,messages,messagesVersion)
-            ? {
-                ...s,
-                messages: [
-                  ...s.messages,
-                  { role: "assistant", content: data.text, ...(data.reasoning?{reasoning:data.reasoning}:{}) },
-                ],
-              }
-            : s,
-        ),
-      );
-      setPartialReply(null);
-    } catch (e) {
-      setChatError(controller.signal.aborted?"已停止生成，未完成内容未写入历史。":(e as Error).message);
-      setRetryMode(mode);
-      if (!edit && !retry) setDraft(content);
-    } finally {
-      chatAbort.current=null;
-      sending.current=false;
-      setBusy(false);
-    }
+      const data=await response.json() as {error?:string};if(!response.ok)throw Error(data.error||"回复生成失败，请重试");
+    }catch(error){setChatError((error as Error).message);if(!edit&&!retry)setDraft(content);}
+    finally{submittingJob.current=false;pollJobs.current();}
   }
   function exportData() {
     const blob = new Blob(
@@ -1550,7 +1570,7 @@ function Workspace({
                   {busy && (
                     <div className="thinking">
                       <LoaderCircle size={15} className="spin" />
-                      {ui("正在检验思路… 已等待 {0} 秒",[Math.max(0,Math.floor((now-sendStartedAt.current)/1000))])}<button type="button" className="text-button" onClick={()=>chatAbort.current?.abort()}>{ui("停止生成")}</button></div>
+                      {ui("正在检验思路… 已等待 {0} 秒",[Math.max(0,Math.floor((now-sendStartedAt.current)/1000))])}<button type="button" className="text-button" onClick={()=>void stopGeneration()}>{ui("停止生成")}</button></div>
                   )}
                   <div ref={chatEnd} />
                 </div>

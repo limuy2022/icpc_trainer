@@ -693,5 +693,16 @@
   "个人密钥": "Personal key",
   "网站密钥": "Site key",
   "网站密钥需管理员授权，也可使用自己的 API Key。": "Site keys require administrator approval. You can also use your own API key.",
-  "管理我的 API Key": "Manage my API keys"
+  "管理我的 API Key": "Manage my API keys",
+  "服务重启中断了生成，请重试。": "Generation was interrupted by a server restart. Please retry.",
+  "生成任务格式无效": "Invalid generation job.",
+  "生成任务不存在": "Generation job not found.",
+  "已有回复正在生成，请等待或停止当前任务。": "A reply is already being generated. Wait for it or stop the current job.",
+  "回复仍在生成": "The reply is still being generated.",
+  "回复尚未保存到训练记录": "The reply has not been saved to training history yet.",
+  "任务操作无效": "Invalid job action.",
+  "对话已变化，回复已保存在历史版本中。": "The conversation changed. The reply has been kept in recovered versions.",
+  "连接已断开，服务器仍会继续生成，返回页面后自动恢复。": "Connection lost. Generation continues on the server and resumes when you return.",
+  "停止请求未送达，请恢复网络后重试。": "The stop request did not reach the server. Reconnect and try again.",
+  "训练上下文过大，请先归档部分对话。": "The conversation context is too large. Archive part of it first."
 }

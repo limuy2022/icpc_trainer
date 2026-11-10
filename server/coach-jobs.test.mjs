@@ -1,0 +1,47 @@
+import {build} from 'esbuild';
+import {mkdtemp,rm,readFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {DatabaseSync} from 'node:sqlite';
+import assert from 'node:assert/strict';
+const dir=await mkdtemp(join(tmpdir(),'icpc-jobs-')),db=new DatabaseSync(':memory:');
+db.exec('CREATE TABLE users(id TEXT PRIMARY KEY);CREATE TABLE training_data(user_id TEXT,payload TEXT);INSERT INTO users VALUES(\'a\'),(\'b\');');
+db.exec(await readFile('server/migrations/012_coach_jobs.sql','utf8'));
+globalThis.__jobDb=db;globalThis.__calls=[];globalThis.__gates=new Map();
+try {
+ await build({entryPoints:['server/coach-jobs.ts'],bundle:true,platform:'node',format:'esm',outfile:join(dir,'jobs.mjs'),plugins:[{name:'mocks',setup(b){
+ for(const name of ['database','coach','models','security'])b.onResolve({filter:new RegExp('^\\./'+name+'$')},()=>({path:name,namespace:'mock'}));
+ b.onLoad({filter:/.*/,namespace:'mock'},a=>({contents:a.path==='database'?`export const db=globalThis.__jobDb;`:a.path==='models'?`export const selectModel=(id,user)=>{if(id==='forbidden')throw Object.assign(Error('denied'),{status:403});};`:a.path==='security'?`export const requireUser=r=>({id:r.headers.get('x-user')||'a'});export const throttle=()=>{};export const checkOrigin=r=>{if(r.headers.get('origin')==='https://evil.example')fail(403,'origin')};export const fail=(status,message)=>{throw Object.assign(Error(message),{status});};`:`export async function POST(request){const body=await request.json();globalThis.__calls.push({id:body.jobId,signal:request.signal});const gate=globalThis.__gates.get(body.jobId);const enc=new TextEncoder();return new Response(new ReadableStream({async start(c){try{c.enqueue(enc.encode(JSON.stringify({type:'delta',text:'partial'})+'\\n'));await Promise.race([gate,new Promise((_,reject)=>request.signal.addEventListener('abort',()=>reject(Error('aborted')),{once:true}))]);if(request.signal.aborted)throw Error('aborted');c.enqueue(enc.encode(JSON.stringify({type:'done',text:'complete',reasoning:'thought',model:'test',requestId:'upstream'})+'\\n'));c.close();}catch(error){c.error(error);}}}),{headers:{'Content-Type':'application/x-ndjson'}});}`,loader:'js'}));
+ }}]});
+ const {coachJobs,initCoachJobs}=await import(join(dir,'jobs.mjs'));
+ await build({entryPoints:['lib/coach-job.ts'],bundle:true,platform:'node',format:'esm',outfile:join(dir,'client.mjs')});
+ const {applyJobReply,hasJobReply,branchHash,conversationBranch,recoverJobSession}=await import(join(dir,'client.mjs'));
+ const request=(body,method=body?'POST':'GET',user='a',signal,origin='https://trainer.example')=>new Request('https://trainer.example/api/coach-jobs',{method,signal,headers:{'Content-Type':'application/json','x-user':user,Origin:origin},body:body?JSON.stringify(body):undefined});
+ const make=()=>({jobId:crypto.randomUUID(),sessionId:'training',branchHash:'a'.repeat(64),messages:[],modelId:'allowed'});
+ const gate=id=>{let release;__gates.set(id,new Promise(r=>release=r));return release;};
+ const pending=async()=> (await (await coachJobs(request())).json()).jobs;
+ const until=async(id,status)=>{for(let i=0;i<80;i++){const job=(await pending()).find(j=>j.id===id);if(job?.status===status)return job;await new Promise(r=>setTimeout(r,5));}throw Error('job did not reach '+status);};
+ const body=make(),release=gate(body.jobId),client=new AbortController();body.problemId='1A';body.sessionSnapshot={id:'training',problem:{id:'1A'},messages:[],notes:''};
+ const created=await coachJobs(request(body,'POST','a',client.signal));assert.equal(created.status,202);client.abort();const context=await (await coachJobs(new Request('https://trainer.example/api/coach-jobs?context='+body.jobId))).json();assert.equal(context.job.context.id,'training');
+ await assert.rejects(()=>coachJobs(new Request('https://trainer.example/api/coach-jobs?context='+body.jobId,{headers:{'x-user':'b'}})),e=>e.status===404);
+ assert.equal((await coachJobs(request(body))).status,200);assert.equal(__calls.length,1);assert.equal(__calls[0].signal.aborted,false);
+ const overlapping=make();await assert.rejects(()=>coachJobs(request(overlapping)),e=>e.status===409);
+ assert.deepEqual((await (await coachJobs(request(undefined,'GET','b'))).json()).jobs,[]);
+ await assert.rejects(()=>coachJobs(request({id:body.jobId,action:'cancel'},'PATCH','b')),e=>e.status===404);
+ release();const done=await until(body.jobId,'done');assert.equal(done.result.text,'complete');assert.equal(done.result.reasoning,'thought');
+ await assert.rejects(()=>coachJobs(request({id:body.jobId,action:'ack'},'PATCH')),e=>e.status===409);
+ const session={id:'training',messages:[{role:'user',content:'guess'}],notes:''};
+ assert.equal(recoverJobSession(session,{...session,messagesVersion:'new'}),session);
+ const recovered=recoverJobSession({...session,messages:[]},session);assert.equal(recovered.messages.length,1);assert.equal(recoverJobSession(undefined,session),session);
+ const matching=applyJobReply(session,done,true);assert.equal(matching.messages.at(-1).generationId,done.id);assert.equal(applyJobReply(matching,done,true),matching);
+ const fork=applyJobReply(session,done,false);assert.equal(fork.messages.length,1);assert.equal(fork.recoveredVersions.length,1);assert.ok(hasJobReply(fork,done.id));
+ assert.notEqual(await branchHash(conversationBranch(session)),await branchHash(conversationBranch({...session,messagesVersion:'edited'})));
+ db.prepare('INSERT INTO training_data VALUES(?,?)').run('a',JSON.stringify([matching]));
+ assert.equal((await coachJobs(request({id:body.jobId,action:'ack'},'PATCH'))).status,200);assert.equal((await pending()).length,0);assert.equal(db.prepare('SELECT result FROM coach_jobs WHERE id=?').get(body.jobId).result,null);
+ const cancelBody=make();gate(cancelBody.jobId);await coachJobs(request(cancelBody));await coachJobs(request({id:cancelBody.jobId,action:'cancel'},'PATCH'));assert.equal((await until(cancelBody.jobId,'cancelled')).status,'cancelled');assert.ok(__calls.at(-1).signal.aborted);
+ const denied=make();denied.modelId='forbidden';await assert.rejects(()=>coachJobs(request(denied)),e=>e.status===403);
+ await assert.rejects(()=>coachJobs(request(make(),'POST','a',undefined,'https://evil.example')),e=>e.status===403);
+ const restartId=crypto.randomUUID();db.prepare("INSERT INTO coach_jobs(id,user_id,session_id,branch_hash,status,created_at,updated_at) VALUES(?,'a','training',?,'running',?,?)").run(restartId,'b'.repeat(64),new Date().toISOString(),new Date().toISOString());
+ initCoachJobs();assert.equal((await until(restartId,'error')).error,'服务重启中断了生成，请重试。');
+ console.log('PASS: client disconnect leaves generation running, idempotent creation, no duplicate calls, account isolation, explicit stop, durable results, save-before-ack, branch-safe recovery and restart diagnostics');
+}finally{await rm(dir,{recursive:true,force:true});db.close();}

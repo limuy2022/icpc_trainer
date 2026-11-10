@@ -15,6 +15,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function call(path,{body,method=body?'POST':'GET',cookie='',origin=base}={}){const r=await fetch(base+path,{method,headers:{'Content-Type':'application/json',Cookie:cookie,Origin:origin},body:body?JSON.stringify(body):undefined});return {status:r.status,data:r.headers.get('content-type')?.includes('json')?await r.json():await r.arrayBuffer(),cookie:r.headers.get('set-cookie')?.split(';')[0]};}
 try{
  for(let i=0;i<40;i++){try{if((await call('/api/health')).status===200)break;}catch{}await sleep(100);}
+ assert.equal((await call('/api/coach-jobs')).status,401);
  assert.equal((await call('/api/profile')).status,401);assert.equal((await call('/api/stats')).status,401);assert.equal((await call('/api/problems')).status,401);assert.equal((await call('/api/admin/users')).status,401);
  assert.equal((await call('/api/auth',{body:{username:'admin',password:'wrong'}})).status,401);
  let login=await call('/api/auth',{body:{username:'admin',password:initial}});assert.equal(login.status,200);let admin=login.cookie;assert.equal(login.data.user.password_hash,undefined);
@@ -53,6 +54,7 @@ try{
  const second=await call('/api/register',{body:{username:'public-two',password:'123456'}});assert.equal(second.status,201);const publicTwo=second.cookie;
  let ownConfig=(await call('/api/config',{cookie:publicOne})).data;assert.equal(ownConfig.configured,false);assert.deepEqual(ownConfig.models,[]);
  assert.equal((await call('/api/model-preferences',{cookie:publicOne,method:'PATCH',body:{modelId:siteId}})).status,403);
+ assert.equal((await call('/api/coach-jobs',{cookie:publicOne,body:{jobId:crypto.randomUUID(),sessionId:'test',branchHash:'a'.repeat(64),modelId:siteId}})).status,403);
  for(const endpoint of ['/api/coach','/api/translate'])for(const modelId of [siteId,undefined])assert.equal((await call(endpoint,{cookie:publicOne,body:{modelId}})).status,403);
  assert.equal((await call('/api/admin/models',{cookie:publicOne})).status,403);
  assert.equal((await call('/api/admin/users',{cookie:publicOne,method:'PATCH',body:{id:publicId,site_model_access:true}})).status,403);

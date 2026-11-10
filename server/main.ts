@@ -1,3 +1,4 @@
+import {coachJobs,initCoachJobs} from "./coach-jobs";
 import { modelPreferences, saveModelPreferences } from "./model-preferences";
 import { profile } from "./profile";
 import { statistics } from "./statistics";
@@ -28,6 +29,7 @@ import { statement } from "./statements";
 import { POST as coach } from "./coach";
 import { translate } from "./translate";
 initModels();
+initCoachJobs();
 const root = resolve("public");
 const mime: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -125,6 +127,9 @@ const server = createServer(async (req, res) => {
           if (req.method !== "POST") fail(405, "不支持的操作");
           throttle("translate:" + user.id, 30, 3600000);
           response = await translate(request);
+          break;
+        case "/api/coach-jobs":
+          response=await coachJobs(request);
           break;
         case "/api/coach":
           if (req.method !== "POST") fail(405, "不支持的操作");

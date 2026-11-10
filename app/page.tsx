@@ -10,7 +10,8 @@ import { readChatResponse } from "@/lib/chat-response";
 import { trainingStats } from "@/lib/training-stats";
 import { splitStatement } from "@/lib/statement-header";
 import {translationSource} from "@/lib/translation-source";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import RecoveredVersions from "@/components/recovered-versions";
 import Text from "@/components/markdown-text";
 import DifficultyBadge, { DifficultyGuide } from "@/components/difficulty-badge";
 import ThemeSwitch from "@/components/theme-switch";
@@ -81,6 +82,8 @@ const outcomes = {
 };
 const fmt = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+const renderMarkdown=(text:string)=><Text text={text}/>;
+const renderPlain=(text:string)=>text;
 export default function Home() {
   useLocale();
   return (
@@ -175,12 +178,14 @@ function Workspace({
     sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
   const session = sessions.find((s) => s.id === current);
+  const statementParts=useMemo(()=>splitStatement(session?.statement||"",session?.statementMetadata),[session?.statement,session?.statementMetadata]);
+  const sourceText=useMemo(()=>translationSource(session?.statement||""),[session?.statement]);
   const translation =
-    session && translations[session.id]?.original === translationSource(session.statement)
+    session && translations[session.id]?.original === sourceText
       ? translations[session.id]
       : undefined;
-  const completed = sessions.filter((s) => s.outcome === "independent" || s.outcome === "assisted");
-  const summary = trainingStats(sessions);
+  const completed = useMemo(()=>sessions.filter((s) => s.outcome === "independent" || s.outcome === "assisted"),[sessions]);
+  const summary = useMemo(()=>trainingStats(sessions),[sessions]);
   const elapsed = session
     ? session.elapsed +
       (session.startedAt
@@ -1368,8 +1373,8 @@ function Workspace({
                           )}
                           <ProblemStatement
                             text={session.statement}
-                            metadata={splitStatement(session.statement, session.statementMetadata).metadata}
-                            render={(body) => session.statementFormat === "markdown" ? <Text text={body} /> : body}
+                            metadata={statementParts.metadata}
+                            render={session.statementFormat === "markdown" ? renderMarkdown : renderPlain}
                           />
                         </section>
                       )}
@@ -1385,7 +1390,7 @@ function Workspace({
                                 <button type="button" className="text-button" disabled={translating===session.id} onClick={()=>void translateStatement(true)}>{ui(translating===session.id?"正在重新翻译…":"用当前模型重新翻译")}</button>
                               </div>
                               {translationErrors[session.id]&&<div className="form-error" role="alert">{ui(translationErrors[session.id])}</div>}
-                              <ProblemStatement metadata={splitStatement(session.statement, session.statementMetadata).metadata} text={translation.text} render={(body) => <Text text={body} />} />
+                              <ProblemStatement metadata={statementParts.metadata} text={translation.text} render={renderMarkdown} />
                             </>
                           ) : (
                             <div className="translation-empty">
@@ -1450,33 +1455,7 @@ function Workspace({
                   <NotebookPen size={16} />
                   {ui("我的观察与草稿")}<span>{ui(syncState)}</span>
                 </div>
-                {Boolean(session.recoveredVersions?.length) && (
-                  <details className="recovered-versions">
-                    <summary>
-                      {ui("查看保留的历史版本（")}{session.recoveredVersions!.length} {ui("个）")}</summary>
-                    {session.recoveredVersions!.map((v, i) => (
-                      <details key={i}>
-                        <summary>
-                          {(
-                            {
-                              notes: ui("草稿"),
-                              statement: ui("题面"),
-                              takeaway: ui("复盘"),
-                              outcome: ui("训练结果"),
-                              messages: ui("对话历史"),
-                            } as Record<string, string>
-                          )[v.field] || v.field}{" "}
-                          · {new Date(v.savedAt).toLocaleString(currentLocale())}
-                        </summary>
-                        <pre>
-                          {typeof v.value === "string"
-                            ? v.value
-                            : JSON.stringify(v.value, null, 2)}
-                        </pre>
-                      </details>
-                    ))}
-                  </details>
-                )}
+                <RecoveredVersions versions={session.recoveredVersions}/>
                 <textarea
                   className="notes-editor"
                   aria-label={ui("观察草稿")}

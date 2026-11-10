@@ -1,14 +1,14 @@
 import {t as ui,useLocale} from "@/lib/locale";
 import { splitStatement, type StatementMetadata } from "@/lib/statement-header";
-import type { ReactNode } from "react";
+import {memo,useMemo,type ReactNode} from "react";
 
-export default function ProblemStatement({ text, metadata, render }: {
+export default memo(function ProblemStatement({ text, metadata, render }: {
   text: string;
   metadata?: StatementMetadata;
   render: (body: string) => ReactNode;
 }) {
   useLocale();
-  const result = splitStatement(text, metadata);
+  const result = useMemo(()=>splitStatement(text, metadata),[text,metadata]);
   const header = result.metadata;
   return <>
     {header && (header.title || header.details.length > 0) && <header className="problem-metadata">
@@ -19,4 +19,4 @@ export default function ProblemStatement({ text, metadata, render }: {
     </header>}
     {render(result.text)}
   </>;
-}
+});

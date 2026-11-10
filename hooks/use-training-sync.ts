@@ -1,7 +1,8 @@
 "use client";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import type { Session } from "@/lib/types";
 import { mergeTraining, snapshotTraining } from "@/lib/training-merge";
+import {createCheckpointScheduler} from "@/lib/checkpoint-scheduler";
 type Checkpoint = {
   sessions: Session[];
   base?: Session[];
@@ -38,6 +39,7 @@ export function useTrainingSync(userId: string) {
       );
     } catch {}
   }, [key]);
+  const checkpoints=useMemo(()=>createCheckpointScheduler(checkpoint),[checkpoint]);
   const save = useCallback(async () => {
     const r = state.current;
     if (!r.ready) return;
@@ -161,22 +163,23 @@ export function useTrainingSync(userId: string) {
   }, [key, checkpoint]);
   useEffect(() => {
     if (!loaded) return;
-    checkpoint();
+    checkpoints.schedule();
     const timer = setTimeout(() => void save(), 800);
     return () => clearTimeout(timer);
-  }, [sessions, loaded, checkpoint, save]);
+  }, [sessions, loaded, checkpoints, save]);
   useEffect(() => {
     const timer = setInterval(() => void save(), 10000);
     const flush = () => {
-      if (document.visibilityState === "hidden") void save();
+      if (document.visibilityState === "hidden") {checkpoints.flush();void save();}
     };
-    window.addEventListener("pagehide", checkpoint);
+    window.addEventListener("pagehide", checkpoints.flush);
     document.addEventListener("visibilitychange", flush);
     return () => {
       clearInterval(timer);
-      window.removeEventListener("pagehide", checkpoint);
+      checkpoints.flush();
+      window.removeEventListener("pagehide", checkpoints.flush);
       document.removeEventListener("visibilitychange", flush);
     };
-  }, [checkpoint, save]);
+  }, [checkpoints, save]);
   return { sessions, setSessions, loaded, syncState, save };
 }

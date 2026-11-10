@@ -1,6 +1,6 @@
 "use client";
 import {t as ui,useLocale} from "@/lib/locale";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -43,7 +43,7 @@ function CodeBlock({children,node,allowVisuals=false}: {children?:ReactNode;node
     try {await navigator.clipboard.writeText(ref.current?.textContent||"");setState("copied");}catch{setState("failed");}
   }}>{state==="copied"?<Check size={14}/>:<Copy size={14}/>}<span aria-live="polite">{state==="copied"?ui("已复制"):state==="failed"?ui("复制失败，请手动选择"):ui("复制")}</span></button></figcaption><pre ref={ref}>{children}</pre></figure>;
 }
-export default function MarkdownText({text,allowVisuals=false}:{text:string;allowVisuals?:boolean}) {
+export default memo(function MarkdownText({text,allowVisuals=false}:{text:string;allowVisuals?:boolean}) {
   useLocale();
   const Pre = useMemo(() => (props: {children?:ReactNode;node?:Element}) => <CodeBlock {...props} allowVisuals={allowVisuals}/>, [allowVisuals]);
   const math = (part: string) => part.replace(/\\\[/g,"\n$$\n").replace(/\\\]/g,"\n$$\n").replace(/\\\(/g,"$").replace(/\\\)/g,"$");
@@ -59,4 +59,4 @@ export default function MarkdownText({text,allowVisuals=false}:{text:string;allo
     img:({src,alt})=><img src={src} alt={alt||ui("题目插图")} loading="lazy" referrerPolicy="no-referrer"/>,
     a:({children,href})=><a href={href} target="_blank" rel="noreferrer">{children}</a>,
   }}>{normalized}</ReactMarkdown></div>;
-}
+});

@@ -1,6 +1,6 @@
-export type WorkspaceView="bank"|"training"|"history"|"statistics"|"admin";
+export type WorkspaceView="assistant"|"bank"|"training"|"history"|"statistics"|"admin";
 export type WorkspaceRoute={view:WorkspaceView;current:string|null};
-const views:WorkspaceView[]=["bank","training","history","statistics","admin"];
+const views:WorkspaceView[]=["assistant","bank","training","history","statistics","admin"];
 export function normalizeRoute(value:unknown,admin:boolean):WorkspaceRoute {
   const route=value as Partial<WorkspaceRoute>|null;
   const view=route && views.includes(route.view as WorkspaceView) && (route.view!=="admin"||admin)?route.view!:"bank";
@@ -8,7 +8,7 @@ export function normalizeRoute(value:unknown,admin:boolean):WorkspaceRoute {
   return {view,current};
 }
 export function parseWorkspaceHash(hash:string,admin:boolean,previous?:WorkspaceRoute):WorkspaceRoute {
-  const match=hash.match(/^#\/(bank|training|history|statistics|admin)(?:\/([^/?#]+))?$/);
+  const match=hash.match(/^#\/(assistant|bank|training|history|statistics|admin)(?:\/([^/?#]+))?$/);
   if(!match || (match[1]!=="training"&&match[2]))return {view:"bank",current:previous?.current||null};
   let current=previous?.current||null;
   if(match[1]==="training"&&match[2]){

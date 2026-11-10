@@ -229,3 +229,9 @@ In account management, administrators can grant or revoke “Allow site keys” 
 `/api/coach-jobs` creates a job with its own cancellation signal, independent of the browser connection. SQLite stores status, progress and completed results. Visibility/network recovery or refresh resumes retrieval without another model call. Job IDs make submission idempotent; each account has at most one running job.
 
 Completed replies carry a generation ID and are applied once. Changed conversation branches keep replies in recovered versions; unsynced trailing user turns can be recovered from job context. A result is acknowledged and its temporary text cleared only after the server confirms it exists in saved training history. Restarting the server marks unfinished jobs as interrupted, retaining partial output without automatically retrying the model.
+
+### Free-form algorithm tutor
+
+The sidebar Algorithm tutor offers a persistent conversation without a CF statement. It does not count toward solved problems or solve-time trends. Explanations adapt to the question by default, with manual examples-first, guided-question and structured options. Prior knowledge, goals and reference topic are saved per account. Existing math, syntax highlighting, interactive diagrams, message editing/recall, background recovery and site/personal key permissions apply.
+
+The initial OI Wiki catalog has eight fixed topics: DSU, binary search, greedy, basic DP, segment trees, shortest paths, prefix sums/differences and KMP. Match recent questions or select a topic; list a source only after retrieving its body, cached in memory for one day. This is not full-site search. Practice suggestions use CF topic tags and the account rating to select up to three candidates. Without statements, the tutor must not claim to have verified their solutions or suitability. External reference material is treated as data and retains its own licensing.

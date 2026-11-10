@@ -11,6 +11,8 @@ import { trainingStats } from "@/lib/training-stats";
 import { splitStatement } from "@/lib/statement-header";
 import {translationSource} from "@/lib/translation-source";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {assistantId,newAssistantSession} from "@/lib/assistant";
+import AssistantPreferences from "@/components/assistant-preferences";
 import ReasoningDetails from "@/components/reasoning-details";
 import RecoveredVersions from "@/components/recovered-versions";
 import Text from "@/components/markdown-text";
@@ -180,7 +182,9 @@ function Workspace({
     requestId = useRef(0),
     sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
-  const session = sessions.find((s) => s.id === current);
+  const isAssistant=view==="assistant";
+  const session = sessions.find((s) => s.id === (isAssistant?assistantId:current));
+  useEffect(()=>{if(loaded&&isAssistant)setSessions(prev=>prev.some(s=>s.id===assistantId)?prev:[newAssistantSession(),...prev]);},[loaded,isAssistant]);
   const statementParts=useMemo(()=>splitStatement(session?.statement||"",session?.statementMetadata),[session?.statement,session?.statementMetadata]);
   const sourceText=useMemo(()=>translationSource(session?.statement||""),[session?.statement]);
   const translation =
@@ -268,7 +272,7 @@ function Workspace({
     };
   }, [min, max, tags, query, sort, page, exclusions]);
   useEffect(() => {
-    if(view!=="training"||!loaded)return;
+    if((view!=="training"&&view!=="assistant")||!loaded)return;
     const container=chatEnd.current?.parentElement;
     if(container)container.scrollTop=container.scrollHeight;
   },[view,session?.id,loaded]);
@@ -550,7 +554,7 @@ function Workspace({
       setSettings(true);
       return;
     }
-    if (session.statement.trim().length < 60) {
+    if (!isAssistant&&session.statement.trim().length < 60) {
       setEditor(true);
       setChatError("请先补充题面、约束和样例，再开始陪练。");
       return;
@@ -563,6 +567,7 @@ function Workspace({
     )
       return;
     const prompts: Record<string, string> = {
+      practice:ui("请根据当前讨论的知识点和我的等级分推荐几道练习，并说明筛选依据；没有题面时不要编造具体解法。"),
       visualize: ui("请用一个可交互、能逐步演示的小图解释我们当前讨论的观察或我的卡点，先不要揭晓后续解法。"),
       hint1: ui("我卡住了，请给一条观察方向，先不要揭晓关键解法。"),
       hint2: ui("请给第二层提示，帮我找到一个关键性质。"),
@@ -609,7 +614,7 @@ function Workspace({
       const hash=await branchHash(conversationBranch({messages,messagesVersion}));
       const response=await fetch("/api/coach-jobs",{
         method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({jobId,sessionId:id,branchHash:hash,sessionSnapshot:{...session,messages:messages.map(({role,content,generationId})=>({role,content,...(generationId?{generationId}:{})})),messagesVersion,startedAt:null,elapsed,hints:mode==="solution"?4:mode.startsWith("hint")?Math.max(session.hints,Number(mode.slice(-1))):session.hints,recoveredVersions:undefined},statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,modelId,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))}),
+        body:JSON.stringify({jobId,sessionId:id,branchHash:hash,assistant:isAssistant,assistantProfile:session.assistantProfile,sessionSnapshot:{...session,messages:messages.map(({role,content,generationId})=>({role,content,...(generationId?{generationId}:{})})),messagesVersion,startedAt:null,elapsed,hints:mode==="solution"?4:mode.startsWith("hint")?Math.max(session.hints,Number(mode.slice(-1))):session.hints,recoveredVersions:undefined},statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,modelId,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))}),
       });
       const data=await response.json() as {error?:string};if(!response.ok)throw Error(data.error||"回复生成失败，请重试");
     }catch(error){setChatError((error as Error).message);if(!edit&&!retry)setDraft(content);}
@@ -682,6 +687,7 @@ function Workspace({
           {[
             { id: "bank", icon: BookOpen, label: ui("发现题目") },
             { id: "training", icon: MessageCircle, label: ui("思维陪练") },
+            { id:"assistant",icon:Sparkles,label:ui("算法助教") },
             { id: "history", icon: History, label: ui("训练记录") },
             { id: "statistics", icon: BarChart3, label: ui("训练统计") },
           ].map(({ id, icon: Icon, label }) => (
@@ -693,7 +699,7 @@ function Workspace({
               <Icon size={19} />
               {ui(label)}
               {id === "training" &&
-                sessions.some((s) => s.outcome === "training") && (
+                sessions.some((s) => s.kind!=="assistant"&&s.outcome === "training") && (
                   <span className="nav-dot" />
                 )}
             </button>
@@ -758,7 +764,7 @@ function Workspace({
                 ? ui("发现题目")
                 : view === "training"
                   ? ui("思维陪练")
-                  : view === "statistics"
+                  : view === "assistant" ? ui("算法助教") : view === "statistics"
                     ? ui("训练统计")
                   : view === "admin"
                     ? ui("管理后台")
@@ -1242,7 +1248,7 @@ function Workspace({
             </div>
           </main>
         )}
-        {view === "training" && session && (
+        {(view === "training"||view === "assistant") && session && (
           <main className="training-content">
             <div className="training-heading">
               <div>
@@ -1253,10 +1259,10 @@ function Workspace({
                   <ChevronLeft size={15} />
                   {ui("题库")}</button>
                 <h1>
-                  <span>{session.problem.id}</span>
-                  {session.problem.name}
+                  {!isAssistant&&<span>{session.problem.id}</span>}
+                  {isAssistant?ui("算法助教"):session.problem.name}
                 </h1>
-                <div className="training-meta">
+                {!isAssistant&&<div className="training-meta">
                   <span className="rating">
                     <span />
                     {session.problem.rating}
@@ -1270,9 +1276,9 @@ function Workspace({
                     {ui("打开 CF 原题")}<ExternalLink size={13} />
                   </a>
                   <span>{ui(outcomes[session.outcome])}</span>
-                </div>
+                </div>}
               </div>
-              <div className="training-actions">
+              {!isAssistant&&<div className="training-actions">
                 <button
                   className="timer"
                   onClick={() =>
@@ -1294,11 +1300,11 @@ function Workspace({
                 >
                   <Flag size={15} />
                   {ui("结束并记录")}</button>
-              </div>
+              </div>}
             </div>
-            <nav className="mobile-training-jump" aria-label={ui("训练区域")}><a href="#problem-reader" onClick={e=>{e.preventDefault();document.getElementById("problem-reader")?.scrollIntoView({block:"start"});}}>{ui("阅读题目")}</a><a href="#ai-coach" onClick={e=>{e.preventDefault();document.getElementById("ai-coach")?.scrollIntoView({block:"start"});}}>{ui("与 AI 讨论")}</a></nav>
+            <nav className="mobile-training-jump" aria-label={ui("训练区域")}><a href="#problem-reader" onClick={e=>{e.preventDefault();document.getElementById("problem-reader")?.scrollIntoView({block:"start"});}}>{ui(isAssistant?"学习偏好":"阅读题目")}</a><a href="#ai-coach" onClick={e=>{e.preventDefault();document.getElementById("ai-coach")?.scrollIntoView({block:"start"});}}>{ui("与 AI 讨论")}</a></nav>
             <div className="training-grid">
-              <section id="problem-reader" className="statement-panel">
+              {isAssistant?<AssistantPreferences session={session} onChange={change=>patch(session.id,change)}/>:<section id="problem-reader" className="statement-panel">
                 <div className="panel-heading">
                   <h2>
                     <BookOpen size={17} />
@@ -1498,14 +1504,14 @@ function Workspace({
                   value={session.notes}
                   onChange={(e) => patch(session.id, { notes: e.target.value })}
                 />
-              </section>
+              </section>}
               <section id="ai-coach" className="coach-panel">
                 <div className="panel-heading">
                   <h2>
                     <span className="coach-avatar">
                       <Sparkles size={16} />
                     </span>
-                    {ui("AI 思维陪练")}</h2>
+                    {ui(isAssistant?"算法助教":"AI 思维陪练")}</h2>
                   <span className="coach-state">
                     {aiConfigured ? (
                       <>
@@ -1520,20 +1526,20 @@ function Workspace({
                 </div>
                 <div className="coach-principle">
                   <Lightbulb size={15} />
-                  {ui("每次只推进一小步，先把你的想法说出来。")}</div>
-                <div className="editorial-reference">
+                  {ui(isAssistant?"按问题选择讲法，也可以请求交互图示或练习推荐。":"每次只推进一小步，先把你的想法说出来。")}</div>
+                {!isAssistant&&<div className="editorial-reference">
                   {session.editorialReference?.status === "ready" ? <span>{ui("最近回复已参考官方题解")}{session.editorialReference.stale ? ui("（旧缓存）") : ""} · <a href={session.editorialReference.url} target="_blank" rel="noreferrer">{ui("来源链接（含剧透）")}</a></span> : <span>{session.editorialReference?.status === "unavailable" ? ui("官方题解暂不可用；独立推导尚未核验") : ui("回复前会获取当前题目的官方题解，仅供教练核验")}</span>}
                   <label><input type="checkbox" checked={allowUnverified} disabled={busy} onChange={e=>setAllowUnverified(e.target.checked)}/>{ui("允许无题解推导")}</label>
-                </div>
+                </div>}
                 <div className="chat-messages" aria-live="polite">
                   {!session.messages.length && (
                     <div className="coach-intro">
                       <span className="intro-symbol">
                         <MessageCircle size={24} />
                       </span>
-                      <h3>{ui("你读完后的第一反应是什么？")}</h3>
+                      <h3>{ui(isAssistant?"今天想弄懂什么？":"你读完后的第一反应是什么？")}</h3>
                       <p>
-                        {ui("一个猜想、一个暴力，甚至一句「我卡在这里」，都可以作为起点。")}</p>
+                        {ui(isAssistant?"可以问概念区别、证明缺口、复杂度，或贴一段不理解的代码。":"一个猜想、一个暴力，甚至一句「我卡在这里」，都可以作为起点。")}</p>
                       <div>
                         <span>{ui("举例观察")}</span>
                         <span>{ui("检验猜想")}</span>
@@ -1556,6 +1562,7 @@ function Workspace({
                           <div><button className="secondary" disabled={busy} onClick={()=>setMessageEdit(null)}>{ui("取消")}</button><button className="primary" disabled={busy || !messageEdit.content.trim() || messageEdit.content.trim()===messageEdit.original} onClick={()=>void send("discuss",messageEdit)}>{ui("保存并重新生成")}</button></div>
                         </div>
                       ) : <Text text={m.content} allowVisuals={m.role === "assistant"} />}
+                      {m.sources?.length&&<div className="assistant-sources">{m.sources.map(source=><a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title}<ExternalLink size={12}/></a>)}</div>}
                       {m.role === "user" && !(messageEdit?.sessionId === session.id && messageEdit.index === i) && <div className="message-actions">
                         <button disabled={busy} aria-label={ui("编辑第 {0} 条消息",[i+1])} onClick={()=>setMessageEdit({sessionId:session.id,index:i,original:m.content,content:m.content})}><Pencil size={13}/>{ui("编辑")}</button>
                         <button disabled={busy} aria-label={ui("撤回第 {0} 条消息",[i+1])} onClick={()=>recallMessage(i)}><Undo2 size={13}/>{ui("撤回")}</button>
@@ -1577,8 +1584,9 @@ function Workspace({
                 {chatError && <div className="chat-error" role="alert">{ui(chatError)}{chatRequestId&&<small>{ui("请求编号")} · {chatRequestId}</small>}{session.messages.at(-1)?.role === "user" && <button disabled={busy} onClick={()=>void send(retryMode,undefined,true)}>{ui("重试回复")}</button>}</div>}
                 <div className="coach-controls">
                   <div className="hint-buttons">
+                    {isAssistant&&<button disabled={busy} onClick={()=>send("practice")}>{ui("推荐练习")}</button>}
                     <button disabled={busy} onClick={() => send("visualize")}><Sparkles size={13}/>{ui("画图讲解")}</button>
-                    {[1, 2, 3].map((level) => (
+                    {(isAssistant?[]:[1, 2, 3]).map((level) => (
                       <button
                         key={level}
                         disabled={busy}
@@ -1603,8 +1611,8 @@ function Workspace({
                     }}
                   >
                     <textarea
-                      aria-label={ui("你的解题思路")}
-                      placeholder={ui("写下你的想法，点击发送…")}
+                      aria-label={ui(isAssistant?"你的算法问题":"你的解题思路")}
+                      placeholder={ui(isAssistant?"输入算法问题、证明或代码…":"写下你的想法，点击发送…")}
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => {
@@ -1620,7 +1628,7 @@ function Workspace({
                       }}
                     />
                     <div>
-                      <span>{ui("先尝试表达，再获得提示")}</span>
+                      <span>{ui(isAssistant?"根据需要讲解，也可以要求逐步提示":"先尝试表达，再获得提示")}</span>
                       <button
                         aria-label={ui("发送思路")}
                         className="send-button"
@@ -1642,9 +1650,9 @@ function Workspace({
                     >
                       <NotebookPen size={13} />
                       {ui("复盘这次思考")}</button>
-                    <button disabled={busy} onClick={() => send("solution")}>
+                    {!isAssistant&&<button disabled={busy} onClick={() => send("solution")}>
                       {ui("查看完整解法")}<ArrowUpRight size={12} />
-                    </button>
+                    </button>}
                   </div>
                 </div>
               </section>
@@ -1658,7 +1666,7 @@ function Workspace({
                 <div className="eyebrow">MY THINKING JOURNAL</div>
                 <h1>{ui("每一次卡住，都留下线索。")}</h1>
                 <p>
-                  {sessions.length} {ui("次训练 ·")}{sessions.filter(s => s.outcome === "training" || s.outcome === "review").length} {ui("道待继续 ·")}{sessions.filter(s => s.outcome === "independent" || s.outcome === "assisted").length} {ui("道已完成")}</p>
+                  {sessions.filter(s=>s.kind!=="assistant").length} {ui("次训练 ·")}{sessions.filter(s => s.kind!=="assistant"&&(s.outcome === "training" || s.outcome === "review")).length} {ui("道待继续 ·")}{sessions.filter(s => s.outcome === "independent" || s.outcome === "assisted").length} {ui("道已完成")}</p>
               </div>
               <button
                 className="secondary"
@@ -1679,7 +1687,7 @@ function Workspace({
             ) : (
               <div className="history-groups">
                 {[
-                  { title: ui("未完成"), subtitle: ui("接着上次的观察，继续向前一步。"), icon: Clock3, items: sessions.filter(s => s.outcome === "training" || s.outcome === "review"), empty: ui("目前没有未完成的训练，去挑一道新题吧。"), kind: "pending" },
+                  { title: ui("未完成"), subtitle: ui("接着上次的观察，继续向前一步。"), icon: Clock3, items: sessions.filter(s => s.kind!=="assistant"&&(s.outcome === "training" || s.outcome === "review")), empty: ui("目前没有未完成的训练，去挑一道新题吧。"), kind: "pending" },
                   { title: ui("已完成"), subtitle: ui("已经走通的题，和留下的思考。"), icon: CheckCircle2, items: sessions.filter(s => s.outcome === "independent" || s.outcome === "assisted"), empty: ui("完成训练并标记解出后，会收录在这里。"), kind: "finished" },
                 ].map(group => <section className={"history-group " + group.kind} key={group.kind}>
                   <div className="history-group-heading"><div><h2><group.icon size={18} />{group.title}<span>{group.items.length}</span></h2><p>{group.subtitle}</p></div></div>

@@ -1,5 +1,6 @@
 import type { Session } from "./types";
 export function trainingStats(sessions: Session[]) {
+  sessions=sessions.filter(s=>s.kind!=="assistant");
   const solved = sessions.filter(s => s.outcome === "independent" || s.outcome === "assisted");
   const ids = (items: Session[]) => new Set(items.map(s => s.problem.id)).size;
   return {

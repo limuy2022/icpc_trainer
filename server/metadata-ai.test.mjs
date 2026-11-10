@@ -38,6 +38,11 @@ try {
     const cancelled=await response.text();assert.equal(upstreamSignal.aborted,true);assert.ok(!cancelled.includes('"type":"done"'));
    }finally{AbortSignal.timeout=timeout;}
   }
+  if(name==='coach'){
+   globalThis.fetch=async(url,options)=>{sent=JSON.parse(options.body);return Response.json({choices:[{message:{content:'自由算法问题的回答。'},finish_reason:'stop'}]});};
+   const response=await mod.POST(new Request('http://localhost/api/coach',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assistant:true,messages:[{role:'user',content:'Explain a simple loop.'}],assistantProfile:{style:'auto',known:'basic loops',goal:'understand proofs'}})}));
+   assert.equal(response.status,200);const answer=await response.json();assert.deepEqual(answer.sources,[]);assert.ok(sent.messages[0].content.includes('不要要求用户先提供竞赛题'));assert.ok(sent.messages[0].content.includes('basic loops'));assert.ok(!sent.messages.some(m=>m.content.includes('OFFICIAL_REFERENCE_FIXTURE')));
+  }
   if(name==='translate'){const result=await response.json();assert.ok(result.text.includes('3\n1 2 3'));}
  }
  console.log('PASS: translation and coaching send body only; constraints, Input/Output sections and samples preserved');

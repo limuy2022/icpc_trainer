@@ -1,5 +1,5 @@
 import type { EditorialReference } from "./editorials";
-export type ChatReply={text:string;reasoning?:string;model?:string;editorial?:EditorialReference;requestId?:string};
+export type ChatReply={text:string;sources?:{title:string;url:string}[];reasoning?:string;model?:string;editorial?:EditorialReference;requestId?:string};
 class ChatReplyError extends Error {}
 export async function readChatResponse(response:Response,callbacks:{delta:(text:string)=>void;reasoning?:(text:string)=>void;status:(data:Partial<ChatReply>)=>void}):Promise<ChatReply> {
   const type=response.headers.get("content-type")||"";

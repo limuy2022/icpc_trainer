@@ -7,7 +7,7 @@ const dir=await mkdtemp(join(tmpdir(),'icpc-route-'));
 try {
  await build({entryPoints:['lib/workspace-route.ts'],bundle:true,platform:'node',format:'esm',outfile:join(dir,'route.mjs')});
  const {normalizeRoute,parseWorkspaceHash:parse,workspaceHash:hash}=await import(join(dir,'route.mjs'));
- for(const view of ['bank','training','history','statistics','admin']) {
+ for(const view of ['assistant','bank','training','history','statistics','admin']) {
   const route={view,current:'saved-session'};assert.deepEqual(parse(hash(route),true,route),route);
  }
  assert.deepEqual(parse('#/training/session%20with%2Fsymbols',false),{view:'training',current:'session with/symbols'});

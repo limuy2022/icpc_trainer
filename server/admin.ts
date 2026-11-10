@@ -13,7 +13,7 @@ export function adminStatus(request: Request) {
       records: (
         db
           .prepare(
-            "SELECT COALESCE(SUM(json_array_length(payload)),0) AS n FROM training_data",
+            "SELECT COUNT(*) AS n FROM training_data,json_each(training_data.payload) entry WHERE COALESCE(json_extract(entry.value,'$.kind'),'training')!='assistant'",
           )
           .get() as any
       ).n,

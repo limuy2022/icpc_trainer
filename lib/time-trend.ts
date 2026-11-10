@@ -7,6 +7,7 @@ export function trainingTrend(sessions:Session[]) {
   let excluded=0;
   const points:SolvePoint[]=[];
   for(const s of sessions) {
+    if(s.kind==="assistant")continue;
     if(s.outcome!=="independent"&&s.outcome!=="assisted")continue;
     const date=s.completedAt||s.createdAt;
     if(!Number.isFinite(s.elapsed)||s.elapsed<=0||!Number.isFinite(s.problem?.rating)||!Number.isFinite(Date.parse(date))) {excluded++;continue;}

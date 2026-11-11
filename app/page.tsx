@@ -32,6 +32,7 @@ import AccountGate, {
 import AdminPanel from "@/components/admin-panel";
 import { useTrainingSync } from "@/hooks/use-training-sync";
 import { useWorkspaceRoute } from "@/hooks/use-workspace-route";
+import { sessionView } from "@/lib/workspace-route";
 import ProblemStatement from "@/components/problem-statement";
 import {
   Pencil,
@@ -196,8 +197,11 @@ function Workspace({
   sessionsRef.current = sessions;
   const isLesson=view==="lesson";
   const isAssistant=view==="assistant"||isLesson;
-  const assistantChats=sessions.filter(s=>s.kind==="assistant"&&!s.lesson);
-  const session=view==="assistant"?(assistantChats.find(s=>s.id===current)||assistantChats.find(s=>!s.assistantArchived)):sessions.find(s=>s.id===current&&(!isLesson||Boolean(lessonDefinition(s.lesson))));
+  const assistantChats=sessions.filter(s=>sessionView(s)==="assistant");
+  const selectedSession=sessions.find(s=>s.id===current);
+  const session=view==="assistant"
+    ? (selectedSession&&sessionView(selectedSession)==="assistant"?selectedSession:assistantChats.find(s=>!s.assistantArchived))
+    : selectedSession&&sessionView(selectedSession)===view&&(!isLesson||lessonDefinition(selectedSession.lesson))?selectedSession:undefined;
   useEffect(()=>{
     if(!loaded||view!=="assistant")return;
     if(session){if(current!==session.id)openRoute("assistant",session.id,true);return;}
@@ -209,7 +213,8 @@ function Workspace({
     session && translations[session.id]?.original === sourceText
       ? translations[session.id]
       : undefined;
-  const completed = useMemo(()=>sessions.filter((s) => s.outcome === "independent" || s.outcome === "assisted"),[sessions]);
+  const trainingSessions = useMemo(()=>sessions.filter(s=>sessionView(s)==="training"),[sessions]);
+  const completed = useMemo(()=>trainingSessions.filter(s=>s.outcome==="independent"||s.outcome==="assisted"),[trainingSessions]);
   const summary = useMemo(()=>trainingStats(sessions),[sessions]);
   const elapsed = session
     ? session.elapsed +
@@ -424,17 +429,23 @@ function Workspace({
   }
   function navigate(next: typeof view) {
     if (next !== "training") pauseAll();
-    openRoute(next);
+    openRoute(next,next==="training"&&selectedSession&&sessionView(selectedSession)!=="training"?null:undefined);
   }
   useEffect(()=>{
     requestId.current++;
     setMobileMenu(false);
     setMessageEdit(null);
     setStatementError("");
+    setStatementBusy(false);
     if(view!=="training"){pauseAll();return;}
     if(!loaded || !current)return;
     const restored=sessionsRef.current.find(s=>s.id===current);
     if(!restored){openRoute("training",null,true);setToast("这条训练记录不存在或不属于当前账号，请重新选择。");return;}
+    const restoredView=sessionView(restored);
+    if(restoredView!=="training"){
+      openRoute(restoredView,restored.id,true);
+      return;
+    }
     const timestamp=Date.now();
     setSessions(previous=>previous.map(s=>s.id===current
       ? s.outcome==="training"&&!s.startedAt?{...s,startedAt:timestamp}:s
@@ -485,7 +496,7 @@ function Workspace({
     }
     pauseAll();
     const previous = sessions.find(
-      (s) => s.problem.id === p.id && s.outcome === "training",
+      (s) => sessionView(s)==="training" && s.problem.id === p.id && s.outcome === "training",
     );
     let id = previous?.id;
     if (previous) {
@@ -515,6 +526,9 @@ function Workspace({
     setEditor(false);
   }
   function resume(s: Session) {
+    const view=sessionView(s);
+    if(view==="assistant"){openAssistantConversation(s.id);return;}
+    if(view==="lesson"){startLesson(s.lesson!.topicId);return;}
     pauseAll();
     setMessageEdit(null);
     openRoute("training",s.id);
@@ -789,7 +803,7 @@ function Workspace({
               <Icon size={19} />
               {ui(label)}
               {id === "training" &&
-                sessions.some((s) => s.kind!=="assistant"&&s.outcome === "training") && (
+                trainingSessions.some(s=>s.outcome==="training") && (
                   <span className="nav-dot" />
                 )}
             </button>
@@ -1324,7 +1338,7 @@ function Workspace({
               <button className="primary" onClick={() => navigate("bank")}>
                 {ui("去发现题目")}<ArrowRight size={16} />
               </button>
-              {sessions
+              {trainingSessions
                 .filter((s) => s.outcome === "training")
                 .map((s) => (
                   <button
@@ -1768,7 +1782,7 @@ function Workspace({
                 <div className="eyebrow">MY THINKING JOURNAL</div>
                 <h1>{ui("每一次卡住，都留下线索。")}</h1>
                 <p>
-                  {sessions.filter(s=>s.kind!=="assistant").length} {ui("次训练 ·")}{sessions.filter(s => s.kind!=="assistant"&&(s.outcome === "training" || s.outcome === "review")).length} {ui("道待继续 ·")}{sessions.filter(s => s.outcome === "independent" || s.outcome === "assisted").length} {ui("道已完成")}</p>
+                  {trainingSessions.length} {ui("次训练 ·")}{trainingSessions.filter(s=>s.outcome==="training"||s.outcome==="review").length} {ui("道待继续 ·")}{completed.length} {ui("道已完成")}</p>
               </div>
               <button
                 className="secondary"
@@ -1789,8 +1803,8 @@ function Workspace({
             ) : (
               <div className="history-groups">
                 {[
-                  { title: ui("未完成"), subtitle: ui("接着上次的观察，继续向前一步。"), icon: Clock3, items: sessions.filter(s => s.kind!=="assistant"&&(s.outcome === "training" || s.outcome === "review")), empty: ui("目前没有未完成的训练，去挑一道新题吧。"), kind: "pending" },
-                  { title: ui("已完成"), subtitle: ui("已经走通的题，和留下的思考。"), icon: CheckCircle2, items: sessions.filter(s => s.outcome === "independent" || s.outcome === "assisted"), empty: ui("完成训练并标记解出后，会收录在这里。"), kind: "finished" },
+                  { title: ui("未完成"), subtitle: ui("接着上次的观察，继续向前一步。"), icon: Clock3, items: trainingSessions.filter(s=>s.outcome==="training"||s.outcome==="review"), empty: ui("目前没有未完成的训练，去挑一道新题吧。"), kind: "pending" },
+                  { title: ui("已完成"), subtitle: ui("已经走通的题，和留下的思考。"), icon: CheckCircle2, items: completed, empty: ui("完成训练并标记解出后，会收录在这里。"), kind: "finished" },
                 ].map(group => <section className={"history-group " + group.kind} key={group.kind}>
                   <div className="history-group-heading"><div><h2><group.icon size={18} />{group.title}<span>{group.items.length}</span></h2><p>{group.subtitle}</p></div></div>
                   {group.items.length ? <div className="history-list">

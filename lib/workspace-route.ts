@@ -1,5 +1,11 @@
+import type {Session} from "./types";
+
 export type WorkspaceView="lessons"|"lesson"|"assistant"|"bank"|"training"|"history"|"statistics"|"admin";
 export type WorkspaceRoute={view:WorkspaceView;current:string|null};
+export function sessionView(session:Pick<Session,"kind"|"lesson">):"training"|"assistant"|"lesson"{
+  if(session.lesson)return "lesson";
+  return session.kind==="assistant"?"assistant":"training";
+}
 const views:WorkspaceView[]=["lessons","lesson","assistant","bank","training","history","statistics","admin"];
 export function normalizeRoute(value:unknown,admin:boolean):WorkspaceRoute {
   const route=value as Partial<WorkspaceRoute>|null;

@@ -11,6 +11,11 @@ try {
  let result=await k('并查集','auto',true,1600);assert.equal(result.sources.length,2);assert.equal(result.sources[0].url,'https://oi-wiki.org/ds/dsu/');assert.ok(result.context.includes('Verified knowledge fixture'));assert.equal(__query.searchParams.get('min'),'1500');assert.equal(__query.searchParams.get('max'),'1900');
  await k('推荐练习\0并查集','auto',false,1600);assert.equal(calls,1);
  result=await k('unmatched','https://evil.example',false,null);assert.equal(result.sources.length,0);assert.equal(calls,1);
+ let requested;
+ globalThis.fetch=async(url)=>{requested=url;return new Response('Verified chapter reference.');};
+ result=await k('并查集','wiki-basic_index',false,null);
+ assert.ok(requested.endsWith('/docs/basic/index.md'));
+ assert.equal(result.sources[0].url,'https://oi-wiki.org/basic/');
  globalThis.fetch=async()=>new Response('',{status:404});result=await k('二分','auto',false,null);assert.deepEqual(result.sources,[]);assert.ok(result.context.includes('未取得'));
  console.log('PASS: fixed-source retrieval, actual-source attribution, cached OI Wiki content, conversation topic fallback, rating-based CF candidates, unavailable-source honesty and arbitrary URL rejection');
 }finally{await rm(dir,{recursive:true,force:true});}

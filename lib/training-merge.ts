@@ -107,7 +107,13 @@ export function mergeTraining(
       }
       if (rv === undefined) continue;
       if(key==="lesson"&&lv?.topicId===rv?.topicId&&Array.isArray(lv?.completed)&&Array.isArray(rv?.completed)){
-        (result as any).lesson={...rv,...lv,completed:[...new Set([...rv.completed,...lv.completed])]};
+        (result as any).lesson={
+          ...rv,...lv,
+          stage:lv.stage===(bv?.stage??"prerequisites")?rv.stage:lv.stage,
+          mastery:lv.mastery===(bv?.mastery??"learning")?rv.mastery:lv.mastery,
+          mastered:lv.mastered===bv?.mastered?rv.mastered:lv.mastered,
+          completed:[...new Set([...rv.completed,...lv.completed])],
+        };
         continue;
       }
       if (key === "notes" && typeof lv === "string" && typeof rv === "string") {

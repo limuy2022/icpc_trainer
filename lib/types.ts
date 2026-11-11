@@ -14,7 +14,7 @@ export type Session = {
   assistantTitle?:string;
   assistantArchived?:boolean;
   useLearningMemory?:boolean;
-  lesson?:{topicId:string;stage:string;completed:string[];mastery:"learning"|"explain"|"implement"};
+  lesson?:{topicId:string;stage:string;completed:string[];mastery:"learning"|"explain"|"implement";mastered?:boolean};
   assistantProfile?:{style:string;known:string;goal:string;topic:string};
   id: string;
   problem: Problem;

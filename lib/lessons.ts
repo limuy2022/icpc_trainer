@@ -1,4 +1,5 @@
 import {assistantTopics,newAssistantSession} from "./assistant";
+import oiWiki from "./oi-wiki-topics.json";
 import type {Session} from "./types";
 export const lessonStages=[
  {id:"prerequisites",name:"前置知识",instruction:"先用一个具体小问题检查前置知识，一次只问一个问题。根据回答补齐缺口，不要求用户做完测试才有资格学习。"},
@@ -23,7 +24,36 @@ const goals:Record<string,{prerequisites:string;goal:string}>={
  prefix:{prerequisites:"数组、加减运算",goal:"从区间查询建立前缀和，从区间修改建立差分，独立处理下标、端点与数据范围。"},
  kmp:{prerequisites:"字符串、数组、基本循环",goal:"理解前缀函数与失配跳转，手动构造并独立实现 KMP，解释为什么无需回退文本指针。"},
 };
-export const lessonCatalog=assistantTopics.map(topic=>({...topic,...goals[topic.id]}));
+export const lessonChapters=Object.keys(oiWiki.chapters);
+const chapterTags:Record<string,string>={
+ "搜索":"dfs and similar","动态规划":"dp","字符串":"strings","数学":"math",
+ "数据结构":"data structures","图论":"graphs","计算几何":"geometry",
+};
+export const lessonCatalog=Object.entries(oiWiki.chapters).flatMap(([chapter,pages])=>
+ pages.map(([name,path])=>{
+  const curated=assistantTopics.find(topic=>topic.path===path);
+  const id=curated?.id??"wiki-"+path.replaceAll("/","_");
+  return {
+   id,name,path,chapter,tag:curated?.tag??chapterTags[chapter],
+   memoryName:curated?.name??name,
+   ...(goals[id]??{prerequisites:"根据专题内容检查前置知识",goal:"理解本专题的核心概念、适用条件与典型用法。"}),
+  };
+ }),
+);
+export function lessonWikiUrl(path:string){
+ return "https://oi-wiki.org/"+path.replace(/\/index$/,"")+"/";
+}
+export function isLessonMastered(lesson:Session["lesson"]){
+ return lesson?.mastered??(lesson?.mastery==="implement");
+}
+export function setLessonMastered(sessions:Session[],topicId:string,mastered:boolean):Session[]{
+ const index=sessions.findIndex(session=>session.lesson?.topicId===topicId);
+ if(index<0){
+  const session=newLessonSession(topicId);
+  return [{...session,lesson:{...session.lesson!,mastered}},...sessions];
+ }
+ return sessions.map((session,i)=>i===index?{...session,lesson:{...session.lesson!,mastered}}:session);
+}
 export function lessonDefinition(value:unknown){const input=value as {topicId?:string;stage?:string}|undefined;if(!input)return undefined;const topic=lessonCatalog.find(t=>t.id===input.topicId),stage=lessonStages.find(s=>s.id===input.stage);return topic&&stage?{topic,stage}:undefined;}
 export function newLessonSession(topicId:string,profile?:Session["assistantProfile"]):Session{
  const topic=lessonCatalog.find(t=>t.id===topicId);if(!topic)throw Error("学习专题不存在");

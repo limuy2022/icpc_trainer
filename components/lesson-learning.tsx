@@ -1,12 +1,65 @@
 "use client";
+import {useState} from "react";
 import {t as ui,useLocale} from "@/lib/locale";
-import {lessonCatalog,lessonStages,completeLessonStage} from "@/lib/lessons";
+import {lessonCatalog,lessonChapters,lessonStages,completeLessonStage,isLessonMastered} from "@/lib/lessons";
 import type {Session} from "@/lib/types";
-export function LessonLibrary({sessions,onStart}:{sessions:Session[];onStart:(topicId:string)=>void}){
- useLocale();return <main className="main-content lesson-library"><div className="section-title"><div><div className="eyebrow">ALGORITHM LEARNING</div><h1>{ui("从理解一个新算法开始。")}</h1><p>{ui("先补前置，再建立直觉、证明与实现，最后用小测和练习检验。")}</p></div></div><div className="lesson-cards">{lessonCatalog.map(topic=>{
- const saved=sessions.find(s=>s.lesson?.topicId===topic.id),count=saved?.lesson?.completed.length||0;
- return <article key={topic.id} className="lesson-card"><h2>{ui(topic.name)}</h2><p>{ui(topic.goal)}</p><small>{ui("建议前置")}: {ui(topic.prerequisites)}</small><div><progress max={lessonStages.length} value={count} aria-label={ui("学习进度")}/><span>{count} / {lessonStages.length}</span></div><button className="primary" onClick={()=>onStart(topic.id)}>{ui(saved?"继续学习":"开始学习")}</button></article>;
- })}</div></main>;
+export function LessonLibrary({sessions,ready,onStart,onMasteryChange}:{
+  sessions:Session[];
+  ready:boolean;
+  onStart:(topicId:string)=>void;
+  onMasteryChange:(topicId:string,mastered:boolean)=>void;
+}){
+  useLocale();
+  const [mastered,setMastered]=useState(false);
+  const [chapter,setChapter]=useState("");
+  const [search,setSearch]=useState("");
+  const saved=new Map(sessions.flatMap(session=>session.lesson?[[session.lesson.topicId,session] as const]:[]));
+  const masteredCount=lessonCatalog.filter(topic=>isLessonMastered(saved.get(topic.id)?.lesson)).length;
+  const query=search.trim().toLowerCase();
+  const visible=lessonCatalog.filter(topic=>
+    isLessonMastered(saved.get(topic.id)?.lesson)===mastered &&
+    (!chapter||topic.chapter===chapter) &&
+    [topic.name,ui(topic.name),topic.path].some(value=>value.toLowerCase().includes(query)),
+  );
+
+  return <main className="main-content lesson-library">
+    <div className="section-title">
+      <div><h1>{ui("专题学习")}</h1><p>{ui("按 OI Wiki 目录学习，随时标记已掌握的专题。")}</p></div>
+      <a className="secondary" href="https://oi-wiki.org/" target="_blank" rel="noreferrer">OI Wiki ↗</a>
+    </div>
+    <div className="lesson-library-controls">
+      <div className="lesson-status-filter" role="group" aria-label={ui("掌握状态")}>
+        <button type="button" className="secondary" aria-pressed={!mastered} onClick={()=>setMastered(false)}>{ui("未掌握")} <span>{lessonCatalog.length-masteredCount}</span></button>
+        <button type="button" className="secondary" aria-pressed={mastered} onClick={()=>setMastered(true)}>{ui("已掌握")} <span>{masteredCount}</span></button>
+      </div>
+      <select aria-label={ui("OI Wiki 栏目")} value={chapter} onChange={event=>setChapter(event.target.value)}>
+        <option value="">{ui("全部栏目")}</option>
+        {lessonChapters.map(name=><option key={name} value={name}>{ui(name)}</option>)}
+      </select>
+      <input type="search" aria-label={ui("搜索专题")} placeholder={ui("搜索专题")} value={search} onChange={event=>setSearch(event.target.value)}/>
+    </div>
+    {ready&&visible.length===0&&<p className="muted" role="status">{ui("没有符合条件的专题")}</p>}
+    {ready&&lessonChapters.map(name=>{
+      const topics=visible.filter(topic=>topic.chapter===name);
+      if(!topics.length)return null;
+      return <section key={name} className="lesson-chapter">
+        <h2>{ui(name)} <small>{topics.length}</small></h2>
+        <ul>{topics.map(topic=>{
+          const session=saved.get(topic.id);
+          const count=session?.lesson?.completed.length??0;
+          return <li key={topic.id} className="lesson-row">
+            <div className="lesson-row-title">
+              <button type="button" onClick={()=>onStart(topic.id)}>{ui(topic.name)}</button>
+              {count>0&&<small aria-label={ui("学习进度")}>{count} / {lessonStages.length}</small>}
+            </div>
+            <button type="button" className="secondary" onClick={()=>onMasteryChange(topic.id,!mastered)}>
+              {ui(mastered?"标记为未掌握":"标记为已掌握")}
+            </button>
+          </li>;
+        })}</ul>
+      </section>;
+    })}
+  </main>;
 }
 export function LessonProgress({session,busy,onChange,onExplain,onRemember}:{session:Session;busy:boolean;onChange:(change:Partial<Session>)=>void;onExplain:()=>void;onRemember:()=>void}){
  useLocale();const lesson=session.lesson!,topic=lessonCatalog.find(t=>t.id===lesson.topicId)!,stage=lessonStages.find(s=>s.id===lesson.stage)!;

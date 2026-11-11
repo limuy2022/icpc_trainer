@@ -13,7 +13,7 @@ import {translationSource} from "@/lib/translation-source";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {assistantSessionTitle,newAssistantSession} from "@/lib/assistant";
 import {LessonLibrary,LessonProgress} from "@/components/lesson-learning";
-import {newLessonSession,lessonDefinition} from "@/lib/lessons";
+import {newLessonSession,lessonDefinition,setLessonMastered} from "@/lib/lessons";
 import AssistantSessions from "@/components/assistant-sessions";
 import LearnerMemoryEditor from "@/components/learner-memory-editor";
 import AssistantPreferences from "@/components/assistant-preferences";
@@ -401,8 +401,9 @@ function Workspace({
     if(!session?.lesson)return;const definition=lessonDefinition(session.lesson);if(!definition)return;
     try{
       const response=await fetch("/api/learner-memory");const currentMemory=await response.json() as any;if(!response.ok)throw Error(currentMemory.error||"读取学习记忆失败");
-      const algorithms=[...currentMemory.memory.algorithms],index=algorithms.findIndex((entry:any)=>entry.name===definition.topic.name);
-      const entry={name:definition.topic.name,level:session.lesson.mastery,note:index>=0?algorithms[index].note:""};if(index>=0)algorithms[index]=entry;else algorithms.push(entry);
+      const name=definition.topic.memoryName;
+      const algorithms=[...currentMemory.memory.algorithms],index=algorithms.findIndex((entry:any)=>entry.name===name);
+      const entry={name,level:session.lesson.mastery,note:index>=0?algorithms[index].note:""};if(index>=0)algorithms[index]=entry;else algorithms.push(entry);
       const saved=await fetch("/api/learner-memory",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({memory:{...currentMemory.memory,algorithms},revision:currentMemory.revision})});const data=await saved.json() as any;if(!saved.ok)throw Error(data.error||"保存失败");setToast("专题自评已存入学习记忆");
     }catch(error){setToast((error as Error).message);}
   }
@@ -861,7 +862,7 @@ function Workspace({
           <AdminPanel onModelsChanged={refreshModels} />
         )}
         {view === "statistics" && <StatisticsPanel save={save} />}
-        {(view==="lessons"||(isLesson&&!session&&loaded))&&<LessonLibrary sessions={sessions} onStart={startLesson}/>}
+        {(view==="lessons"||(isLesson&&!session&&loaded))&&<LessonLibrary sessions={sessions} ready={loaded} onStart={startLesson} onMasteryChange={(topicId,mastered)=>setSessions(previous=>setLessonMastered(previous,topicId,mastered))}/>}
         {view === "bank" && (
           <main className="main-content">
             <section className="hero">

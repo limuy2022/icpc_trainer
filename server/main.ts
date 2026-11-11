@@ -1,3 +1,4 @@
+import {xcpcSettings} from "./xcpc-profile";
 import {memorySettings} from "./learner-memory";
 import {coachJobs,initCoachJobs} from "./coach-jobs";
 import { modelPreferences, saveModelPreferences } from "./model-preferences";
@@ -92,6 +93,10 @@ const server = createServer(async (req, res) => {
           break;
         case "/api/learner-memory":
           response=await memorySettings(request);
+          break;
+        case "/api/xcpc-profile":
+          if(req.method==="PATCH")throttle("xcpc-profile:"+user.id,10,60000);
+          response=await xcpcSettings(request,user.id);
           break;
         case "/api/profile":
           response = await profile(request);

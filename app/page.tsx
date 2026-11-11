@@ -2,6 +2,7 @@
 import LanguageSwitch from "@/components/language-switch";
 import {t as ui,useLocale,currentLocale} from "@/lib/locale";
 import { reasoningLabels, type ReasoningLevel } from "@/lib/reasoning";
+import XcpcProfileForm from "@/components/xcpc-profile-form";
 import RatingForm from "@/components/rating-form";
 import { ratingRange, difficultyOptions } from "@/lib/rating-range";
 import StatisticsPanel from "@/components/statistics-panel";
@@ -1934,7 +1935,7 @@ function Workspace({
         }}
       />
 
-      {ratingModal && <div className="modal-overlay"><section className="modal"><button className="modal-close" aria-label={ui("关闭等级分设置")} onClick={()=>setRatingModal(false)}><X size={19}/></button><RatingForm rating={cfRating} onSaved={rating=>{setCfRating(rating);const next=ratingRange(rating);setMin(next.min);setMax(next.max);setPage(1);setRatingModal(false);setToast("个人等级分已保存，选题难度已更新");}}/></section></div>}
+      {ratingModal && <div className="modal-overlay"><section className="modal"><button className="modal-close" aria-label={ui("关闭等级分设置")} onClick={()=>setRatingModal(false)}><X size={19}/></button><RatingForm rating={cfRating} onSaved={rating=>{setCfRating(rating);const next=ratingRange(rating);setMin(next.min);setMax(next.max);setPage(1);setRatingModal(false);setToast("个人等级分已保存，选题难度已更新");}}/><XcpcProfileForm/></section></div>}
       {passwordModal && (
         <div className="modal-overlay">
           <section className="modal">

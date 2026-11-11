@@ -873,5 +873,21 @@
   "理解本专题的核心概念、适用条件与典型用法。": "Understand the core concepts, when they apply, and common uses.",
   "学习记忆已保存": "Learning memory saved.",
   "另一个会话正在生成，完成后即可继续提问。": "Another conversation is generating a reply. You can ask when it finishes.",
-  "自由讨论概念、证明、复杂度和代码。此处偏好只影响本会话；跨会话信息请放在学习记忆。": "Discuss concepts, proofs, complexity and code. These preferences affect this conversation only; use learning memory for shared information."
+  "自由讨论概念、证明、复杂度和代码。此处偏好只影响本会话；跨会话信息请放在学习记忆。": "Discuss concepts, proofs, complexity and code. These preferences affect this conversation only; use learning memory for shared information.",
+  "关联公开选手档案。开启学习记忆时，助教可以参考正式赛积分和待复盘题型。": "Link a public player profile. With learning memory enabled, the tutor can use official-contest ratings and topics for review.",
+  "姓名@学校": "Name@University",
+  "刷新成绩": "Refresh results",
+  "关联档案": "Link profile",
+  "解除关联": "Unlink",
+  "正式赛等级分": "Official-contest rating",
+  "计分场次": "Rated contests",
+  "待复盘题型": "Topics to review",
+  "样本不足": "Insufficient evidence",
+  "查看题型分和样本数": "View topic scores and sample sizes",
+  "查看 XCPC 来源": "View XCPC source",
+  "{0} 道题": "{0} problems",
+  "请输入 XCPC Rating 上的姓名@学校": "Enter the name@university shown on XCPC Rating.",
+  "暂时无法读取 XCPC Rating，请稍后重试": "XCPC Rating is temporarily unavailable. Try again later.",
+  "未找到该选手，请核对姓名和学校": "Player not found. Check the name and university.",
+  "XCPC 档案已更新，请重新打开后再试": "The XCPC profile changed. Reopen this form and try again."
 }

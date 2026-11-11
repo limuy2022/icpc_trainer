@@ -1911,6 +1911,7 @@ footer > span {
   border-radius: 3px;
   font-size: 11px;
 }
+.markdown-loading { white-space:pre-wrap; overflow-wrap:anywhere; }
 .message-text blockquote {
   border-left: 3px solid var(--palette-c8d9b6);
   padding-left: 12px;

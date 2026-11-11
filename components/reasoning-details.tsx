@@ -1,7 +1,7 @@
 "use client";
 import {memo,useState} from "react";
 import {t as ui,useLocale} from "@/lib/locale";
-import Text from "./markdown-text";
+import Text from "./lazy-markdown-text";
 export default memo(function ReasoningDetails({text,live=false}:{text:string;live?:boolean}) {
   useLocale();const [open,setOpen]=useState(false);
   if(!text)return null;

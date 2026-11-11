@@ -23,7 +23,7 @@ import {protectStatement,restoreStatement} from "@/lib/translation-format";
 import {translationInstructions} from "@/lib/translation-prompt";
 import ReasoningDetails from "@/components/reasoning-details";
 import RecoveredVersions from "@/components/recovered-versions";
-import Text from "@/components/markdown-text";
+import Text from "@/components/lazy-markdown-text";
 import DifficultyBadge, { DifficultyGuide } from "@/components/difficulty-badge";
 import ThemeSwitch from "@/components/theme-switch";
 import AccountGate, {
@@ -253,9 +253,15 @@ function Workspace({
   useEffect(() => {
     void refreshModels();
     const localChanged=()=>void refreshModels();window.addEventListener("icpc-browser-models",localChanged);
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => {clearInterval(timer);window.removeEventListener("icpc-browser-models",localChanged);};
+    return () => window.removeEventListener("icpc-browser-models",localChanged);
   }, []);
+  const clockRunning=Boolean((view==="training"&&session?.startedAt)||(busy&&session&&["training","assistant","lesson"].includes(view)));
+  useEffect(() => {
+    if(!clockRunning)return;
+    setNow(Date.now());
+    const timer=setInterval(()=>setNow(Date.now()),1000);
+    return ()=>clearInterval(timer);
+  },[clockRunning]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 4500);
@@ -265,6 +271,7 @@ function Workspace({
     ? completed.map((s) => s.problem.id).join(",")
     : "";
   useEffect(() => {
+    if(view!=="bank")return;
     const controller = new AbortController();
     setLoading(true);
     setBankError("");
@@ -299,7 +306,7 @@ function Workspace({
       clearTimeout(t);
       controller.abort();
     };
-  }, [min, max, tags, query, sort, page, exclusions]);
+  }, [view, min, max, tags, query, sort, page, exclusions]);
   useEffect(() => {
     if(!["training","assistant","lesson"].includes(view)||!loaded)return;
     const container=chatEnd.current?.parentElement;

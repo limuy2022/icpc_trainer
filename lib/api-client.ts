@@ -11,6 +11,8 @@ export class ApiError extends Error {
 export type ApiOptions = {
   method?: string
   body?: unknown
+  /** Pre-serialized JSON body; skips stringify for large payloads. */
+  bodyText?: string
   signal?: AbortSignal
 }
 /**
@@ -22,11 +24,13 @@ export async function api<T>(
   path: string,
   options: ApiOptions = {},
 ): Promise<T> {
-  const { body, method = body ? "POST" : "GET", signal } = options
+  const { body, bodyText, method = body || bodyText ? "POST" : "GET", signal } =
+    options
   const res = await fetch(path, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
+    headers:
+      body || bodyText ? { "Content-Type": "application/json" } : undefined,
+    body: bodyText ?? (body ? JSON.stringify(body) : undefined),
     signal,
   })
   const data = (await res.json().catch(() => ({}))) as unknown

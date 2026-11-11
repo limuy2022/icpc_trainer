@@ -27,6 +27,15 @@ type JobRecord = {
   created_at: string
   context: string | null
 }
+/** Running jobs are polled every second; cap their growing text so each poll
+ *  transfers a bounded tail instead of the full accumulation. */
+const RUNNING_TEXT_CAP = 16 * 1024
+function capRunningText(job: CoachJob): CoachJob {
+  if (job.status !== "running") return job
+  const cap = (text: string) =>
+    text.length > RUNNING_TEXT_CAP ? "…" + text.slice(-RUNNING_TEXT_CAP) : text
+  return { ...job, text: cap(job.text), reasoning: cap(job.reasoning) }
+}
 function jobFor(row: JobRecord, includeContext = false): CoachJob {
   return {
     id: row.id,
@@ -142,7 +151,9 @@ export async function coachJobs(request: Request) {
         "SELECT id,session_id,branch_hash,status,text,reasoning,result,error,request_id,created_at FROM coach_jobs WHERE user_id=? AND acknowledged=0 ORDER BY created_at LIMIT 50",
       )
       .all(user.id)
-    return Response.json({ jobs: rows.map((row) => jobFor(row as JobRecord)) })
+    return Response.json({
+      jobs: rows.map((row) => capRunningText(jobFor(row as JobRecord))),
+    })
   }
   type CoachJobRow = {
     id: string

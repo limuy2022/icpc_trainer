@@ -7,17 +7,58 @@ export type RecoveredVersion = {
 }
 const equal = (a: unknown, b: unknown) =>
   JSON.stringify(a) === JSON.stringify(b)
+
+// Sessions are immutable updates, so per-object caches make repeated
+// snapshot/serialize passes O(changed) instead of re-walking every statement
+// and message. WeakMap entries vanish with their session objects.
+const snapshotCache = new WeakMap<Session, Session>()
+const serializeCache = new WeakMap<Session, string>()
+
+function snapshotSession(s: Session, now: number): Session {
+  if (s.startedAt === null) {
+    // Stopped sessions have a fixed elapsed; the snapshot never changes.
+    let cached = snapshotCache.get(s)
+    if (!cached) {
+      cached = {
+        ...normalizeSessionStatement(s),
+        elapsed: s.elapsed,
+        startedAt: null,
+      }
+      snapshotCache.set(s, cached)
+    }
+    return cached
+  }
+  // A running timer changes with `now`; compute fresh (at most one per view).
+  return {
+    ...normalizeSessionStatement(s),
+    elapsed: s.elapsed + Math.max(0, Math.floor((now - s.startedAt) / 1000)),
+    startedAt: null,
+  }
+}
+
 export function snapshotTraining(
   sessions: Session[],
   now = Date.now(),
 ): Session[] {
-  return sessions.map((s) => ({
-    ...normalizeSessionStatement(s),
-    elapsed:
-      s.elapsed +
-      (s.startedAt ? Math.max(0, Math.floor((now - s.startedAt) / 1000)) : 0),
-    startedAt: null,
-  }))
+  return sessions.map((s) => snapshotSession(s, now))
+}
+
+/** Serialize a session list by concatenating per-session cached strings. */
+export function serializeSessions(sessions: Session[]): string {
+  return (
+    "[" +
+    sessions
+      .map((s) => {
+        let serialized = serializeCache.get(s)
+        if (serialized === undefined) {
+          serialized = JSON.stringify(s)
+          serializeCache.set(s, serialized)
+        }
+        return serialized
+      })
+      .join(",") +
+    "]"
+  )
 }
 function mergeMessages(local: Message[], remote: Message[]) {
   let common = 0

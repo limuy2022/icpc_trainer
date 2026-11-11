@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { api, ApiError } from "@/lib/api-client"
 import type { SessionsResponse } from "@/lib/api-types"
 import type { Session } from "@/lib/types"
-import { mergeTraining, snapshotTraining } from "@/lib/training-merge"
+import { mergeTraining, snapshotTraining, serializeSessions } from "@/lib/training-merge"
 import { createCheckpointScheduler } from "@/lib/checkpoint-scheduler"
 type Checkpoint = {
   sessions: Session[]
@@ -33,14 +33,11 @@ export function useTrainingSync(userId: string) {
     if (!r.ready) return
     const data = snapshotTraining(r.sessions)
     try {
+      const serialized = serializeSessions(data)
+      const baseSerialized = serializeSessions(r.base)
       localStorage.setItem(
         key,
-        JSON.stringify({
-          sessions: data,
-          base: r.base,
-          revision: r.revision,
-          pending: JSON.stringify(data) !== JSON.stringify(r.base),
-        } satisfies Checkpoint),
+        `{"sessions":${serialized},"base":${baseSerialized},"revision":${r.revision},"pending":${serialized !== baseSerialized}}`,
       )
     } catch {
       /* intentionally ignored */
@@ -70,7 +67,8 @@ export function useTrainingSync(userId: string) {
     try {
       for (let attempt = 0; attempt < 3; attempt++) {
         const data = snapshotTraining(r.sessions)
-        if (JSON.stringify(data) === JSON.stringify(r.base)) {
+        const serialized = serializeSessions(data)
+        if (serialized === serializeSessions(r.base)) {
           setSyncState("已保存到服务器")
           return
         }
@@ -80,7 +78,7 @@ export function useTrainingSync(userId: string) {
         try {
           result = await api<SessionsResponse>("/api/sessions", {
             method: "PUT",
-            body: { sessions: data, revision: r.revision },
+            bodyText: `{"sessions":${serialized},"revision":${r.revision}}`,
           })
         } catch (e) {
           if (!(e instanceof ApiError) || e.status !== 409) throw e
@@ -112,7 +110,7 @@ export function useTrainingSync(userId: string) {
         r.revision = result.revision
         checkpoint()
         setSyncState(
-          JSON.stringify(snapshotTraining(r.sessions)) === JSON.stringify(data)
+          serializeSessions(snapshotTraining(r.sessions)) === serialized
             ? "已保存到服务器"
             : "正在保存新改动…",
         )
@@ -157,7 +155,7 @@ export function useTrainingSync(userId: string) {
         setLoaded(true)
         checkpoint()
         setSyncState(
-          JSON.stringify(initial) === JSON.stringify(remote)
+          serializeSessions(initial) === serializeSessions(remote)
             ? "已保存到服务器"
             : "已恢复本机改动，正在同步…",
         )

@@ -1,11 +1,11 @@
 "use client"
 import { t as ui, currentLocale, useLocale } from "@/lib/locale"
 import { assistantSessionTitle } from "@/lib/assistant"
-import { outcomes, fmt } from "@/lib/training-labels"
+import { outcomes } from "@/lib/training-labels"
 import { problemUrl } from "@/lib/types"
 import type { Session } from "@/lib/types"
 import { LessonProgress } from "@/components/lesson-learning"
-import AssistantTools from "@/components/assistant-tools"
+const AssistantTools = lazy(() => import("@/components/assistant-tools"))
 import ProblemStatement from "@/components/problem-statement"
 import ReasoningDetails from "@/components/reasoning-details"
 import RecoveredVersions from "@/components/recovered-versions"
@@ -31,6 +31,8 @@ import {
   ArrowUpRight,
 } from "lucide-react"
 import type { Dispatch, RefObject, SetStateAction } from "react"
+import { lazy, Suspense, useEffect, useRef, useState } from "react"
+import ElapsedClock, { ThinkingSeconds } from "@/components/workspace/elapsed-clock"
 import type { StatementMetadata } from "@/lib/statement-header"
 
 const renderMarkdown = (text: string) => <Text text={text} />
@@ -39,6 +41,43 @@ const renderPlain = (text: string) => text
 type SendEdit = { index: number; original: string; content: string }
 
 /** Training / assistant / lesson conversation workspace: statement panel + coach chat. */
+function useDebouncedSessionText(
+  sessionId: string,
+  value: string,
+  patch: (id: string, change: { notes?: string; statement?: string }) => void,
+  field: "notes" | "statement",
+  delay = 600,
+) {
+  const [draft, setDraft] = useState(value)
+  // Follow external updates (statement fetch, session switches) while idle.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- derived-state resync on external change
+    setDraft(value)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resync on identity change only
+  }, [sessionId, value])
+  // Flush unsaved input when the view unmounts (e.g. navigating away).
+  const latest = useRef({ draft, value, sessionId, patch, field })
+  useEffect(() => {
+    latest.current = { draft, value, sessionId, patch, field }
+  })
+  useEffect(
+    () => () => {
+      const s = latest.current
+      if (s.draft !== s.value && s.sessionId)
+        s.patch(s.sessionId, { [s.field]: s.draft })
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- unmount-only flush
+    [],
+  )
+  useEffect(() => {
+    if (draft === value) return
+    const timer = setTimeout(() => patch(sessionId, { [field]: draft }), delay)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `value` compared in-line
+  }, [draft])
+  return [draft, setDraft] as const
+}
+
 export default function ChatView({
   view,
   isAssistant,
@@ -65,7 +104,6 @@ export default function ChatView({
   partialReply,
   generationSessionId,
   stopGeneration,
-  now,
   sendStartedAt,
   editor,
   setEditor,
@@ -84,7 +122,6 @@ export default function ChatView({
   allowUnverified,
   setAllowUnverified,
   patch,
-  elapsed,
   aiConfigured,
   setSettings,
   rememberLesson,
@@ -136,7 +173,6 @@ export default function ChatView({
   partialReply: { sessionId: string; text: string; reasoning?: string } | null
   generationSessionId: RefObject<string | null>
   stopGeneration: () => Promise<void>
-  now: number
   sendStartedAt: RefObject<number>
   editor: boolean
   setEditor: Dispatch<SetStateAction<boolean>>
@@ -155,7 +191,6 @@ export default function ChatView({
   allowUnverified: boolean
   setAllowUnverified: Dispatch<SetStateAction<boolean>>
   patch: (id: string, change: Partial<Session>) => void
-  elapsed: number
   aiConfigured: boolean
   setSettings: (open: boolean) => void
   rememberLesson: () => Promise<void>
@@ -167,6 +202,19 @@ export default function ChatView({
   onFinish: () => void
 }) {
   useLocale()
+  // Keystrokes stay local; sessions (and their save pipeline) update on pause.
+  const [statementDraft, setStatementDraft] = useDebouncedSessionText(
+    session?.id ?? "",
+    session?.statement ?? "",
+    patch,
+    "statement",
+  )
+  const [notesDraft, setNotesDraft] = useDebouncedSessionText(
+    session?.id ?? "",
+    session?.notes ?? "",
+    patch,
+    "notes",
+  )
   return (
     <>
       {view === "training" && !loaded && (
@@ -247,14 +295,16 @@ export default function ChatView({
               )}
             </div>
             {view === "assistant" && (
-              <AssistantTools
-                sessions={assistantChats}
-                current={session}
-                onOpen={openAssistantConversation}
-                onNew={newAssistantConversation}
-                onChange={updateAssistantConversation}
-                onMemory={onOpenMemory}
-              />
+              <Suspense fallback={null}>
+                <AssistantTools
+                  sessions={assistantChats}
+                  current={session}
+                  onOpen={openAssistantConversation}
+                  onNew={newAssistantConversation}
+                  onChange={updateAssistantConversation}
+                  onMemory={onOpenMemory}
+                />
+              </Suspense>
             )}
             {!isAssistant && (
               <div className="training-actions">
@@ -262,12 +312,25 @@ export default function ChatView({
                   className="timer"
                   onClick={() =>
                     session.startedAt
-                      ? patch(session.id, { elapsed, startedAt: null })
+                      ? patch(session.id, {
+                          elapsed:
+                            session.elapsed +
+                            Math.max(
+                              0,
+                              Math.floor(
+                                (Date.now() - session.startedAt) / 1000,
+                              ),
+                            ),
+                          startedAt: null,
+                        })
                       : patch(session.id, { startedAt: Date.now() })
                   }
                 >
                   {session.startedAt ? <Pause size={15} /> : <Play size={15} />}
-                  <span>{fmt(elapsed)}</span>
+                  <ElapsedClock
+                    elapsedBase={session.elapsed}
+                    startedAt={session.startedAt}
+                  />
                 </button>
                 <button className="primary" disabled={busy} onClick={onFinish}>
                   <Flag size={15} />
@@ -360,10 +423,8 @@ export default function ChatView({
                   <textarea
                     className="statement-editor"
                     aria-label={ui("题面内容")}
-                    value={session.statement}
-                    onChange={(e) =>
-                      patch(session.id, { statement: e.target.value })
-                    }
+                    value={statementDraft}
+                    onChange={(e) => setStatementDraft(e.target.value)}
                     placeholder={ui(
                       "粘贴完整题面、输入输出约束与样例。AI 会基于这里的内容陪练。",
                     )}
@@ -569,8 +630,8 @@ export default function ChatView({
                   placeholder={ui(
                     "暴力怎么做？最小例子是什么？哪个量不会变？\n先留住一个可以确定的事实。",
                   )}
-                  value={session.notes}
-                  onChange={(e) => patch(session.id, { notes: e.target.value })}
+                  value={notesDraft}
+                  onChange={(e) => setNotesDraft(e.target.value)}
                 />
               </section>
             )}
@@ -792,10 +853,7 @@ export default function ChatView({
                   <div className="thinking">
                     <LoaderCircle size={15} className="spin" />
                     {ui("正在检验思路… 已等待 {0} 秒", [
-                      Math.max(
-                        0,
-                        Math.floor((now - sendStartedAt.current) / 1000),
-                      ),
+                      <ThinkingSeconds key="s" startedAt={sendStartedAt.current} />,
                     ])}
                     <button
                       type="button"

@@ -12,6 +12,7 @@ import { Readable } from "node:stream"
 import type { ReadableStream as NodeWebReadableStream } from "node:stream/web"
 import { pipeline } from "node:stream/promises"
 import { readFile, stat } from "node:fs/promises"
+import { createGzip, gzipSync, constants as zlibConstants } from "node:zlib"
 import { resolve, extname } from "node:path"
 import { auth, register, changePassword, usersAdmin } from "./accounts"
 import { records } from "./records"
@@ -182,14 +183,24 @@ const server = createServer(async (req, res) => {
         if (extname(path)) fail(404, "文件不存在")
         file = resolve(root, "index.html")
       }
+      // Prefer the build-time .gz copy: zero runtime CPU for immutable assets.
+      const wantsGzip = (req.headers["accept-encoding"] || "").includes("gzip")
+      const precompressed =
+        wantsGzip && file.includes("/assets/")
+          ? await stat(`${file}.gz`).then(() => true, () => false)
+          : false
       response = new Response(
-        req.method === "HEAD" ? null : await readFile(file),
+        req.method === "HEAD"
+          ? null
+          : await readFile(precompressed ? `${file}.gz` : file),
         {
           headers: {
             "Content-Type": mime[extname(file)] || "application/octet-stream",
             "Cache-Control": file.includes("/assets/")
               ? "public,max-age=31536000,immutable"
               : "no-cache",
+            Vary: "Accept-Encoding",
+            ...(precompressed ? { "Content-Encoding": "gzip" } : {}),
           },
         },
       )
@@ -201,16 +212,42 @@ const server = createServer(async (req, res) => {
     res.setHeader("X-Frame-Options", "DENY")
     if (url.pathname.startsWith("/api/"))
       res.setHeader("Cache-Control", "no-store")
+    const contentType = response.headers.get("content-type") || ""
+    const compress =
+      response.body &&
+      !response.headers.get("content-encoding") &&
+      (req.headers["accept-encoding"] || "").includes("gzip") &&
+      /^(text\/|application\/(json|javascript|x-ndjson|xml|font\/ttf))/.test(contentType)
+    if (compress) {
+      res.setHeader("Content-Encoding", "gzip")
+      if (!res.getHeader("Vary")) res.setHeader("Vary", "Accept-Encoding")
+    }
     if (
-      response.headers.get("content-type")?.includes("application/x-ndjson") &&
+      contentType.includes("application/x-ndjson") &&
       response.body
     ) {
       res.flushHeaders()
-      await pipeline(
-        Readable.fromWeb(response.body as unknown as NodeWebReadableStream),
-        res,
-      )
-    } else res.end(Buffer.from(await response.arrayBuffer()))
+      if (compress)
+        await pipeline(
+          Readable.fromWeb(response.body as unknown as NodeWebReadableStream),
+          createGzip({ flush: zlibConstants.Z_SYNC_FLUSH }),
+          res,
+        )
+      else
+        await pipeline(
+          Readable.fromWeb(response.body as unknown as NodeWebReadableStream),
+          res,
+        )
+    } else {
+      const buffer = Buffer.from(await response.arrayBuffer())
+      // Tiny payloads are not worth a gzip stream; larger ones save most trips.
+      if (compress && buffer.length >= 512)
+        res.end(gzipSync(buffer, { level: 5 }))
+      else {
+        if (compress) res.removeHeader("Content-Encoding")
+        res.end(buffer)
+      }
+    }
   } catch (e) {
     if (res.headersSent || res.destroyed) {
       if (!res.destroyed) res.destroy()

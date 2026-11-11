@@ -25,11 +25,11 @@ const fmt = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
 
 /** Training journal: pending and completed sessions, plus import/export controls. */
+const nowStamp = () => Date.now()
 export default function HistoryView({
   sessions,
   trainingSessions,
   completed,
-  now,
   syncState,
   resume,
   navigate,
@@ -40,7 +40,6 @@ export default function HistoryView({
   sessions: Session[]
   trainingSessions: Session[]
   completed: Session[]
-  now: number
   syncState: string
   resume: (session: Session) => void
   navigate: (view: import("@/lib/workspace-route").WorkspaceView) => void
@@ -153,7 +152,9 @@ export default function HistoryView({
                                   (s.startedAt
                                     ? Math.max(
                                         0,
-                                        Math.floor((now - s.startedAt) / 1000),
+                                        Math.floor(
+                                          (nowStamp() - s.startedAt) / 1000,
+                                        ),
                                       )
                                     : 0),
                               )}

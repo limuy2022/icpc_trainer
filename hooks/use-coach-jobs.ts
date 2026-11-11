@@ -162,7 +162,7 @@ export function useCoachJobs(
           if (!stopped)
             timer = setTimeout(
               () => void poll(),
-              activeJob.current ? 1000 : 5000,
+              activeJob.current && !document.hidden ? 1000 : 5000,
             )
         }
       }

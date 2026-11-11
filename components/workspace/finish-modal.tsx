@@ -2,22 +2,18 @@
 import { t as ui } from "@/lib/locale"
 import type { Session } from "@/lib/types"
 import Modal from "./modal"
+import ElapsedClock from "./elapsed-clock"
 import { CheckCircle2, Flag } from "lucide-react"
-
-const fmt = (seconds: number) =>
-  `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`
 
 /** End-of-training modal: records the self-marked outcome and a transferable takeaway. */
 export default function FinishModal({
   session,
-  elapsed,
   takeaway,
   setTakeaway,
   complete,
   onClose,
 }: {
   session: Session
-  elapsed: number
   takeaway: string
   setTakeaway: (value: string) => void
   complete: (outcome: Session["outcome"]) => void
@@ -30,7 +26,8 @@ export default function FinishModal({
       </span>
       <h2>{ui("这次思考，带走什么？")}</h2>
       <p>
-        {session.problem.id} · {fmt(elapsed)} ·{" "}
+        {session.problem.id} ·{" "}
+        <ElapsedClock elapsedBase={session.elapsed} startedAt={session.startedAt} />{" "}
         {session.hints === 4
           ? ui("查看过完整解法")
           : ui("使用至 {0} 级提示", [session.hints])}

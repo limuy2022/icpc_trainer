@@ -115,7 +115,6 @@ function Workspace({
     [statementBusy, setStatementBusy] = useState(false),
     [statementError, setStatementError] = useState(""),
     [editor, setEditor] = useState(false),
-    [now, setNow] = useState(Date.now()),
     [toast, setToast] = useState(""),
     [finish, setFinish] = useState(false),
     [takeaway, setTakeaway] = useState("");
@@ -167,18 +166,13 @@ function Workspace({
   const trainingSessions = useMemo(()=>sessions.filter(s=>sessionView(s)==="training"),[sessions]);
   const completed = useMemo(()=>trainingSessions.filter(s=>s.outcome==="independent"||s.outcome==="assisted"),[trainingSessions]);
   const summary = useMemo(()=>trainingStats(sessions),[sessions]);
-  const elapsed = session
-    ? session.elapsed +
-      (session.startedAt
-        ? Math.max(0, Math.floor((now - session.startedAt) / 1000))
-        : 0)
-    : 0;
+  const nowStamp = Date.now()
   const totalMinutes = Math.floor(
     sessions.reduce(
       (v, s) =>
         v +
         s.elapsed +
-        (s.startedAt ? Math.max(0, Math.floor((now - s.startedAt) / 1000)) : 0),
+        (s.startedAt ? Math.max(0, Math.floor((nowStamp - s.startedAt) / 1000)) : 0),
       0,
     ) / 60,
   );
@@ -202,13 +196,6 @@ function Workspace({
     const localChanged=()=>void refreshModels();window.addEventListener("icpc-browser-models",localChanged);
     return () => window.removeEventListener("icpc-browser-models",localChanged);
   }, [refreshModels]);
-  const clockRunning=Boolean((view==="training"&&session?.startedAt)||(busy&&session&&["training","assistant","lesson"].includes(view)));
-  useEffect(() => {
-    if(!clockRunning)return;
-    setNow(Date.now());
-    const timer=setInterval(()=>setNow(Date.now()),1000);
-    return ()=>clearInterval(timer);
-  },[clockRunning]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(""), 4500);
@@ -564,17 +551,35 @@ function Workspace({
     if(browserModel){
       const controller=new AbortController();directAbort.current=controller;directGeneration.current=true;
       activeJob.current=null;setRetryMode(mode);
+        // Stream deltas arrive up to dozens of times per second; coalesce them
+        // into one state update per tick so markdown re-renders stay bounded.
+        let bufferText="",bufferReasoning="",flushTimer:ReturnType<typeof setTimeout>|undefined;
+        const flushPartial=()=>{
+          flushTimer=undefined;
+          if(!bufferText&&bufferReasoning===undefined)return;
+          setPartialReply(previous=>({
+            sessionId:id,
+            text:previous?.sessionId===id?previous.text+bufferText:bufferText,
+            reasoning:bufferReasoning===undefined
+              ?(previous?.sessionId===id?previous.reasoning:undefined)
+              :(previous?.sessionId===id?previous.reasoning||"":"")+bufferReasoning,
+          }));
+          bufferText="";bufferReasoning="";
+        };
+        const schedulePartial=()=>{if(flushTimer===undefined)flushTimer=setTimeout(flushPartial,120);};
+        const drainPartial=()=>{if(flushTimer!==undefined){clearTimeout(flushTimer);flushPartial();}};
       try{
         const expected=conversationBranch({messages,messagesVersion});
         const prepared=await api<PreparedCoachRequest>("/api/coach",{method:"POST",signal:controller.signal,body:{prepareOnly:true,browserModel:browserModelMetadata(browserModel),assistant:isAssistant,useLearningMemory:session.useLearningMemory!==false,lesson:session.lesson,assistantProfile:session.assistantProfile,statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))}});
         if(prepared.editorial)patch(id,{editorialReference:prepared.editorial});
         const result=await browserCompletion(user.id,browserModel,prepared.payload,{signal:controller.signal,
-          delta:text=>setPartialReply(previous=>({sessionId:id,text:(previous?.sessionId===id?previous.text:"")+text,reasoning:previous?.sessionId===id?previous.reasoning:undefined})),
-          reasoning:text=>setPartialReply(previous=>({sessionId:id,text:previous?.sessionId===id?previous.text:"",reasoning:(previous?.sessionId===id?previous.reasoning||"":"")+text})),
+          delta:text=>{bufferText+=text;schedulePartial();},
+          reasoning:text=>{bufferReasoning=(bufferReasoning||"")+text;schedulePartial();},
         });
+        drainPartial();
         const job:CoachJob={id:"browser-"+crypto.randomUUID(),sessionId:id,branchHash:"",status:"done",text:result.text,reasoning:result.reasoning||"",result:{...result,editorial:prepared.editorial,sources:prepared.sources,lesson:prepared.lesson},createdAt:new Date().toISOString()};
         setSessions(prev=>prev.map(s=>s.id===id?applyJobReply(s,job,conversationBranch(s)===expected):s));setPartialReply(null);
-      }catch(error){setChatError(controller.signal.aborted?"已停止生成，未完成内容未写入历史。":(error as Error).message);if(!edit&&!retry)setDraft(content);}
+      }catch(error){drainPartial();setChatError(controller.signal.aborted?"已停止生成，未完成内容未写入历史。":(error as Error).message);if(!edit&&!retry)setDraft(content);}
       finally{directAbort.current=null;directGeneration.current=false;submittingJob.current=false;sending.current=false;setBusy(false);pollJobs.current();}
       return;
     }
@@ -584,7 +589,7 @@ function Workspace({
       const hash=await branchHash(conversationBranch({messages,messagesVersion}));
       await api("/api/coach-jobs",{
         method:"POST",
-        body:{jobId,sessionId:id,branchHash:hash,assistant:isAssistant,useLearningMemory:session.useLearningMemory!==false,lesson:session.lesson,assistantProfile:session.assistantProfile,sessionSnapshot:{...session,messages:messages.map(({role,content,generationId,lessonStage})=>({role,content,...(generationId?{generationId}:{}),...(lessonStage?{lessonStage}:{})})),messagesVersion,startedAt:null,elapsed,hints:mode==="solution"?4:mode.startsWith("hint")?Math.max(session.hints,Number(mode.slice(-1))):session.hints,recoveredVersions:undefined},statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,modelId,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))},
+        body:{jobId,sessionId:id,branchHash:hash,assistant:isAssistant,useLearningMemory:session.useLearningMemory!==false,lesson:session.lesson,assistantProfile:session.assistantProfile,sessionSnapshot:{...session,messages:messages.map(({role,content,generationId,lessonStage})=>({role,content,...(generationId?{generationId}:{}),...(lessonStage?{lessonStage}:{})})),messagesVersion,startedAt:null,elapsed:session.elapsed+(session.startedAt?Math.max(0,Math.floor((Date.now()-session.startedAt)/1000)):0),hints:mode==="solution"?4:mode.startsWith("hint")?Math.max(session.hints,Number(mode.slice(-1))):session.hints,recoveredVersions:undefined},statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,modelId,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))},
       });
     }catch(error){setChatError((error as Error).message);if(!edit&&!retry)setDraft(content);}
     finally{submittingJob.current=false;pollJobs.current();}
@@ -622,7 +627,11 @@ function Workspace({
       outcome:
         outcome === "independent" && session.hints > 0 ? "assisted" : outcome,
       takeaway,
-      elapsed,
+      elapsed:
+        session.elapsed +
+        (session.startedAt
+          ? Math.max(0, Math.floor((Date.now() - session.startedAt) / 1000))
+          : 0),
       completedAt: outcome === "review" ? undefined : new Date().toISOString(),
       startedAt: null,
     });
@@ -734,7 +743,6 @@ function Workspace({
           partialReply={partialReply}
           generationSessionId={generationSessionId}
           stopGeneration={stopGeneration}
-          now={now}
           sendStartedAt={sendStartedAt}
           editor={editor}
           setEditor={setEditor}
@@ -753,7 +761,6 @@ function Workspace({
           allowUnverified={allowUnverified}
           setAllowUnverified={setAllowUnverified}
           patch={patch}
-          elapsed={elapsed}
           aiConfigured={aiConfigured}
           setSettings={setSettings}
           rememberLesson={rememberLesson}
@@ -769,7 +776,6 @@ function Workspace({
             sessions={sessions}
             trainingSessions={trainingSessions}
             completed={completed}
-            now={now}
             syncState={syncState}
             resume={resume}
             navigate={navigate}
@@ -816,7 +822,6 @@ function Workspace({
       {finish && session && (
         <FinishModal
           session={session}
-          elapsed={elapsed}
           takeaway={takeaway}
           setTakeaway={setTakeaway}
           complete={complete}

@@ -1,3 +1,4 @@
+import {envAppOrigin, envCookieSecure, envModelEncryptionKey} from "./env";
 import {
   randomBytes,
   scrypt,
@@ -73,13 +74,13 @@ export function requireUser(request: Request, admin = false) {
 }
 export function checkOrigin(request: Request) {
   const origin = request.headers.get("origin");
-  const expected = process.env.APP_ORIGIN || new URL(request.url).origin;
+  const expected = envAppOrigin() || new URL(request.url).origin;
   if (origin && origin !== expected) fail(403, "请求来源无效");
   const fetchSite = request.headers.get("sec-fetch-site");
   if (fetchSite === "cross-site") fail(403, "请求来源无效");
 }
 export function cookie(token: string, maxAge = 604800) {
-  return `icpc_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${process.env.COOKIE_SECURE === "true" ? "; Secure" : ""}`;
+  return `icpc_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${envCookieSecure() ? "; Secure" : ""}`;
 }
 export function createSession(userId: string) {
   const token = randomBytes(32).toString("base64url");
@@ -94,7 +95,7 @@ export function audit(actor: string, action: string, target: string) {
   ).run(actor, action, target, new Date().toISOString());
 }
 function encryptionKey() {
-  const raw = process.env.MODEL_ENCRYPTION_KEY;
+  const raw = envModelEncryptionKey();
   if (!raw || !/^[a-f0-9]{64}$/i.test(raw))
     fail(503, "服务端未配置模型密钥加密主密钥");
   return Buffer.from(raw, "hex");

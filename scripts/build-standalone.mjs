@@ -9,7 +9,7 @@ await build({
   format: "esm",
   target: "node22",
   outfile: "release/server.mjs",
-  alias: { "cloudflare:workers": "./server/runtime.ts", "@": process.cwd() },
+  alias: { "@": process.cwd() },
   external: ["node:*"],
 });
 await build({

@@ -1,9 +1,10 @@
 /** Chat Completions endpoints checked against official docs on 2026-11-10. */
+export const GLM_CODING_BASE_URL = "https://open.bigmodel.cn/api/coding/paas/v4";
 export const modelPresets = [
   {id:"openai",label:"OpenAI",provider:"openai-compatible",base_url:"https://api.openai.com/v1",docs:"https://developers.openai.com/api/reference/resources/chat"},
   {id:"deepseek",label:"DeepSeek",provider:"openai-compatible",base_url:"https://api.deepseek.com",docs:"https://api-docs.deepseek.com/"},
   {id:"glm",label:"智谱 GLM · 普通 API",provider:"glm",base_url:"https://open.bigmodel.cn/api/paas/v4",docs:"https://docs.bigmodel.cn/cn/guide/develop/openai/introduction"},
-  {id:"glm-coding",label:"智谱 GLM · Coding Plan",provider:"glm",base_url:"https://open.bigmodel.cn/api/coding/paas/v4",docs:"https://docs.bigmodel.cn/cn/coding-plan/overview"},
+  {id:"glm-coding",label:"智谱 GLM · Coding Plan",provider:"glm",base_url:GLM_CODING_BASE_URL,docs:"https://docs.bigmodel.cn/cn/coding-plan/overview"},
   {id:"qwen-cn",label:"阿里云百炼 · 北京",provider:"openai-compatible",base_url:"https://dashscope.aliyuncs.com/compatible-mode/v1",docs:"https://help.aliyun.com/zh/model-studio/base-url"},
   {id:"qwen-intl",label:"阿里云百炼 · 新加坡",provider:"openai-compatible",base_url:"https://dashscope-intl.aliyuncs.com/compatible-mode/v1",docs:"https://help.aliyun.com/zh/model-studio/base-url"},
   {id:"kimi",label:"Moonshot / Kimi",provider:"openai-compatible",base_url:"https://api.moonshot.cn/v1",docs:"https://platform.kimi.com/docs/get-api-key"},

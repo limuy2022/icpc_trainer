@@ -1,3 +1,4 @@
+import {FETCH_TIMEOUT_MS} from "../lib/constants";
 import katex from "katex";
 import {parse,type DefaultTreeAdapterMap} from "parse5";
 import {lessonCatalog,lessonWikiUrl} from "../lib/lessons";
@@ -31,7 +32,7 @@ function httpsUrl(value:string|undefined,base:string){
   try{
     const url=new URL(value,base);
     if(url.protocol==="https:"&&!url.username&&!url.password)return url.href;
-  }catch{}
+  }catch{/* intentionally ignored */}
 }
 
 export function renderWikiArticle(document:string,source:string){
@@ -97,7 +98,7 @@ export function renderWikiArticle(document:string,source:string){
 const cache=new Map<string,{expires:number;html:Promise<string>}>();
 const maxBytes=4*1024*1024;
 async function download(source:string){
-  const response=await fetch(source,{signal:AbortSignal.timeout(12000),redirect:"error"});
+  const response=await fetch(source,{signal:AbortSignal.timeout(FETCH_TIMEOUT_MS),redirect:"error"});
   if(!response.ok||!response.body||!response.headers.get("content-type")?.includes("text/html"))throw Error("Invalid OI Wiki response");
   const reader=response.body.getReader();
   const decoder=new TextDecoder();

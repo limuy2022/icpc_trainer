@@ -1,3 +1,4 @@
+import {CODEFORCES_ORIGIN} from "./constants";
 import { parse, type DefaultTreeAdapterMap } from "parse5";
 import { htmlToMarkdown } from "./statements";
 type Node = DefaultTreeAdapterMap["node"];
@@ -7,7 +8,7 @@ function text(n:Node):string {return n.nodeName==="#text" ? (n as DefaultTreeAda
 function walk(n:Node,visit:(n:Node)=>void) {visit(n);children(n).forEach(c=>walk(c,visit));}
 function problemLink(href:string) {
   try {
-    const u=new URL(href,"https://codeforces.com");
+    const u=new URL(href,CODEFORCES_ORIGIN);
     if(u.hostname!=="codeforces.com" || !["http:","https:"].includes(u.protocol))return;
     const m=u.pathname.match(/^\/(?:contest\/(\d+)\/problem\/([A-Z][A-Z0-9]*)|problemset\/problem\/(\d+)\/([A-Z][A-Z0-9]*))\/?$/i);
     if(m)return (m[1]||m[3])+(m[2]||m[4]).toUpperCase();
@@ -22,7 +23,7 @@ export function tutorialLinks(html:string):string[] {
     while(container && !attr(container,"class").split(/\s+/).includes("sidebox"))container="parentNode" in container ? container.parentNode || undefined : undefined;
     if(!container || !/Contest materials|Материалы соревнования|比赛资料/i.test(text(container)))return;
     try {
-      const u=new URL(attr(n,"href"),"https://codeforces.com");
+      const u=new URL(attr(n,"href"),CODEFORCES_ORIGIN);
       const m=u.pathname.match(/^\/blog\/entry\/(\d+)\/?$/);
       if(u.hostname==="codeforces.com" && m)result.push({url:`https://codeforces.com/blog/entry/${m[1]}`,english:/\(en\)|english/i.test(text(n))});
     } catch { /* Ignore unrelated links. */ }

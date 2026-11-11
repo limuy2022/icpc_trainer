@@ -12,7 +12,7 @@ export default function ThemeSwitch() {
         if (["light", "dark", "system"].includes(saved || ""))
           return saved as Theme;
       }
-    } catch {}
+    } catch {/* intentionally ignored */}
     return "system";
   });
   useEffect(() => {
@@ -25,7 +25,7 @@ export default function ThemeSwitch() {
     media.addEventListener("change", apply);
     try {
       localStorage.setItem("icpc-theme", theme);
-    } catch {}
+    } catch {/* intentionally ignored */}
     return () => media.removeEventListener("change", apply);
   }, [theme]);
   const Icon = theme === "system" ? Monitor : theme === "dark" ? Moon : Sun;

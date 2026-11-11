@@ -1,3 +1,4 @@
+import {OI_WIKI_ORIGIN} from "./constants";
 import {assistantTopics,newAssistantSession} from "./assistant";
 import oiWiki from "./oi-wiki-topics.json";
 import type {Session} from "./types";
@@ -41,7 +42,7 @@ export const lessonCatalog=Object.entries(oiWiki.chapters).flatMap(([chapter,pag
  }),
 );
 export function lessonWikiUrl(path:string){
- return "https://oi-wiki.org/"+path.replace(/\/index$/,"")+"/";
+ return OI_WIKI_ORIGIN+"/"+path.replace(/\/index$/,"")+"/";
 }
 export function isLessonMastered(lesson:Session["lesson"]){
  return lesson?.mastered??(lesson?.mastery==="implement");

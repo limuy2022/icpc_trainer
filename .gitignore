@@ -60,3 +60,4 @@ yarn-error.log*
 
 # Personal legacy hosting identity is not part of the self-hosted project.
 /.openai/hosting.json
+.zcode/

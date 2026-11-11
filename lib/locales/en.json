@@ -889,5 +889,20 @@
   "请输入 XCPC Rating 上的姓名@学校": "Enter the name@university shown on XCPC Rating.",
   "暂时无法读取 XCPC Rating，请稍后重试": "XCPC Rating is temporarily unavailable. Try again later.",
   "未找到该选手，请核对姓名和学校": "Player not found. Check the name and university.",
-  "XCPC 档案已更新，请重新打开后再试": "The XCPC profile changed. Reopen this form and try again."
+  "XCPC 档案已更新，请重新打开后再试": "The XCPC profile changed. Reopen this form and try again.",
+  "可用模型 ID": "Available model IDs",
+  "本机模型 Key": "Local API model keys",
+  "模型编辑": "Edit model",
+  "等级分设置": "Rating settings",
+  "题面暂时无法读取。已尝试 CF 原题和公共存档，可稍后重试或手动粘贴完整题面。": "The statement could not be loaded. Both the Codeforces original and the public archive were tried; retry later or paste the full statement manually.",
+  "译文未完整保留公式或样例，请重试": "The translation did not preserve all formulas or samples; please retry",
+  "译文标记无效": "Invalid translation markers",
+  "只能修改已发送的用户消息": "Only sent user messages can be edited",
+  "消息不能为空": "Message cannot be empty",
+  "模型目录不可用，请检查密钥或手动填写模型 ID": "Model list unavailable; check the key or enter the model ID manually",
+  "官方题解小节长度异常": "The official editorial section has an abnormal length",
+  "官方题解未找到可确认题号的小节": "No editorial section matched this problem ID",
+  "Codeforces 原题": "Codeforces original problem",
+  "Codeforces Pro 公共题面存档（非官方）": "Codeforces Pro public statement archive (unofficial)",
+  "学习专题不存在": "Lesson topic not found"
 }

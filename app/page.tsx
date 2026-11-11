@@ -1,101 +1,56 @@
 "use client";
-import LanguageSwitch from "@/components/language-switch";
 import {t as ui,useLocale,currentLocale} from "@/lib/locale";
 import { reasoningLabels, type ReasoningLevel } from "@/lib/reasoning";
 import XcpcProfileForm from "@/components/xcpc-profile-form";
 import RatingForm from "@/components/rating-form";
-import { ratingRange, difficultyOptions } from "@/lib/rating-range";
+import { ratingRange } from "@/lib/rating-range";
 import StatisticsPanel from "@/components/statistics-panel";
 import { reviseConversation } from "@/lib/conversation";
-import {conversationBranch,branchHash,hasJobReply,applyJobReply,recoverJobSession,type CoachJob} from "@/lib/coach-job";
+import {conversationBranch,branchHash,applyJobReply,type CoachJob} from "@/lib/coach-job";
 import { trainingStats } from "@/lib/training-stats";
 import { splitStatement } from "@/lib/statement-header";
 import {translationSource} from "@/lib/translation-source";
-import { useEffect, useMemo, useRef, useState } from "react";
-import {assistantSessionTitle,newAssistantSession} from "@/lib/assistant";
-import {LessonLibrary,LessonProgress} from "@/components/lesson-learning";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {newAssistantSession} from "@/lib/assistant";
+import {LessonLibrary} from "@/components/lesson-learning";
 import {newLessonSession,lessonDefinition,setLessonMastered} from "@/lib/lessons";
-import AssistantTools from "@/components/assistant-tools";
 import LearnerMemoryEditor from "@/components/learner-memory-editor";
 import BrowserModelManager from "@/components/browser-model-manager";
-import {readBrowserModels,browserModelMetadata,browserCompletion,browserModelPayload} from "@/lib/browser-models";
+import {readBrowserModels,browserModelMetadata,browserCompletion,browserModelPayload,readBrowserPreferences} from "@/lib/browser-models";
 import {protectStatement,restoreStatement} from "@/lib/translation-format";
 import {translationInstructions} from "@/lib/translation-prompt";
-import ReasoningDetails from "@/components/reasoning-details";
-import RecoveredVersions from "@/components/recovered-versions";
-import Text from "@/components/lazy-markdown-text";
-import DifficultyBadge, { DifficultyGuide } from "@/components/difficulty-badge";
-import ThemeSwitch from "@/components/theme-switch";
-import AccountGate, {
-  PasswordForm,
-  type Account,
-} from "@/components/account-gate";
+import AccountGate, { PasswordForm, type Account } from "@/components/account-gate";
 import AdminPanel from "@/components/admin-panel";
+import WorkspaceSidebar from "@/components/workspace/sidebar";
+import Modal from "@/components/workspace/modal";
+import ModelSettingsModal from "@/components/workspace/model-settings-modal";
+import FinishModal from "@/components/workspace/finish-modal";
+import HistoryView from "@/components/workspace/history-view";
+import BankView from "@/components/workspace/bank-view";
+import ChatView from "@/components/workspace/chat-view";
 import { useTrainingSync } from "@/hooks/use-training-sync";
+import { useCoachJobs } from "@/hooks/use-coach-jobs";
 import { useWorkspaceRoute } from "@/hooks/use-workspace-route";
 import { sessionView } from "@/lib/workspace-route";
-import ProblemStatement from "@/components/problem-statement";
 import {
-  Pencil,
-  Undo2,
-  BarChart3,
-  Menu,
+        Menu,
   ArrowUpRight,
-  ArrowRight,
-  BookOpen,
-  Check,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Clock3,
-  Code2,
-  Download,
-  ExternalLink,
-  Eye,
-  EyeOff,
-  Flag,
-  History,
-  Lightbulb,
-  LoaderCircle,
-  MessageCircle,
-  Pause,
-  Play,
-  Plus,
-  Search,
-  Send,
-  Settings2,
-  Shuffle,
-  Sparkles,
-  Target,
-  TrendingUp,
-  X,
-  Zap,
-  NotebookPen,
-  CircleHelp,
-  CheckCircle2,
-  ShieldCheck,
-  LogOut,
-  Upload,
-} from "lucide-react";
+            ChevronRight,
+                                                    CheckCircle2,
+      } from "lucide-react";
 import type { Problem, Session, Message } from "@/lib/types";
-import { tagLabels, problemUrl } from "@/lib/types";
-type Bank = {
-  items: Problem[];
-  total: number;
-  bankTotal: number;
-  source: string;
-  updatedAt: string;
-};
-const outcomes = {
-  training: "训练中",
-  independent: "独立解出",
-  assisted: "提示后解出",
-  review: "待重练",
-};
-const fmt = (seconds: number) =>
-  `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-const renderMarkdown=(text:string)=><Text text={text}/>;
-const renderPlain=(text:string)=>text;
+import { api } from "@/lib/api-client";
+import type {
+  ConfigResponse,
+  LearnerMemoryResponse,
+  ModelOption,
+  PreparedCoachRequest,
+  ProblemsResponse,
+  ReasoningOption,
+  StatementResponse,
+  TranslateResponse,
+} from "@/lib/api-types";
+type Bank = ProblemsResponse;
 export default function Home() {
   useLocale();
   return (
@@ -121,7 +76,6 @@ function Workspace({
     user.id,
   );
   const [memoryOpen,setMemoryOpen]=useState(false);
-  const generationSessionId=useRef<string|null>(null);
   const [mobileMenu, setMobileMenu] = useState(false);
   useEffect(() => {
     if (!mobileMenu) return;
@@ -130,14 +84,12 @@ function Workspace({
     return () => document.removeEventListener("keydown", close);
   }, [mobileMenu]);
   const [efforts, setEfforts] = useState<Record<string,ReasoningLevel>>({});
-  const [modelSettingsBusy,setModelSettingsBusy]=useState(false),[modelSettingsError,setModelSettingsError]=useState("");
-  const [models, setModels] = useState<any[]>([]),
+  const [models, setModels] = useState<ModelOption[]>([]),
     [modelId, setModelId] = useState(""),
     [passwordModal, setPasswordModal] = useState(false);
   const selectedModel=models.find(m=>m.id===modelId);
   const supportedEfforts=selectedModel?.reasoningOptions || [{value:"default",label:ui("模型默认")}];
-  const reasoningEffort:ReasoningLevel=supportedEfforts.some((option:any)=>option.value===efforts[modelId])?efforts[modelId]:"default";
-  const importInput = useRef<HTMLInputElement>(null);
+  const reasoningEffort:ReasoningLevel=supportedEfforts.some((option:ReasoningOption)=>option.value===efforts[modelId])?efforts[modelId]:"default";
   const [bank, setBank] = useState<Bank | null>(null),
     [loading, setLoading] = useState(true),
     [bankError, setBankError] = useState("");
@@ -156,19 +108,10 @@ function Workspace({
     [aiConfigured, setAiConfigured] = useState(false),
     [model, setModel] = useState("");
   const [retryMode, setRetryMode] = useState("discuss");
-  const sending=useRef(false);
-  const sendStartedAt=useRef(0);
-  const [partialReply,setPartialReply]=useState<{sessionId:string;text:string;reasoning?:string}|null>(null);
-  const directGeneration=useRef(false),directAbort=useRef<AbortController|null>(null);
-  useEffect(()=>()=>directAbort.current?.abort(),[]);
-  const activeJob=useRef<string|null>(null),submittingJob=useRef(false),pollJobs=useRef<()=>void>(()=>{});
-  const [chatRequestId,setChatRequestId]=useState("");
   const [personalModelsOpen,setPersonalModelsOpen]=useState(false);
   const [allowUnverified, setAllowUnverified] = useState(false);
   const [messageEdit, setMessageEdit] = useState<{ sessionId: string; index: number; original: string; content: string } | null>(null);
   const [draft, setDraft] = useState(""),
-    [busy, setBusy] = useState(false),
-    [chatError, setChatError] = useState(""),
     [statementBusy, setStatementBusy] = useState(false),
     [statementError, setStatementError] = useState(""),
     [editor, setEditor] = useState(false),
@@ -196,6 +139,12 @@ function Workspace({
     requestId = useRef(0),
     sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
+  const {
+    busy,setBusy,chatError,setChatError,chatRequestId,setChatRequestId,
+    partialReply,setPartialReply,stopGeneration,generationSessionId,
+    sendStartedAt,sending,directGeneration,directAbort,activeJob,
+    submittingJob,pollJobs,
+  } = useCoachJobs(user.id, loaded, sessionsRef, setSessions, setToast);
   const isLesson=view==="lesson";
   const isAssistant=view==="assistant"||isLesson;
   const assistantChats=sessions.filter(s=>sessionView(s)==="assistant");
@@ -203,11 +152,12 @@ function Workspace({
   const session=view==="assistant"
     ? (selectedSession&&sessionView(selectedSession)==="assistant"?selectedSession:assistantChats.find(s=>!s.assistantArchived))
     : selectedSession&&sessionView(selectedSession)===view&&(!isLesson||lessonDefinition(selectedSession.lesson))?selectedSession:undefined;
+  const sessionId=session?.id;
   useEffect(()=>{
     if(!loaded||view!=="assistant")return;
-    if(session){if(current!==session.id)openRoute("assistant",session.id,true);return;}
+    if(sessionId){if(current!==sessionId)openRoute("assistant",sessionId,true);return;}
     setSessions(prev=>prev.some(s=>s.kind==="assistant"&&!s.lesson&&!s.assistantArchived)?prev:[newAssistantSession(),...prev]);
-  },[loaded,view,current,session?.id]);
+  },[loaded,view,current,sessionId,openRoute,setSessions]);
   const statementParts=useMemo(()=>splitStatement(session?.statement||"",session?.statementMetadata),[session?.statement,session?.statementMetadata]);
   const sourceText=useMemo(()=>translationSource(session?.statement||""),[session?.statement]);
   const translation =
@@ -232,29 +182,26 @@ function Workspace({
       0,
     ) / 60,
   );
-  async function refreshModels() {
+  const refreshModels = useCallback(async () => {
     try {
-      const r = await fetch("/api/config");
-      const c = (await r.json()) as any;
-      if (!r.ok) return;
+      const c = await api<ConfigResponse>("/api/config");
       const local=readBrowserModels(user.id).map(browserModelMetadata);
-      const combined=[...(c.models||[]),...local];
-      let preferences:any={};try{preferences=JSON.parse(localStorage.getItem("icpc-browser-preferences:"+user.id)||"{}");}catch{}
-      c.models=combined;
+      const combined:ModelOption[]=[...(c.models||[]),...local];
+      const preferences=readBrowserPreferences(user.id);
       setAiConfigured(combined.length>0);
       setModels(combined);
       setEfforts({...c.preferences?.efforts,...preferences.efforts});
       setModel(c.model || "");
       setModelId((prev) =>
-        c.models.some((m: any) => m.id === prev) ? prev : c.models.some((m:any)=>m.id===preferences.selectedModelId)?preferences.selectedModelId:c.models.some((m:any)=>m.id===c.preferences?.selectedModelId)?c.preferences.selectedModelId:c.models[0]?.id || "",
+        combined.some((m) => m.id === prev) ? prev : combined.some((m)=>m.id===preferences.selectedModelId)?String(preferences.selectedModelId):combined.some((m)=>m.id===c.preferences?.selectedModelId)?String(c.preferences.selectedModelId):combined[0]?.id || "",
       );
-    } catch {}
-  }
+    } catch {/* intentionally ignored */}
+  }, [user.id]);
   useEffect(() => {
     void refreshModels();
     const localChanged=()=>void refreshModels();window.addEventListener("icpc-browser-models",localChanged);
     return () => window.removeEventListener("icpc-browser-models",localChanged);
-  }, []);
+  }, [refreshModels]);
   const clockRunning=Boolean((view==="training"&&session?.startedAt)||(busy&&session&&["training","assistant","lesson"].includes(view)));
   useEffect(() => {
     if(!clockRunning)return;
@@ -285,13 +232,8 @@ function Workspace({
         page: String(page),
         exclude: exclusions,
       });
-      fetch("/api/problems?" + params, { signal: controller.signal })
-        .then(async (r) => {
-          const d = (await r.json()) as Bank & {
-            error?: string;
-            text?: string;
-          };
-          if (!r.ok) throw Error(d.error || "请求失败");
+      api<Bank>("/api/problems?" + params, { signal: controller.signal })
+        .then((d) => {
           setBank(d);
         })
         .catch((e) => {
@@ -320,76 +262,12 @@ function Workspace({
     if(partialReply?.sessionId===session?.id && container && container.scrollHeight-container.scrollTop-container.clientHeight<180)
       chatEnd.current?.scrollIntoView({block:"nearest"});
   },[partialReply,session?.id]);
-  useEffect(()=>{
-    if(!loaded)return;
-    let stopped=false,inFlight=false,timer:ReturnType<typeof setTimeout>|undefined,controller:AbortController|undefined;
-    const poll=async(force=false)=>{
-      if(stopped||(inFlight&&!force))return;
-      if(directGeneration.current){if(timer)clearTimeout(timer);timer=setTimeout(()=>void poll(),1000);return;}
-      if(force)controller?.abort();if(timer)clearTimeout(timer);
-      const attempt=new AbortController();controller=attempt;inFlight=true;
-      try{
-        const response=await fetch("/api/coach-jobs",{signal:attempt.signal});
-        if(!response.ok)throw Error("任务状态读取失败");
-        const data=await response.json() as {jobs:CoachJob[]};if(stopped||attempt.signal.aborted)return;
-        const running=data.jobs.find(job=>job.status==="running");
-        if(running){generationSessionId.current=running.sessionId;if(running.requestId)setChatRequestId(running.requestId);activeJob.current=running.id;sending.current=true;setBusy(true);sendStartedAt.current=new Date(running.createdAt).getTime();setChatError("");setPartialReply({sessionId:running.sessionId,text:running.text,reasoning:running.reasoning});}
-        for(const job of data.jobs){
-          if(job.status==="running")continue;
-          if(job.status==="done"&&job.result){
-            let snapshot=sessionsRef.current.find(s=>s.id===job.sessionId);
-            if(!snapshot||!hasJobReply(snapshot,job.id)){
-              if(!snapshot||await branchHash(conversationBranch(snapshot))!==job.branchHash){
-                const contextResponse=await fetch("/api/coach-jobs?context="+encodeURIComponent(job.id),{signal:attempt.signal});
-                if(!contextResponse.ok)throw Error("任务状态读取失败");
-                const details=await contextResponse.json() as {job:CoachJob};job.context=details.job.context;
-                if(job.context)snapshot=recoverJobSession(snapshot,job.context);
-              }
-              if(!snapshot)continue;
-              const before=conversationBranch(snapshot),matches=await branchHash(before)===job.branchHash;
-              if(stopped||attempt.signal.aborted)return;
-              setSessions(prev=>{
-                const existing=prev.find(s=>s.id===job.sessionId);
-                const seed=job.context?recoverJobSession(existing,job.context):existing;
-                if(!seed)return prev;
-                const next=applyJobReply(seed,job,matches&&conversationBranch(seed)===before);
-                return existing?prev.map(s=>s.id===job.sessionId?next:s):[next,...prev];
-              });
-              if(!matches)setToast("对话已变化，回复已保存在历史版本中。");
-            }
-            if(activeJob.current===job.id){setChatError("");if(job.result.requestId)setChatRequestId(job.result.requestId);}
-            // Server acknowledges only after training sync has durably stored the reply.
-            void fetch("/api/coach-jobs",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:job.id,action:"ack"})}).catch(()=>{});
-            if(!running)setPartialReply(null);
-          }else{
-            if(job.requestId)setChatRequestId(job.requestId);setChatError(job.error||"回复生成失败，请重试");
-            setPartialReply({sessionId:job.sessionId,text:job.text,reasoning:job.reasoning});
-            void fetch("/api/coach-jobs",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:job.id,action:"ack"})}).catch(()=>{});
-          }
-        }
-        if(!running&&!submittingJob.current){activeJob.current=null;sending.current=false;setBusy(false);}
-      }catch{
-        if(!stopped&&!attempt.signal.aborted&&activeJob.current)setChatError("连接已断开，服务器仍会继续生成，返回页面后自动恢复。");
-      }finally{
-        if(controller===attempt){inFlight=false;if(!stopped)timer=setTimeout(()=>void poll(),activeJob.current?1000:5000);}
-      }
-    };
-    const resume=()=>{if(document.visibilityState==="visible")void poll(true);};
-    pollJobs.current=()=>void poll(true);void poll();
-    window.addEventListener("focus",resume);window.addEventListener("online",resume);document.addEventListener("visibilitychange",resume);
-    return()=>{stopped=true;controller?.abort();if(timer)clearTimeout(timer);window.removeEventListener("focus",resume);window.removeEventListener("online",resume);document.removeEventListener("visibilitychange",resume);pollJobs.current=()=>{};};
-  },[loaded,user.id]);
-  async function stopGeneration(){
-    if(directAbort.current){directAbort.current.abort();return;}
-    const id=activeJob.current;if(!id)return;
-    try{const response=await fetch("/api/coach-jobs",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,action:"cancel"})});if(!response.ok)throw Error();pollJobs.current();}catch{setChatError("停止请求未送达，请恢复网络后重试。");}
-  }
   function patch(id: string, change: Partial<Session>) {
     setSessions((prev) =>
       prev.map((s) => (s.id === id ? { ...s, ...change } : s)),
     );
   }
-  function pauseAll() {
+  const pauseAll = useCallback(() => {
     setSessions((prev) =>
       prev.map((s) =>
         s.startedAt
@@ -403,7 +281,35 @@ function Workspace({
           : s,
       ),
     );
-  }
+  }, [setSessions]);
+  const loadStatement = useCallback(async (p: Problem, id: string) => {
+    const token = ++requestId.current;
+    setStatementBusy(true);
+    setStatementError("");
+    try {
+      const d = await api<StatementResponse>(
+        `/api/statement?contest=${p.contestId}&index=${p.index}`,
+      );
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === id && !s.statement
+            ? {
+                ...s,
+                statement: d.text || "",
+                statementMetadata: d.metadata,
+                statementFormat: d.format,
+                statementSource: d.source,
+                statementFetchedAt: d.fetchedAt,
+              }
+            : s,
+        ),
+      );
+    } catch (e) {
+      if (token === requestId.current) setStatementError((e as Error).message);
+    } finally {
+      if (token === requestId.current) setStatementBusy(false);
+    }
+  }, [setSessions]);
   function openAssistantConversation(id:string){setDraft("");setChatError("");setMessageEdit(null);openRoute("assistant",id);}
   function newAssistantConversation(){const next=newAssistantSession();setSessions(prev=>[next,...prev]);openAssistantConversation(next.id);}
   function updateAssistantConversation(id:string,change:Partial<Session>){
@@ -413,11 +319,11 @@ function Workspace({
   async function rememberLesson(){
     if(!session?.lesson)return;const definition=lessonDefinition(session.lesson);if(!definition)return;
     try{
-      const response=await fetch("/api/learner-memory");const currentMemory=await response.json() as any;if(!response.ok)throw Error(currentMemory.error||"读取学习记忆失败");
+      const currentMemory=await api<LearnerMemoryResponse>("/api/learner-memory");
       const name=definition.topic.memoryName;
-      const algorithms=[...currentMemory.memory.algorithms],index=algorithms.findIndex((entry:any)=>entry.name===name);
+      const algorithms=[...currentMemory.memory.algorithms],index=algorithms.findIndex((entry)=>entry.name===name);
       const entry={name,level:session.lesson.mastery,note:index>=0?algorithms[index].note:""};if(index>=0)algorithms[index]=entry;else algorithms.push(entry);
-      const saved=await fetch("/api/learner-memory",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({memory:{...currentMemory.memory,algorithms},revision:currentMemory.revision})});const data=await saved.json() as any;if(!saved.ok)throw Error(data.error||"保存失败");setToast("专题自评已存入学习记忆");
+      await api("/api/learner-memory",{method:"PATCH",body:{memory:{...currentMemory.memory,algorithms},revision:currentMemory.revision}});setToast("专题自评已存入学习记忆");
     }catch(error){setToast((error as Error).message);}
   }
   function quoteLesson(quote:string){
@@ -459,44 +365,7 @@ function Workspace({
       ? s.outcome==="training"&&!s.startedAt?{...s,startedAt:timestamp}:s
       : s.startedAt?{...s,elapsed:s.elapsed+Math.max(0,Math.floor((timestamp-s.startedAt)/1000)),startedAt:null}:s));
     if(!restored.statement)void loadStatement(restored.problem,restored.id);
-  },[view,current,loaded]);
-  async function loadStatement(p: Problem, id: string) {
-    const token = ++requestId.current;
-    setStatementBusy(true);
-    setStatementError("");
-    try {
-      const r = await fetch(
-        `/api/statement?contest=${p.contestId}&index=${p.index}`,
-      );
-      const d = (await r.json()) as {
-        error?: string;
-        text: string;
-        metadata?: Session["statementMetadata"];
-        format?: "markdown";
-        source?: Session["statementSource"];
-        fetchedAt?: string;
-      };
-      if (!r.ok) throw Error(d.error || "请求失败");
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === id && !s.statement
-            ? {
-                ...s,
-                statement: d.text || "",
-                statementMetadata: d.metadata,
-                statementFormat: d.format,
-                statementSource: d.source,
-                statementFetchedAt: d.fetchedAt,
-              }
-            : s,
-        ),
-      );
-    } catch (e) {
-      if (token === requestId.current) setStatementError((e as Error).message);
-    } finally {
-      if (token === requestId.current) setStatementBusy(false);
-    }
-  }
+  },[view,current,loaded,loadStatement,openRoute,pauseAll,setSessions]);
   function start(p: Problem) {
     if (!loaded) {
       setToast("训练记录尚未加载，请稍后重试");
@@ -557,9 +426,7 @@ function Workspace({
         exclude: exclusions,
         random: "1",
       });
-      const r = await fetch("/api/problems?" + params);
-      const d = (await r.json()) as Bank & { error?: string };
-      if (!r.ok) throw Error(d.error || "请求失败");
+      const d = await api<Bank>("/api/problems?" + params);
       if (d.items.length) start(d.items[0]);
       else setToast("当前条件没有匹配的题目，试试放宽难度或标签。");
     } catch {
@@ -589,31 +456,24 @@ function Workspace({
       const local=readBrowserModels(user.id).find(m=>m.id===modelId);
       if(local){
         const cacheKey="icpc-browser-translation:"+user.id+":"+session.problem.id;
-        let cached:any;try{cached=JSON.parse(localStorage.getItem(cacheKey)||"null");}catch{}
+        let cached:{text:string;original:string;model:string}|null=null;try{cached=JSON.parse(localStorage.getItem(cacheKey)||"null");}catch{/* intentionally ignored */}
         if(!forceRefresh&&cached?.original===original){setTranslations(prev=>({...prev,[id]:cached}));return;}
         const {masked,kept}=protectStatement(splitStatement(original).text);
         const result=await browserCompletion(user.id,local,{...browserModelPayload(local,reasoningEffort),messages:[{role:"system",content:translationInstructions},{role:"user",content:masked}]});
         const value={text:restoreStatement(result.text,kept),original,model:local.model};
-        try{localStorage.setItem(cacheKey,JSON.stringify(value));}catch{}
+        try{localStorage.setItem(cacheKey,JSON.stringify(value));}catch{/* intentionally ignored */}
         setTranslations(prev=>({...prev,[id]:value}));return;
       }
-      const response = await fetch("/api/translate", {
+      const data = await api<TranslateResponse>("/api/translate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           text: splitStatement(original).text,
           problemId: session.problem.id,
           modelId,
           reasoningEffort,
           forceRefresh,
-        }),
+        },
       });
-      const data = (await response.json()) as {
-        text: string;
-        model: string;
-        error?: string;
-      };
-      if (!response.ok) throw Error(data.error || "翻译失败，请重试");
       setTranslations((prev) => ({
         ...prev,
         [id]: { text: data.text, original, model: data.model },
@@ -706,8 +566,7 @@ function Workspace({
       activeJob.current=null;setRetryMode(mode);
       try{
         const expected=conversationBranch({messages,messagesVersion});
-        const response=await fetch("/api/coach",{method:"POST",headers:{"Content-Type":"application/json"},signal:controller.signal,body:JSON.stringify({prepareOnly:true,browserModel:browserModelMetadata(browserModel),assistant:isAssistant,useLearningMemory:session.useLearningMemory!==false,lesson:session.lesson,assistantProfile:session.assistantProfile,statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))})});
-        const prepared=await response.json() as any;if(!response.ok)throw Error(prepared.error||"请求失败");
+        const prepared=await api<PreparedCoachRequest>("/api/coach",{method:"POST",signal:controller.signal,body:{prepareOnly:true,browserModel:browserModelMetadata(browserModel),assistant:isAssistant,useLearningMemory:session.useLearningMemory!==false,lesson:session.lesson,assistantProfile:session.assistantProfile,statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))}});
         if(prepared.editorial)patch(id,{editorialReference:prepared.editorial});
         const result=await browserCompletion(user.id,browserModel,prepared.payload,{signal:controller.signal,
           delta:text=>setPartialReply(previous=>({sessionId:id,text:(previous?.sessionId===id?previous.text:"")+text,reasoning:previous?.sessionId===id?previous.reasoning:undefined})),
@@ -723,11 +582,10 @@ function Workspace({
     setRetryMode(mode);
     try {
       const hash=await branchHash(conversationBranch({messages,messagesVersion}));
-      const response=await fetch("/api/coach-jobs",{
-        method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({jobId,sessionId:id,branchHash:hash,assistant:isAssistant,useLearningMemory:session.useLearningMemory!==false,lesson:session.lesson,assistantProfile:session.assistantProfile,sessionSnapshot:{...session,messages:messages.map(({role,content,generationId,lessonStage})=>({role,content,...(generationId?{generationId}:{}),...(lessonStage?{lessonStage}:{})})),messagesVersion,startedAt:null,elapsed,hints:mode==="solution"?4:mode.startsWith("hint")?Math.max(session.hints,Number(mode.slice(-1))):session.hints,recoveredVersions:undefined},statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,modelId,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))}),
+      await api("/api/coach-jobs",{
+        method:"POST",
+        body:{jobId,sessionId:id,branchHash:hash,assistant:isAssistant,useLearningMemory:session.useLearningMemory!==false,lesson:session.lesson,assistantProfile:session.assistantProfile,sessionSnapshot:{...session,messages:messages.map(({role,content,generationId,lessonStage})=>({role,content,...(generationId?{generationId}:{}),...(lessonStage?{lessonStage}:{})})),messagesVersion,startedAt:null,elapsed,hints:mode==="solution"?4:mode.startsWith("hint")?Math.max(session.hints,Number(mode.slice(-1))):session.hints,recoveredVersions:undefined},statement:splitStatement(session.statement).text,problem:`${session.problem.id} ${session.problem.name}`,problemId:session.problem.id,allowUnverified,language:currentLocale(),notes:session.notes,modelId,reasoningEffort,mode,messages:messages.slice(-30).map(({role,content})=>({role,content}))},
       });
-      const data=await response.json() as {error?:string};if(!response.ok)throw Error(data.error||"回复生成失败，请重试");
     }catch(error){setChatError((error as Error).message);if(!edit&&!retry)setDraft(content);}
     finally{submittingJob.current=false;pollJobs.current();}
   }
@@ -775,96 +633,20 @@ function Workspace({
   const doneIds = new Set(completed.map((s) => s.problem.id));
   return (
     <div className="app-shell">
-      {mobileMenu && <button className="mobile-menu-backdrop" aria-label={ui("关闭导航")} onClick={() => setMobileMenu(false)} />}
-      <aside id="workspace-navigation" className={"sidebar" + (mobileMenu ? " mobile-open" : "")} onClick={(event) => { if ((event.target as HTMLElement).closest("button, a")) setMobileMenu(false); }}>
-        <button className="mobile-menu-close" aria-label={ui("收起导航")} onClick={() => setMobileMenu(false)}><X size={22} /></button>
-        <a
-          className="brand"
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate("bank");
-          }}
-        >
-          <span className="brand-icon">
-            <Code2 size={25} />
-          </span>
-          <span>
-            {ui("思维练习场")}<small>ICPC THINKING LAB</small>
-          </span>
-        </a>
-        <div className="nav-label">WORKSPACE</div>
-        <nav>
-          {[
-            { id: "bank", icon: BookOpen, label: ui("发现题目") },
-            { id: "training", icon: MessageCircle, label: ui("思维陪练") },
-            { id:"assistant",icon:Sparkles,label:ui("算法助教") },
-            { id:"lessons",icon:BookOpen,label:ui("专题学习") },
-            { id: "history", icon: History, label: ui("训练记录") },
-            { id: "statistics", icon: BarChart3, label: ui("训练统计") },
-          ].map(({ id, icon: Icon, label }) => (
-            <button
-              key={id}
-              className={view === id || (id==="lessons"&&isLesson) ? "nav-item active" : "nav-item"}
-              onClick={() => navigate(id as typeof view)}
-            >
-              <Icon size={19} />
-              {ui(label)}
-              {id === "training" &&
-                trainingSessions.some(s=>s.outcome==="training") && (
-                  <span className="nav-dot" />
-                )}
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-note">
-          <span className="tiny-label">{ui("一点训练共识")}</span>
-          <p>
-            {ui("先有一个观察，")}<br />
-            {ui("再向答案走一步。")}</p>
-          <span>{ui("允许卡住，也允许猜错。")}</span>
-          <div className="note-line" />
-        </div>
-        <div className="sidebar-bottom">
-          <div className="appearance-controls"><LanguageSwitch /><ThemeSwitch /></div>
-          {user.role === "admin" && (
-            <button
-              className={view === "admin" ? "nav-item active" : "nav-item"}
-              onClick={() => navigate("admin")}
-            >
-              <ShieldCheck size={18} />
-              {ui("管理员面板")}</button>
-          )}
-          <button className="nav-item" onClick={() => setRatingModal(true)}><Target size={18}/>{ui("个人等级分")}</button>
-          <button className="nav-item" onClick={() => setPasswordModal(true)}>
-            <Settings2 size={18} />
-            {ui("修改密码")}</button>
-          <button
-            className="nav-item"
-            onClick={async () => {
-              pauseAll();
-              await save();
-              await logout();
-            }}
-          >
-            <LogOut size={18} />
-            {ui("退出登录")}</button>
-          <button className="nav-item" onClick={() => setSettings(true)}>
-            <Settings2 size={18} />
-            {ui("陪练模型")}<span className={aiConfigured ? "connection on" : "connection"} />
-          </button>
-          <div className="profile">
-            <div className="avatar">
-              {user.username.slice(0, 1).toUpperCase()}
-            </div>
-            <div>
-              {user.username}
-              <small>
-                {user.role === "admin" ? ui("管理员") : ui("训练成员")} {ui("· 记录保存到服务器")}</small>
-            </div>
-          </div>
-        </div>
-      </aside>
+      <WorkspaceSidebar
+        user={user}
+        view={view}
+        isLesson={isLesson}
+        mobileMenu={mobileMenu}
+        closeMobileMenu={() => setMobileMenu(false)}
+        navigate={navigate}
+        hasActiveTraining={trainingSessions.some(s=>s.outcome==="training")}
+        aiConfigured={aiConfigured}
+        setRatingModal={setRatingModal}
+        setPasswordModal={setPasswordModal}
+        setSettings={setSettings}
+        pauseAllAndLogout={async () => { pauseAll(); await save(); await logout(); }}
+      />
       <div className="workspace">
         <header className="topbar">
           <div>
@@ -895,1173 +677,149 @@ function Workspace({
         {view === "statistics" && <StatisticsPanel save={save} />}
         {(view==="lessons"||(isLesson&&!session&&loaded))&&<LessonLibrary sessions={sessions} ready={loaded} onStart={startLesson} onMasteryChange={(topicId,mastered)=>setSessions(previous=>setLessonMastered(previous,topicId,mastered))}/>}
         {view === "bank" && (
-          <main className="main-content">
-            <section className="hero">
-              <div>
-                <div className="eyebrow">
-                  <span />{ui("从 OI 到 ICPC，每次多一个观察")}</div>
-                <h1>
-                  {ui("把「没思路」，")}<br />
-                  {ui("练成")}<span>{ui("「再想一步」。")}</span>
-                </h1>
-                <p>
-                  {ui("找到刚好有挑战的题。把第一反应说出来，")}<br className="desktop-break" />{ui("让 AI 陪你举例、找反例、推导，直到自己走通。")}</p>
-                <button className="primary" onClick={random} disabled={loading}>
-                  <Shuffle size={17} />
-                  {ui("为我挑一道题")}<ArrowRight size={17} />
-                </button>
-                <span className="hero-caption">
-                  {ui("当前筛选 ·")}{min}–{max}
-                  {tags.length ? ui(" · {0} 个标签",[tags.length]) : ""}
-                </span>
-              </div>
-              <div className="hero-art" aria-hidden="true">
-                <div className="art-label">THE THINKING PROCESS</div>
-                <svg viewBox="0 0 380 180">
-                  <defs>
-                    <pattern
-                      id="dots"
-                      width="17"
-                      height="17"
-                      patternUnits="userSpaceOnUse"
-                    >
-                      <circle cx="1" cy="1" r="1" fill="#d4ddd1" />
-                    </pattern>
-                  </defs>
-                  <rect width="380" height="180" fill="url(#dots)" />
-                  <path
-                    d="M35 133 C90 133 64 45 130 58 S183 165 225 110 S271 28 334 43"
-                    fill="none"
-                    stroke="#a3bca5"
-                    strokeWidth="2"
-                    strokeDasharray="5 5"
-                  />
-                  <circle
-                    cx="35"
-                    cy="133"
-                    r="8"
-                    fill="#dce6d5"
-                    stroke="#6b8b71"
-                  />
-                  <circle
-                    cx="130"
-                    cy="58"
-                    r="9"
-                    fill="#dce6d5"
-                    stroke="#6b8b71"
-                  />
-                  <circle
-                    cx="225"
-                    cy="110"
-                    r="9"
-                    fill="#dce6d5"
-                    stroke="#6b8b71"
-                  />
-                  <circle cx="334" cy="43" r="18" fill="#245645" />
-                  <path
-                    d="m327 43 5 5 8-10"
-                    fill="none"
-                    stroke="#e3f5b0"
-                    strokeWidth="2.5"
-                  />
-                  <text x="14" y="162">
-                    {ui("观察")}</text>
-                  <text x="110" y="33">
-                    {ui("猜想")}</text>
-                  <text x="206" y="143">
-                    {ui("验证")}</text>
-                  <text x="314" y="83">
-                    {ui("突破")}</text>
-                </svg>
-                <div className="art-foot">
-                  <span>{ui("01 — 不是每条路都笔直")}</span>
-                  <span>↗</span>
-                </div>
-              </div>
-            </section>
-            <section className="stats-grid">
-              <div>
-                <span className="stat-icon">
-                  <Target size={19} />
-                </span>
-                <div>
-                  <span>{ui("已完成训练")}</span>
-                  <strong>
-                    {summary.completedProblems}
-                    <small>{ui("道")}</small>
-                  </strong>
-                </div>
-              </div>
-              <div>
-                <span className="stat-icon">
-                  <Clock3 size={19} />
-                </span>
-                <div>
-                  <span>{ui("累计思考时间")}</span>
-                  <strong>
-                    {totalMinutes}
-                    <small>{ui("分钟")}</small>
-                  </strong>
-                </div>
-              </div>
-              <div>
-                <span className="stat-icon">
-                  <Lightbulb size={19} />
-                </span>
-                <div>
-                  <span>{ui("独立解出")}</span>
-                  <strong>
-                    {summary.independentProblems}
-                    <small>{ui("道")}</small>
-                  </strong>
-                </div>
-              </div>
-              <div>
-                <span className="stat-icon">
-                  <TrendingUp size={19} />
-                </span>
-                <div>
-                  <span>{ui("我的起步区间")}</span>
-                  <strong className="rating-stat">
-                    {min}
-                    <span>—</span>
-                    {max}
-                  </strong>
-                </div>
-              </div>
-            </section>
-            <div className="section-title">
-              <div>
-                <h2>
-                  {ui("找到你的下一道题")}<span>PROBLEM EXPLORER</span>
-                </h2>
-                <p>{ui("难一点点，刚好能让思考发生。")}</p>
-              </div>
-              <div className="bank-indicator">
-                <span className="connection on" />
-                {bank
-                  ? ui("{0} 道 CF 题目",[bank.bankTotal.toLocaleString()])
-                  : ui("正在连接 Codeforces")}
-              </div>
-            </div>
-            <div className="rating-preset"><div><strong>{cfRating == null ? ui("尚未设置个人等级分") : ui("我的 CF 等级分 · {0}",[cfRating])}</strong><span>{ui("默认难度")}{preset.min}–{preset.max}{cfRating == null ? "" : ui(" · 等级分 −100 / +300")}</span></div><div><button className="text-button" onClick={()=>setRatingModal(true)}>{cfRating==null?ui("设置等级分"):ui("修改等级分")}</button>{(min!==preset.min||max!==preset.max)&&<button className="secondary" onClick={()=>{setMin(preset.min);setMax(preset.max);setPage(1);}}>{ui("应用个人预设")}</button>}</div></div>
-            <section className="filter-panel">
-              <div className="filter-top">
-                <label className="range-label">
-                  {ui("难度范围")}<select
-                    aria-label={ui("最低难度")}
-                    value={min}
-                    onChange={(e) => {
-                      const v = Number(e.target.value);
-                      setMin(v);
-                      if (v > max) setMax(v);
-                      setPage(1);
-                    }}
-                  >
-                    {difficultyOptions(min).map(
-                      (v) => (
-                        <option key={v}>{v}</option>
-                      ),
-                    )}
-                  </select>
-                  <span>—</span>
-                  <select
-                    aria-label={ui("最高难度")}
-                    value={max}
-                    onChange={(e) => {
-                      const v = Number(e.target.value);
-                      setMax(v);
-                      if (v < min) setMin(v);
-                      setPage(1);
-                    }}
-                  >
-                    {difficultyOptions(max).map(
-                      (v) => (
-                        <option key={v}>{v}</option>
-                      ),
-                    )}
-                  </select>
-                </label>
-                <label className="search-box">
-                  <Search size={16} />
-                  <input
-                    aria-label={ui("搜索题目")}
-                    placeholder={ui("搜索题号或题名")}
-                    value={query}
-                    onChange={(e) => {
-                      setQuery(e.target.value);
-                      setPage(1);
-                    }}
-                  />
-                </label>
-                <select
-                  className="sort-select"
-                  aria-label={ui("排序方式")}
-                  value={sort}
-                  onChange={(e) => {
-                    setSort(e.target.value);
-                    setPage(1);
-                  }}
-                >
-                  <option value="popular">{ui("最多人通过")}</option>
-                  <option value="rating">{ui("难度从低到高")}</option>
-                  <option value="recent">{ui("最近的比赛")}</option>
-                </select>
-              </div>
-              <div className="tag-filter">
-                <span className="filter-label">{ui("训练标签")}</span>
-                <button
-                  className={!tags.length ? "tag selected" : "tag"}
-                  onClick={() => {
-                    setTags([]);
-                    setPage(1);
-                  }}
-                >
-                  {ui("全部")}</button>
-                {Object.entries(tagLabels)
-                  .slice(0, 12)
-                  .map(([tag, label]) => (
-                    <button
-                      className={tags.includes(tag) ? "tag selected" : "tag"}
-                      key={tag}
-                      onClick={() => {
-                        setTags((prev) =>
-                          prev.includes(tag)
-                            ? prev.filter((t) => t !== tag)
-                            : [...prev, tag],
-                        );
-                        setPage(1);
-                      }}
-                    >
-                      {ui(label)}
-                    </button>
-                  ))}
-                <select
-                  aria-label={ui("更多标签")}
-                  value=""
-                  onChange={(e) => {
-                    if (e.target.value)
-                      setTags((prev) => [
-                        ...new Set([...prev, e.target.value]),
-                      ]);
-                    setPage(1);
-                  }}
-                >
-                  <option value="">{ui("更多标签 ＋")}</option>
-                  {Object.entries(tagLabels)
-                    .slice(12)
-                    .map(([v, l]) => (
-                      <option key={v} value={v}>
-                        {ui(l)}
-                      </option>
-                    ))}
-                </select>
-              </div>
-              {tags.some(
-                (t) => !Object.keys(tagLabels).slice(0, 12).includes(t),
-              ) && (
-                <div className="extra-tags">
-                  {tags
-                    .filter(
-                      (t) => !Object.keys(tagLabels).slice(0, 12).includes(t),
-                    )
-                    .map((t) => (
-                      <button
-                        className="tag selected"
-                        key={t}
-                        onClick={() => {
-                          setTags(tags.filter((x) => x !== t));
-                          setPage(1);
-                        }}
-                      >
-                        {ui(tagLabels[t])} ×
-                      </button>
-                    ))}
-                </div>
-              )}
-              <div className="filter-bottom">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={exclude}
-                    onChange={(e) => {
-                      setExclude(e.target.checked);
-                      setPage(1);
-                    }}
-                  />
-                  {ui("排除已完成训练的题")}</label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={hideTags}
-                    onChange={(e) => setHideTags(e.target.checked)}
-                  />
-                  <EyeOff size={14} />
-                  {ui("隐藏题目标签，保留思考空间")}</label>
-                <span>{ui("多标签按「全部符合」筛选")}</span>
-              </div>
-            </section>
-            <div className="result-heading">
-              <span>
-                {loading
-                  ? ui("正在筛选…")
-                  : ui("找到 {0} 道题目",[bank?.total.toLocaleString() || 0])}
-                <span className="result-sub">
-                  {bank?.source === "snapshot"
-                    ? ui("CF 暂不可用 · 使用 {0} 快照",[new Date(bank.updatedAt).toLocaleDateString("zh-CN")])
-                    : ui("来自 Codeforces 官方题库")}
-                </span>
-              </span>
-              <button
-                className="text-button"
-                onClick={random}
-                disabled={loading}
-              >
-                <Shuffle size={14} />
-                {ui("随机挑一题")}</button>
-            </div>
-            <DifficultyGuide />
-            <div className="problem-table">
-              <div className="table-head">
-                <span>{ui("题目 / PROBLEM")}</span>
-                <span>{ui("难度")}</span>
-                <span>{ui("通过人数")}</span>
-                <span>{ui("开始训练")}</span>
-              </div>
-              {bankError ? (
-                <div className="empty">
-                  <CircleHelp />
-                  <h3>{ui("题库暂时没加载出来")}</h3>
-                  <p>{bankError}</p>
-                  <button onClick={() => setPage((p) => (p === 1 ? 2 : 1))}>
-                    {ui("重新加载")}</button>
-                </div>
-              ) : loading ? (
-                <div className="empty">
-                  <LoaderCircle className="spin" />
-                  <p>{ui("正在寻找下一道挑战…")}</p>
-                </div>
-              ) : !bank?.items.length ? (
-                <div className="empty">
-                  <Search />
-                  <h3>{ui("暂时没有匹配的题目")}</h3>
-                  <p>{ui("试试放宽难度范围，或减少标签。")}</p>
-                  <button
-                    onClick={() => {
-                      setTags([]);
-                      setQuery("");
-                      setMin(preset.min);
-                      setMax(preset.max);
-                      setPage(1);
-                    }}
-                  >
-                    {ui("重置筛选")}</button>
-                </div>
-              ) : (
-                bank.items.map((p) => (
-                  <div className="problem-row" key={p.id}>
-                    <div className="problem-name">
-                      <span className="problem-id">{p.id}</span>
-                      <div>
-                        <a
-                          href={problemUrl(p)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {p.name}
-                          <ArrowUpRight size={13} />
-                        </a>
-                        <DifficultyBadge rating={p.rating} />
-                        <div className="problem-tags">
-                          {hideTags ? (
-                            <span>
-                              <EyeOff size={11} />
-                              {ui("标签已隐藏")}</span>
-                          ) : (
-                            p.tags.map((t) => (
-                              <span key={t}>{ui(tagLabels[t] || t)}</span>
-                            ))
-                          )}
-                          {doneIds.has(p.id) && (
-                            <span className="done-tag">{ui("已训练")}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div>
-                      <span
-                        className={
-                          p.rating >= 1900 ? "rating orange" : "rating"
-                        }
-                      >
-                        <span />
-                        {p.rating}
-                      </span>
-                    </div>
-                    <span className="solved-count">
-                      {p.solvedCount.toLocaleString()}
-                    </span>
-                    <button className="row-start" onClick={() => start(p)}>
-                      {ui("去思考")}<ArrowUpRight size={15} />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="pagination">
-              <span>{ui("CF Rating 用于选题参考 · 完成记录由你手动标记")}</span>
-              <div>
-                <button
-                  aria-label={ui("上一页")}
-                  disabled={page <= 1 || loading}
-                  onClick={() => setPage((p) => p - 1)}
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span>
-                  {page} / {Math.max(1, Math.ceil((bank?.total || 0) / 12))}
-                </span>
-                <button
-                  aria-label={ui("下一页")}
-                  disabled={page * 12 >= (bank?.total || 0) || loading}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-            <footer>
-              <Code2 size={15} />
-              {ui("训练的是走向答案的过程。")}<span>BUILT FOR THE NEXT OBSERVATION</span>
-            </footer>
-          </main>
+          <BankView
+            bank={bank}
+            loading={loading}
+            bankError={bankError}
+            cfRating={cfRating}
+            preset={preset}
+            min={min}
+            setMin={setMin}
+            max={max}
+            setMax={setMax}
+            tags={tags}
+            setTags={setTags}
+            query={query}
+            setQuery={setQuery}
+            sort={sort}
+            setSort={setSort}
+            page={page}
+            setPage={setPage}
+            hideTags={hideTags}
+            setHideTags={setHideTags}
+            exclude={exclude}
+            setExclude={setExclude}
+            summaryCompleted={summary.completedProblems}
+            summaryIndependent={summary.independentProblems}
+            totalMinutes={totalMinutes}
+            doneIds={doneIds}
+            random={random}
+            start={start}
+            setRatingModal={setRatingModal}
+          />
         )}
-        {view === "training" && !loaded && <div className="empty" role="status"><LoaderCircle className="spin" size={20}/><p>{ui("正在恢复训练记录…")}</p><p>{ui(syncState)}</p></div>}
-        {view === "training" && loaded && !session && (
-          <main className="main-content">
-            <div className="empty large-empty">
-              <MessageCircle size={38} />
-              <h2>{ui("从一道题，一句话开始。")}</h2>
-              <p>{ui("挑一道题，把你的第一反应告诉 AI 陪练。")}</p>
-              <button className="primary" onClick={() => navigate("bank")}>
-                {ui("去发现题目")}<ArrowRight size={16} />
-              </button>
-              {trainingSessions
-                .filter((s) => s.outcome === "training")
-                .map((s) => (
-                  <button
-                    className="resume-button"
-                    key={s.id}
-                    onClick={() => resume(s)}
-                  >
-                    {ui("继续")}{s.problem.id} · {s.problem.name}
-                    <ArrowRight size={14} />
-                  </button>
-                ))}
-            </div>
-          </main>
-        )}
-        {(view === "training"||view === "assistant"||isLesson) && session && (
-          <main className={view==="assistant"?"training-content assistant-workspace":"training-content"}>
-            <div className="training-heading">
-              <div>
-                <button
-                  className="back-button"
-                  onClick={() => navigate(isLesson?"lessons":"bank")}
-                >
-                  <ChevronLeft size={15} />
-                  {ui(isLesson?"专题列表":"题库")}</button>
-                <h1>
-                  {!isAssistant&&<span>{session.problem.id}</span>}
-                  {isLesson?ui("专题学习")+" · "+ui(session.problem.name):isAssistant?ui(assistantSessionTitle(session)):session.problem.name}
-                </h1>
-                {!isAssistant&&<div className="training-meta">
-                  <span className="rating">
-                    <span />
-                    {session.problem.rating}
-                  </span>
-                  <DifficultyBadge rating={session.problem.rating} />
-                  <a
-                    href={problemUrl(session.problem)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {ui("打开 CF 原题")}<ExternalLink size={13} />
-                  </a>
-                  <span>{ui(outcomes[session.outcome])}</span>
-                </div>}
-              </div>
-              {view==="assistant"&&<AssistantTools
-                sessions={assistantChats}
-                current={session}
-                onOpen={openAssistantConversation}
-                onNew={newAssistantConversation}
-                onChange={updateAssistantConversation}
-                onMemory={()=>setMemoryOpen(true)}
-              />}
-              {!isAssistant&&<div className="training-actions">
-                <button
-                  className="timer"
-                  onClick={() =>
-                    session.startedAt
-                      ? patch(session.id, { elapsed, startedAt: null })
-                      : patch(session.id, { startedAt: Date.now() })
-                  }
-                >
-                  {session.startedAt ? <Pause size={15} /> : <Play size={15} />}
-                  <span>{fmt(elapsed)}</span>
-                </button>
-                <button
-                  className="primary"
-                  disabled={busy}
-                  onClick={() => {
-                    setTakeaway(session.takeaway);
-                    setFinish(true);
-                  }}
-                >
-                  <Flag size={15} />
-                  {ui("结束并记录")}</button>
-              </div>}
-            </div>
-            {view!=="assistant"&&<nav className="mobile-training-jump" aria-label={ui("训练区域")}><a href="#problem-reader" onClick={e=>{e.preventDefault();document.getElementById("problem-reader")?.scrollIntoView({block:"start"});}}>{ui(isLesson?"专题内容":"阅读题目")}</a><a href="#ai-coach" onClick={e=>{e.preventDefault();document.getElementById("ai-coach")?.scrollIntoView({block:"start"});}}>{ui("与 AI 讨论")}</a></nav>}
-            <div className={view==="assistant"?"training-grid assistant-chat-grid":"training-grid"}>
-              {isLesson?<LessonProgress session={session} busy={busy} onChange={change=>patch(session.id,change)} onExplain={()=>void send("lesson")} onRemember={()=>void rememberLesson()} onQuote={quoteLesson}/>:isAssistant?null:<section id="problem-reader" className="statement-panel">
-                <div className="panel-heading">
-                  <h2>
-                    <BookOpen size={17} />
-                    {ui("题目工作区")}</h2>
-                  <button
-                    className="text-button"
-                    onClick={() => setEditor(!editor)}
-                  >
-                    {editor ? ui("保存题面") : ui("编辑 / 粘贴题面")}
-                  </button>
-                </div>
-                <div className="statement-help">
-                  {ui("题面会自动读取并缓存，来源显示在正文下方。可编辑或粘贴修正。")}</div>
-                {statementBusy && (
-                  <div className="inline-loading">
-                    <LoaderCircle size={16} className="spin" />
-                    {ui("正在读取 CF 题面…")}</div>
-                )}
-                {statementError && (
-                  <div className="warning">
-                    {ui(statementError)}
-                    <button onClick={() => setEditor(true)}>{ui("粘贴题面")}</button>
-                    <button
-                      onClick={() => loadStatement(session.problem, session.id)}
-                    >
-                      {ui("重试读取")}</button>
-                  </div>
-                )}
-                {editor ? (
-                  <textarea
-                    className="statement-editor"
-                    aria-label={ui("题面内容")}
-                    value={session.statement}
-                    onChange={(e) =>
-                      patch(session.id, { statement: e.target.value })
-                    }
-                    placeholder={ui("粘贴完整题面、输入输出约束与样例。AI 会基于这里的内容陪练。")}
-                  />
-                ) : session.statement ? (
-                  <>
-                    <div className="statement-toolbar">
-                      <div
-                        className="statement-language"
-                        role="group"
-                        aria-label={ui("题面语言")}
-                      >
-                        <button
-                          className={
-                            statementLanguage === "original" ? "selected" : ""
-                          }
-                          onClick={() => setStatementLanguage("original")}
-                        >
-                          {ui("英文原文")}</button>
-                        <button
-                          className={
-                            statementLanguage === "zh" ? "selected" : ""
-                          }
-                          onClick={() => {
-                            setStatementLanguage("zh");
-                            void translateStatement();
-                          }}
-                        >
-                          {ui("中文译文")}</button>
-                        <button
-                          className={
-                            statementLanguage === "compare" ? "selected" : ""
-                          }
-                          onClick={() => {setStatementLanguage("compare");void translateStatement();}}
-                        >
-                          {ui("中英对照")}</button>
-                      </div>
-                      <div className="statement-font">
-                        <button
-                          aria-label={ui("缩小题面字体")}
-                          onClick={() =>
-                            setStatementFont((v) => Math.max(15, v - 1))
-                          }
-                        >
-                          A−
-                        </button>
-                        <span>{statementFont}px</span>
-                        <button
-                          aria-label={ui("放大题面字体")}
-                          onClick={() =>
-                            setStatementFont((v) => Math.min(22, v + 1))
-                          }
-                        >
-                          A＋
-                        </button>
-                      </div>
-                    </div>
-                    <div
-                      className={
-                        "statement-text " +
-                        (statementLanguage === "compare"
-                          ? "statement-columns"
-                          : "")
-                      }
-                      style={{ fontSize: statementFont }}
-                    >
-                      {statementLanguage !== "zh" && (
-                        <section>
-                          {statementLanguage === "compare" && (
-                            <h3 className="statement-column-label">{ui("英文原文")}</h3>
-                          )}
-                          <ProblemStatement
-                            text={session.statement}
-                            metadata={statementParts.metadata}
-                            render={session.statementFormat === "markdown" ? renderMarkdown : renderPlain}
-                          />
-                        </section>
-                      )}
-                      {statementLanguage !== "original" && (
-                        <section>
-                          {statementLanguage === "compare" && (
-                            <h3 className="statement-column-label">{ui("中文译文")}</h3>
-                          )}
-                          {translation ? (
-                            <>
-                              <div className="translation-notice">
-                                {ui("AI 译文 ·")}{translation.model} {ui("· 公式与样例保持原样")}
-                                <button type="button" className="text-button" disabled={translating===session.id} onClick={()=>void translateStatement(true)}>{ui(translating===session.id?"正在重新翻译…":"用当前模型重新翻译")}</button>
-                              </div>
-                              {translationErrors[session.id]&&<div className="form-error" role="alert">{ui(translationErrors[session.id])}</div>}
-                              <ProblemStatement metadata={statementParts.metadata} text={translation.text} render={renderMarkdown} />
-                            </>
-                          ) : (
-                            <div className="translation-empty">
-                              {translating === session.id ? (
-                                <>
-                                  <LoaderCircle size={19} className="spin" />
-                                  <p>{ui("正在准备中文译文，原文仍可随时查看…")}</p>
-                                </>
-                              ) : (
-                                <>
-                                  <p>
-                                    {ui("优先读取已有译文；没有译文时才使用当前模型生成。切换陪练模型不会重新翻译。")}</p>
-                                  {translationErrors[session.id] && (
-                                    <div className="form-error" role="alert">
-                                      {translationErrors[session.id]}
-                                    </div>
-                                  )}
-                                  <button
-                                    className="primary"
-                                    onClick={() => void translateStatement()}
-                                  >
-                                    <Sparkles size={16} />
-                                    {translationErrors[session.id]
-                                      ? ui("重试翻译")
-                                      : ui("查看中文译文")}
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </section>
-                      )}
-                    </div>
-                    {session.statementSource && (
-                      <div className="statement-source">
-                        {ui("来源：")}<a
-                          href={session.statementSource.url}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {session.statementSource.name}
-                          <ExternalLink size={11} />
-                        </a>
-                        {session.statementFetchedAt && (
-                          <span>
-                            {ui("读取于")}{" "}
-                            {new Date(
-                              session.statementFetchedAt,
-                            ).toLocaleDateString(currentLocale())}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </>
-                ) : !statementBusy && !statementError ? (
-                  <div className="empty">
-                    <p>{ui("请从 CF 原题复制题面到这里。")}</p>
-                    <button onClick={() => setEditor(true)}>{ui("粘贴题面")}</button>
-                  </div>
-                ) : null}
-                <div className="notes-heading">
-                  <NotebookPen size={16} />
-                  {ui("我的观察与草稿")}<span>{ui(syncState)}</span>
-                </div>
-                <RecoveredVersions versions={session.recoveredVersions}/>
-                <textarea
-                  className="notes-editor"
-                  aria-label={ui("观察草稿")}
-                  placeholder={
-                    ui("暴力怎么做？最小例子是什么？哪个量不会变？\n先留住一个可以确定的事实。")
-                  }
-                  value={session.notes}
-                  onChange={(e) => patch(session.id, { notes: e.target.value })}
-                />
-              </section>}
-              <section id="ai-coach" className="coach-panel">
-                <div className="panel-heading">
-                  <h2>
-                    <span className="coach-avatar">
-                      <Sparkles size={16} />
-                    </span>
-                    {ui(isAssistant?"算法助教":"AI 思维陪练")}</h2>
-                  <span className="coach-state">
-                    {aiConfigured ? (
-                      <>
-                        <span className="connection on" />
-                        {ui("按需调用")}</>
-                    ) : (
-                      <button onClick={() => setSettings(true)}>
-                        {ui("连接 AI")}<ArrowUpRight size={12} />
-                      </button>
-                    )}
-                  </span>
-                </div>
-                <div className="coach-principle">
-                  <Lightbulb size={15} />
-                  {ui(isAssistant?"按问题选择讲法，也可以请求交互图示或练习推荐。":"每次只推进一小步，先把你的想法说出来。")}</div>
-                {!isAssistant&&<div className="editorial-reference">
-                  {session.editorialReference?.status === "ready" ? <span>{ui("最近回复已参考官方题解")}{session.editorialReference.stale ? ui("（旧缓存）") : ""} · <a href={session.editorialReference.url} target="_blank" rel="noreferrer">{ui("来源链接（含剧透）")}</a></span> : <span>{session.editorialReference?.status === "unavailable" ? ui("官方题解暂不可用；独立推导尚未核验") : ui("回复前会获取当前题目的官方题解，仅供教练核验")}</span>}
-                  <label><input type="checkbox" checked={allowUnverified} disabled={busy} onChange={e=>setAllowUnverified(e.target.checked)}/>{ui("允许无题解推导")}</label>
-                </div>}
-                <div className="chat-messages" aria-live="polite">
-                  {!session.messages.length && (
-                    <div className="coach-intro">
-                      <span className="intro-symbol">
-                        <MessageCircle size={24} />
-                      </span>
-                      <h3>{ui(isAssistant?"今天想弄懂什么？":"你读完后的第一反应是什么？")}</h3>
-                      <p>
-                        {ui(isAssistant?"可以问概念区别、证明缺口、复杂度，或贴一段不理解的代码。":"一个猜想、一个暴力，甚至一句「我卡在这里」，都可以作为起点。")}</p>
-                      <div>
-                        <span>{ui("举例观察")}</span>
-                        <span>{ui("检验猜想")}</span>
-                        <span>{ui("证明与建模")}</span>
-                      </div>
-                    </div>
-                  )}
-                  {session.messages.map((m, i) => (
-                    <div key={i} className={"chat-message " + m.role}>
-                      <div className="message-label">
-                        {m.role === "user"
-                          ? ui("你 · 正在思考")
-                          : ui("AI · 陪你推一步")}
-                      </div>
-                      {m.role==="assistant"&&m.reasoning&&<ReasoningDetails text={m.reasoning}/>}
-                      {messageEdit?.sessionId === session.id && messageEdit.index === i ? (
-                        <div className="message-edit">
-                          <textarea autoFocus aria-label={ui("编辑已发送消息")} value={messageEdit.content} disabled={busy} onChange={e=>setMessageEdit({...messageEdit,content:e.target.value})}/>
-                          <p>{ui("保存后将从这里重新生成回复，后续对话会移入历史版本。")}</p>
-                          <div><button className="secondary" disabled={busy} onClick={()=>setMessageEdit(null)}>{ui("取消")}</button><button className="primary" disabled={busy || !messageEdit.content.trim() || messageEdit.content.trim()===messageEdit.original} onClick={()=>void send("discuss",messageEdit)}>{ui("保存并重新生成")}</button></div>
-                        </div>
-                      ) : <Text text={m.content} allowVisuals={m.role === "assistant"} />}
-                      {Boolean(m.sources?.length)&&<div className="assistant-sources">{m.sources?.map(source=><a key={source.url} href={source.url} target="_blank" rel="noreferrer">{source.title}<ExternalLink size={12}/></a>)}</div>}
-                      {m.role === "user" && !(messageEdit?.sessionId === session.id && messageEdit.index === i) && <div className="message-actions">
-                        <button disabled={busy} aria-label={ui("编辑第 {0} 条消息",[i+1])} onClick={()=>setMessageEdit({sessionId:session.id,index:i,original:m.content,content:m.content})}><Pencil size={13}/>{ui("编辑")}</button>
-                        <button disabled={busy} aria-label={ui("撤回第 {0} 条消息",[i+1])} onClick={()=>recallMessage(i)}><Undo2 size={13}/>{ui("撤回")}</button>
-                      </div>}
-                    </div>
-                  ))}
-                  {partialReply?.sessionId === session.id && (partialReply.text||partialReply.reasoning) && <div className="chat-message assistant partial-reply">
-                    <div className="message-label">{ui(busy?"正在生成，完成后自动保存":"未完成的回复（未写入历史）")}</div>
-                    {partialReply.reasoning&&<ReasoningDetails text={partialReply.reasoning} live/>}
-                    {partialReply.text&&<Text text={partialReply.text}/>}
-                  </div>}
-                  {busy && generationSessionId.current===session.id && (
-                    <div className="thinking">
-                      <LoaderCircle size={15} className="spin" />
-                      {ui("正在检验思路… 已等待 {0} 秒",[Math.max(0,Math.floor((now-sendStartedAt.current)/1000))])}<button type="button" className="text-button" onClick={()=>void stopGeneration()}>{ui("停止生成")}</button></div>
-                  )}
-                  <div ref={chatEnd} />
-                </div>
-                {chatError && <div className="chat-error" role="alert">{ui(chatError)}{chatRequestId&&<small>{ui("请求编号")} · {chatRequestId}</small>}{session.messages.at(-1)?.role === "user" && <button disabled={busy} onClick={()=>void send(retryMode,undefined,true)}>{ui("重试回复")}</button>}</div>}
-                {busy&&generationSessionId.current!==session.id&&<p className="muted">{ui("另一个会话正在生成，完成后即可继续提问。")}</p>}
-                <div className="coach-controls">
-                  <div className="hint-buttons">
-                    {!isAssistant&&<button disabled={busy} onClick={()=>navigate("lessons")}>{ui("专题补课")}</button>}
-                    {isAssistant&&<button disabled={busy} onClick={()=>send("practice")}>{ui("推荐练习")}</button>}
-                    <button disabled={busy} onClick={() => send("visualize")}><Sparkles size={13}/>{ui("画图讲解")}</button>
-                    {(isAssistant?[]:[1, 2, 3]).map((level) => (
-                      <button
-                        key={level}
-                        disabled={busy}
-                        className={session.hints >= level ? "used-hint" : ""}
-                        onClick={() => send("hint" + level)}
-                      >
-                        <Lightbulb size={13} />
-                        {level} {ui("级提示")}</button>
-                    ))}
-                    <button
-                      disabled={busy || !session.messages.length}
-                      onClick={() => send("counterexample")}
-                    >
-                      <Target size={13} />
-                      {ui("检验猜想")}</button>
-                  </div>
-                  <form
-                    className="composer"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      send();
-                    }}
-                  >
-                    <textarea
-                      ref={composerInput}
-                      aria-label={ui(isAssistant?"你的算法问题":"你的解题思路")}
-                      placeholder={ui(isAssistant?"输入算法问题、证明或代码…":"写下你的想法，点击发送…")}
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (
-                          e.key === "Enter" &&
-                          !e.shiftKey &&
-                          !e.nativeEvent.isComposing &&
-                          !window.matchMedia("(pointer: coarse)").matches
-                        ) {
-                          e.preventDefault();
-                          send();
-                        }
-                      }}
-                    />
-                    <div>
-                      <span>{ui(isAssistant?"根据需要讲解，也可以要求逐步提示":"先尝试表达，再获得提示")}</span>
-                      <button
-                        aria-label={ui("发送思路")}
-                        className="send-button"
-                        type="submit"
-                        disabled={busy || !draft.trim()}
-                      >
-                        {busy ? (
-                          <LoaderCircle size={17} className="spin" />
-                        ) : (
-                          <Send size={17} />
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                  <div className="coach-bottom">
-                    <button
-                      disabled={busy || !session.messages.length}
-                      onClick={() => send("review")}
-                    >
-                      <NotebookPen size={13} />
-                      {ui("复盘这次思考")}</button>
-                    {!isAssistant&&<button disabled={busy} onClick={() => send("solution")}>
-                      {ui("查看完整解法")}<ArrowUpRight size={12} />
-                    </button>}
-                  </div>
-                </div>
-              </section>
-            </div>
-          </main>
-        )}
-        {view === "history" && (
-          <main className="main-content history-page">
-            <div className="section-title history-title">
-              <div>
-                <div className="eyebrow">MY THINKING JOURNAL</div>
-                <h1>{ui("每一次卡住，都留下线索。")}</h1>
-                <p>
-                  {trainingSessions.length} {ui("次训练 ·")}{trainingSessions.filter(s=>s.outcome==="training"||s.outcome==="review").length} {ui("道待继续 ·")}{completed.length} {ui("道已完成")}</p>
-              </div>
-              <button
-                className="secondary"
-                onClick={exportData}
-                disabled={!sessions.length}
-              >
-                <Download size={16} />
-                {ui("导出记录")}</button>
-            </div>
-            {!sessions.length ? (
-              <div className="empty large-empty">
-                <NotebookPen size={36} />
-                <h3>{ui("你的第一条思考记录，还在下一道题里。")}</h3>
-                <button className="primary" onClick={() => navigate("bank")}>
-                  {ui("挑一道题")}<ArrowRight size={15} />
-                </button>
-              </div>
-            ) : (
-              <div className="history-groups">
-                {[
-                  { title: ui("未完成"), subtitle: ui("接着上次的观察，继续向前一步。"), icon: Clock3, items: trainingSessions.filter(s=>s.outcome==="training"||s.outcome==="review"), empty: ui("目前没有未完成的训练，去挑一道新题吧。"), kind: "pending" },
-                  { title: ui("已完成"), subtitle: ui("已经走通的题，和留下的思考。"), icon: CheckCircle2, items: completed, empty: ui("完成训练并标记解出后，会收录在这里。"), kind: "finished" },
-                ].map(group => <section className={"history-group " + group.kind} key={group.kind}>
-                  <div className="history-group-heading"><div><h2><group.icon size={18} />{group.title}<span>{group.items.length}</span></h2><p>{group.subtitle}</p></div></div>
-                  {group.items.length ? <div className="history-list">
-                {group.items.map((s) => (
-                  <article key={s.id}>
-                    <div className="history-date">
-                      {new Date(s.createdAt).toLocaleDateString(currentLocale(), {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                      <span>CF {s.problem.rating}</span>
-                    </div>
-                    <div className="history-main">
-                      <h3>
-                        <span>{s.problem.id}</span>
-                        {s.problem.name}
-                      </h3>
-                      <div>
-                        <DifficultyBadge rating={s.problem.rating} />
-                        <span className={"outcome " + s.outcome}>
-                          {ui(outcomes[s.outcome])}
-                        </span>
-                        <span>
-                          <Clock3 size={13} />
-                          {fmt(
-                            s.elapsed +
-                              (s.startedAt
-                                ? Math.max(
-                                    0,
-                                    Math.floor((now - s.startedAt) / 1000),
-                                  )
-                                : 0),
-                          )}
-                        </span>
-                        <span>
-                          {s.hints === 4 ? ui("已查看解法") : ui("{0} 级提示",[s.hints])}
-                        </span>
-                        <span>
-                          {s.messages.filter((m) => m.role === "user").length}{" "}
-                          {ui("轮思考")}</span>
-                      </div>
-                      {s.takeaway && <p>{s.takeaway}</p>}
-                    </div>
-                    <button className="row-start" onClick={() => resume(s)}>
-                      {s.outcome === "training" ? ui("继续训练") : s.outcome === "review" ? ui("重新练习") : ui("查看复盘")}
-                      <ArrowUpRight size={15} />
-                    </button>
-                  </article>
-                ))}
-                  </div> : <div className="history-group-empty">{group.empty}</div>}
-                </section>)}
-              </div>
-            )}
-            <div className="history-data-heading"><span>{ui("记录与备份")}</span><span className="history-sync" role="status"><span className="connection on" />{ui(syncState)}</span></div>
-        <div className="import-toolbar">
-          <button
-            className="secondary"
-            onClick={() => importInput.current?.click()}
-          >
-            <Upload size={15} />
-            {ui("导入 JSON 备份")}</button>
-          <button
-            className="text-button"
-            onClick={() => {
-              try {
-                const old = JSON.parse(
-                  localStorage.getItem("icpc-sessions-v1") || "[]",
-                );
-                if (!Array.isArray(old) || !old.length) {
-                  setToast("此浏览器没有旧版记录");
-                  return;
-                }
-                if (
-                  !window.confirm(
-                    ui("将本浏览器旧版训练记录导入当前账号？请确认这些记录属于你。"),
-                  )
-                )
-                  return;
-                const ids = new Set(sessions.map((s) => s.id));
-                setSessions((prev) => [
-                  ...prev,
-                  ...old
-                    .filter((s) => !ids.has(s.id))
-                    .map((s) => ({ ...s, startedAt: null })),
-                ]);
-                setToast("旧版记录已合并，正在同步");
-              } catch {
-                setToast("旧版记录无法读取，请从 JSON 备份导入");
-              }
-            }}
-          >
-            {ui("迁移本浏览器旧版记录")}</button>
-
-        </div>
-          </main>
-        )}
+        <ChatView
+          view={view}
+          isAssistant={isAssistant}
+          isLesson={isLesson}
+          session={session}
+          loaded={loaded}
+          syncState={syncState}
+          trainingSessions={trainingSessions}
+          resume={resume}
+          navigate={navigate}
+          assistantChats={assistantChats}
+          openAssistantConversation={openAssistantConversation}
+          newAssistantConversation={newAssistantConversation}
+          updateAssistantConversation={updateAssistantConversation}
+          onOpenMemory={()=>setMemoryOpen(true)}
+          busy={busy}
+          chatError={chatError}
+          chatRequestId={chatRequestId}
+          retryMode={retryMode}
+          send={send}
+          messageEdit={messageEdit}
+          setMessageEdit={setMessageEdit}
+          recallMessage={recallMessage}
+          partialReply={partialReply}
+          generationSessionId={generationSessionId}
+          stopGeneration={stopGeneration}
+          now={now}
+          sendStartedAt={sendStartedAt}
+          editor={editor}
+          setEditor={setEditor}
+          statementBusy={statementBusy}
+          statementError={statementError}
+          loadStatement={loadStatement}
+          statementLanguage={statementLanguage}
+          setStatementLanguage={setStatementLanguage}
+          statementFont={statementFont}
+          setStatementFont={setStatementFont}
+          translation={translation}
+          translating={translating}
+          translationErrors={translationErrors}
+          translateStatement={translateStatement}
+          statementParts={statementParts}
+          allowUnverified={allowUnverified}
+          setAllowUnverified={setAllowUnverified}
+          patch={patch}
+          elapsed={elapsed}
+          aiConfigured={aiConfigured}
+          setSettings={setSettings}
+          rememberLesson={rememberLesson}
+          quoteLesson={quoteLesson}
+          chatEnd={chatEnd}
+          composerInput={composerInput}
+          draft={draft}
+          setDraft={setDraft}
+          onFinish={() => { if (session) { setTakeaway(session.takeaway); setFinish(true); } }}
+        />
+        <HistoryView
+          sessions={sessions}
+          trainingSessions={trainingSessions}
+          completed={completed}
+          now={now}
+          syncState={syncState}
+          resume={resume}
+          navigate={navigate}
+          exportData={exportData}
+          setSessions={setSessions}
+          setToast={setToast}
+        />
       </div>
-      <input
-        ref={importInput}
-        type="file"
-        accept="application/json,.json"
-        hidden
-        onChange={async (e) => {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          try {
-            const parsed = JSON.parse(await file.text());
-            if (
-              !Array.isArray(parsed) ||
-              parsed.some(
-                (x) => !x?.id || !x?.problem?.id || !Array.isArray(x.messages),
-              )
-            )
-              throw Error("记录文件格式无效");
-            const existing = new Set(sessions.map((s) => s.id));
-            setSessions((prev) => [
-              ...prev,
-              ...parsed
-                .filter((x) => !existing.has(x.id))
-                .map((x) => ({ ...x, startedAt: null })),
-            ]);
-            setToast("记录已合并，正在保存到服务器");
-          } catch (err) {
-            setToast((err as Error).message);
-          }
-          e.target.value = "";
-        }}
-      />
 
-      {ratingModal && <div className="modal-overlay"><section className="modal"><button className="modal-close" aria-label={ui("关闭等级分设置")} onClick={()=>setRatingModal(false)}><X size={19}/></button><RatingForm rating={cfRating} onSaved={rating=>{setCfRating(rating);const next=ratingRange(rating);setMin(next.min);setMax(next.max);setPage(1);setRatingModal(false);setToast("个人等级分已保存，选题难度已更新");}}/><XcpcProfileForm/></section></div>}
+      {ratingModal && <Modal label={ui("等级分设置")} closeLabel={ui("关闭等级分设置")} onClose={()=>setRatingModal(false)}><RatingForm rating={cfRating} onSaved={rating=>{setCfRating(rating);const next=ratingRange(rating);setMin(next.min);setMax(next.max);setPage(1);setRatingModal(false);setToast("个人等级分已保存，选题难度已更新");}}/><XcpcProfileForm/></Modal>}
       {passwordModal && (
-        <div className="modal-overlay">
-          <section className="modal">
-            <button
-              className="modal-close"
-              onClick={() => setPasswordModal(false)}
-              aria-label={ui("关闭修改密码")}
-            >
-              <X size={19} />
-            </button>
-            <PasswordForm
-              done={() => {
-                setPasswordModal(false);
-                setToast("密码已更新，其他设备已退出登录");
-              }}
-            />
-          </section>
-        </div>
+        <Modal label={ui("修改密码")} closeLabel={ui("关闭修改密码")} onClose={()=>setPasswordModal(false)}>
+          <PasswordForm
+            done={() => {
+              setPasswordModal(false);
+              setToast("密码已更新，其他设备已退出登录");
+            }}
+          />
+        </Modal>
       )}
-      {memoryOpen&&<div className="modal-overlay" onPointerDown={e=>{if(e.target===e.currentTarget)setMemoryOpen(false);}}><section className="modal learner-memory-modal"><button type="button" className="modal-close" aria-label={ui("关闭学习记忆")} onClick={()=>setMemoryOpen(false)}><X size={20}/></button><LearnerMemoryEditor onSaved={()=>{setMemoryOpen(false);setToast("学习记忆已保存");}}/></section></div>}
-      {personalModelsOpen&&<div className="modal-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setPersonalModelsOpen(false);}}><section className="modal personal-model-panel"><button type="button" className="modal-close" aria-label={ui("关闭设置")} onClick={()=>{setPersonalModelsOpen(false);setSettings(true);}}><X size={20}/></button><BrowserModelManager userId={user.id}/></section></div>}
+      {memoryOpen&&<Modal label={ui("学习记忆")} className="learner-memory-modal" onClose={()=>setMemoryOpen(false)}><LearnerMemoryEditor onSaved={()=>{setMemoryOpen(false);setToast("学习记忆已保存");}}/></Modal>}
+      {personalModelsOpen&&<Modal label={ui("本机模型 Key")} className="personal-model-panel" onClose={()=>{setPersonalModelsOpen(false);setSettings(true);}}><BrowserModelManager userId={user.id}/></Modal>}
       {settings && (
-        <div className="modal-overlay" onPointerDown={e=>{if(e.target===e.currentTarget)setSettings(false);}}>
-          <section
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label={ui("陪练模型")}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              className="modal-close"
-              aria-label={ui("关闭设置")}
-              onClick={() => setSettings(false)}
-            >
-              <X size={20} />
-            </button>
-            <span className="modal-icon">
-              <Sparkles size={25} />
-            </span>
-            <h2>{ui("选择陪练模型")}</h2>
-            <p>
-              {ui("网站模型由服务器代调；本机模型的 Key 仅存在此浏览器，直接请求服务商，不上传本站。")}</p>
-            <div className="model-choice"><span id="model-choice-label">{ui("当前陪练模型")}</span><div className="model-options" role="listbox" aria-labelledby="model-choice-label">{models.map(m=><button type="button" key={m.id} role="option" aria-selected={modelId===m.id} disabled={modelSettingsBusy} onClick={()=>{setModelSettingsError("");setModelId(m.id);setModel(m.model);}}><strong>{m.label}</strong><span>{m.model} · {ui(m.scope==="browser"?"本机直连":"网站密钥")}</span></button>)}</div>{!models.length&&<p>{ui("没有可选模型，请添加本机模型或联系管理员授权。")}</p>}</div>
-            <label>{ui("推理等级")}<select aria-label={ui("推理等级")} value={reasoningEffort} disabled={modelSettingsBusy||!models.length} onChange={e=>setEfforts(prev=>({...prev,[modelId]:e.target.value as ReasoningLevel}))}>{supportedEfforts.map((option:any)=><option key={option.value} value={option.value}>{ui(option.label)}</option>)}</select></label>
-            <p className="reasoning-help">{/glm-5\.3/i.test(selectedModel?.model||"")?ui("GLM-5.3 始终开启思考，可选择轻度、增强或深度；模型默认使用服务商默认等级。"):/glm-/i.test(selectedModel?.model||"")?ui("按当前 GLM 型号提供可用思考选项。"):ui("非默认等级通过 reasoning_effort 发送，兼容接口需要支持该参数；不支持时请选模型默认。")}{ui("更高等级可能增加等待时间与 Token 消耗。设置用于后续陪练和翻译，按账号和模型保存。")}</p>
-            {modelSettingsError&&<div className="form-error" role="alert">{ui(modelSettingsError)}</div>}
-            <div className="settings-note">
-              <CheckCircle2 size={16} />
-              <span>
-                {ui(syncState)}。
-                {user.role === "admin"
-                  ? ui("添加或修改模型请进入管理员面板。")
-                  : ui("网站密钥需管理员授权；自带 Key 仅本机直连。")}
-              </span>
-            </div>
-            <button type="button" className="secondary" onClick={()=>{setSettings(false);setPersonalModelsOpen(true);}}>{ui("管理我的 API Key")}</button>
-            <div className="modal-actions">
-              <span className="muted">{ui(selectedModel?.scope==="browser"?"本机直连：切屏后可能中断":"网站模型：支持后台生成")}</span>
-              <button className="primary" disabled={modelSettingsBusy||!models.length} onClick={async () => {
-                setModelSettingsBusy(true);setModelSettingsError("");
-                try {if(selectedModel?.scope==="browser"){localStorage.setItem("icpc-browser-preferences:"+user.id,JSON.stringify({selectedModelId:modelId,efforts:{...efforts,[modelId]:reasoningEffort}}));setSettings(false);setToast("已保存本机模型设置");return;}const response=await fetch("/api/model-preferences",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({modelId,reasoningEffort})});const data=await response.json() as {error?:string;preferences:{efforts:Record<string,ReasoningLevel>}};if(!response.ok)throw Error(data.error||"设置保存失败");localStorage.setItem("icpc-browser-preferences:"+user.id,JSON.stringify({selectedModelId:modelId,efforts:{...efforts,...data.preferences.efforts}}));setEfforts({...efforts,...data.preferences.efforts});setSettings(false);setToast(ui("已保存模型设置：{0}",[ui(reasoningLabels[reasoningEffort])]));}catch(e){setModelSettingsError((e as Error).message);}finally{setModelSettingsBusy(false);}
-              }}>
-                {modelSettingsBusy?ui("正在保存…"):ui("保存并开始思考")}
-                <ArrowRight size={16} />
-              </button>
-            </div>
-          </section>
-        </div>
+        <ModelSettingsModal
+          user={user}
+          models={models}
+          modelId={modelId}
+          setModelId={setModelId}
+          modelName={model}
+          setModelName={setModel}
+          reasoningEffort={reasoningEffort}
+          supportedEfforts={supportedEfforts}
+          selectedModel={selectedModel}
+          efforts={efforts}
+          setEfforts={setEfforts}
+          syncState={syncState}
+          onClose={() => setSettings(false)}
+          onManageKeys={() => { setSettings(false); setPersonalModelsOpen(true); }}
+          onSaved={(preferences) => { setEfforts({...efforts, ...preferences.efforts}); setSettings(false); setToast(ui("已保存模型设置：{0}", [ui(reasoningLabels[reasoningEffort])])); }}
+          onBrowserSaved={() => { setSettings(false); setToast("已保存本机模型设置"); }}
+        />
       )}
       {finish && session && (
-        <div className="modal-overlay" onClick={() => setFinish(false)}>
-          <section
-            className="modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label={ui("记录训练结果")}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              className="modal-close"
-              aria-label={ui("关闭")}
-              onClick={() => setFinish(false)}
-            >
-              <X size={20} />
-            </button>
-            <span className="modal-icon">
-              <Flag size={25} />
-            </span>
-            <h2>{ui("这次思考，带走什么？")}</h2>
-            <p>
-              {session.problem.id} · {fmt(elapsed)} ·{" "}
-              {session.hints === 4
-                ? ui("查看过完整解法")
-                : ui("使用至 {0} 级提示",[session.hints])}
-              {ui("。训练结果由你标记，不代表 CF 已通过。")}</p>
-            <label>
-              {ui("一句可以迁移的观察")}<textarea
-                rows={4}
-                value={takeaway}
-                onChange={(e) => setTakeaway(e.target.value)}
-                placeholder={ui("比如：遇到拆分很难维护时，试着把操作顺序倒过来。")}
-              />
-            </label>
-            <div className="finish-options">
-              <button
-                className="primary"
-                onClick={() =>
-                  complete(session.hints ? "assisted" : "independent")
-                }
-              >
-                <CheckCircle2 size={16} />
-                {session.hints ? ui("提示后解出") : ui("独立解出")}
-              </button>
-              <button className="secondary" onClick={() => complete("review")}>
-                {ui("还没走通，待重练")}</button>
-            </div>
-          </section>
-        </div>
+        <FinishModal
+          session={session}
+          elapsed={elapsed}
+          takeaway={takeaway}
+          setTakeaway={setTakeaway}
+          complete={complete}
+          onClose={() => setFinish(false)}
+        />
       )}
       {toast && (
         <div className="toast" role="status">

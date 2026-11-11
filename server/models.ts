@@ -1,9 +1,9 @@
-import { reasoningOptions } from "../lib/reasoning";
-import { randomUUID } from "node:crypto";
-import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
-import { db, transaction } from "./database";
-import { environmentModel, environmentModelKey } from "../lib/model-environment";
+import { reasoningOptions } from "../lib/reasoning"
+import { randomUUID } from "node:crypto"
+import { lookup } from "node:dns/promises"
+import { isIP } from "node:net"
+import { db, transaction } from "./database"
+import { environmentModel, environmentModelKey } from "../lib/model-environment"
 import {
   audit,
   checkOrigin,
@@ -13,24 +13,29 @@ import {
   requireUser,
   type User,
   throttle,
-} from "./security";
+} from "./security"
 export type ModelConfig = {
-  owner_user_id?: string | null;
-  id: string;
-  label: string;
-  provider: string;
-  base_url: string;
-  model: string;
-  encrypted_key: string | null;
-  env_key: number;
-  enabled: number;
-  is_default: number;
-  max_output_tokens?: number | null;
-  output_token_parameter?: string;
-};
+  owner_user_id?: string | null
+  id: string
+  label: string
+  provider: string
+  base_url: string
+  model: string
+  encrypted_key: string | null
+  env_key: number
+  enabled: number
+  is_default: number
+  max_output_tokens?: number | null
+  output_token_parameter?: string
+}
 export function initModels() {
-  if (db.prepare("SELECT id FROM models WHERE owner_user_id IS NULL LIMIT 1").get()) return;
-  const initial = environmentModel(process.env);
+  if (
+    db
+      .prepare("SELECT id FROM models WHERE owner_user_id IS NULL LIMIT 1")
+      .get()
+  )
+    return
+  const initial = environmentModel(process.env)
   if (initial)
     db.prepare(
       "INSERT INTO models(id,label,provider,base_url,model,env_key,enabled,is_default,created_at) VALUES(?,?,?,?,?,1,1,1,?)",
@@ -41,14 +46,14 @@ export function initModels() {
       initial.base_url,
       initial.model,
       new Date().toISOString(),
-    );
+    )
 }
 export async function validateEndpoint(value: string) {
-  let url: URL;
+  let url: URL
   try {
-    url = new URL(value);
+    url = new URL(value)
   } catch {
-    fail(400, "接口地址格式无效");
+    fail(400, "接口地址格式无效")
   }
   if (
     url!.protocol !== "https:" ||
@@ -58,26 +63,26 @@ export async function validateEndpoint(value: string) {
     url!.hash ||
     (url!.port && url!.port !== "443")
   )
-    fail(400, "模型接口必须是标准 HTTPS 地址，不可附带账号或查询参数");
-  const host = url!.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    fail(400, "模型接口必须是标准 HTTPS 地址，不可附带账号或查询参数")
+  const host = url!.hostname.replace(/^\[|\]$/g, "").toLowerCase()
   if (
     isIP(host) ||
     host === "localhost" ||
     host.endsWith(".local") ||
     host.endsWith(".internal")
   )
-    fail(400, "模型接口不能指向本地或内网");
-  let ips;
+    fail(400, "模型接口不能指向本地或内网")
+  let ips
   try {
-    ips = await lookup(host, { all: true });
+    ips = await lookup(host, { all: true })
   } catch {
-    fail(400, "无法解析接口域名");
+    fail(400, "无法解析接口域名")
   }
   for (const { address } of ips!) {
     if (address.includes(":")) {
-      if (!/^[23][0-9a-f]{3}:/i.test(address)) fail(400, "接口必须指向公网");
+      if (!/^[23][0-9a-f]{3}:/i.test(address)) fail(400, "接口必须指向公网")
     } else {
-      const [a, b] = address.split(".").map(Number);
+      const [a, b] = address.split(".").map(Number)
       if (
         a === 0 ||
         a === 10 ||
@@ -88,99 +93,173 @@ export async function validateEndpoint(value: string) {
         (a === 100 && b >= 64 && b <= 127) ||
         a >= 224
       )
-        fail(400, "接口必须指向公网");
+        fail(400, "接口必须指向公网")
     }
   }
-  return url!.toString().replace(/\/$/, "");
+  return url!.toString().replace(/\/$/, "")
 }
-const siteAllowed=(user:User)=>user.role==="admin"||user.site_model_access===1;
-export function availableModels(user:User) {
-  return db.prepare("SELECT id,label,model,provider,is_default,CASE WHEN owner_user_id IS NULL THEN 'site' ELSE 'personal' END AS scope FROM models WHERE enabled=1 AND (owner_user_id IS NULL AND ?=1) ORDER BY is_default DESC,created_at")
-    .all(Number(siteAllowed(user))).map(row=>({...row,reasoningOptions:reasoningOptions(row as {model:string;provider:string})}));
+const siteAllowed = (user: User) =>
+  user.role === "admin" || user.site_model_access === 1
+export type AvailableModel = {
+  id: string
+  label: string
+  model: string
+  provider: string
+  is_default: number
+  scope: "site" | "personal"
+  reasoningOptions: ReturnType<typeof reasoningOptions>
 }
-export function selectModel(id:string|undefined,user:User) {
-  const permission="enabled=1 AND (owner_user_id IS NULL AND ?=1)";
-  const model=(id?db.prepare("SELECT * FROM models WHERE id=? AND "+permission).get(id,Number(siteAllowed(user))):db.prepare("SELECT * FROM models WHERE "+permission+" ORDER BY is_default DESC,created_at LIMIT 1").get(Number(siteAllowed(user)))) as ModelConfig|undefined;
-  if(!model)fail(403,"没有可用模型，请配置个人 API Key 或联系管理员授权");
-  return model;
+export function availableModels(user: User) {
+  return db
+    .prepare(
+      "SELECT id,label,model,provider,is_default,CASE WHEN owner_user_id IS NULL THEN 'site' ELSE 'personal' END AS scope FROM models WHERE enabled=1 AND (owner_user_id IS NULL AND ?=1) ORDER BY is_default DESC,created_at",
+    )
+    .all(Number(siteAllowed(user)))
+    .map(
+      (row) =>
+        ({
+          ...row,
+          reasoningOptions: reasoningOptions(
+            row as { model: string; provider: string },
+          ),
+        }) as AvailableModel,
+    )
+}
+export function selectModel(id: string | undefined, user: User) {
+  const permission = "enabled=1 AND (owner_user_id IS NULL AND ?=1)"
+  const model = (
+    id
+      ? db
+          .prepare("SELECT * FROM models WHERE id=? AND " + permission)
+          .get(id, Number(siteAllowed(user)))
+      : db
+          .prepare(
+            "SELECT * FROM models WHERE " +
+              permission +
+              " ORDER BY is_default DESC,created_at LIMIT 1",
+          )
+          .get(Number(siteAllowed(user)))
+  ) as ModelConfig | undefined
+  if (!model) fail(403, "没有可用模型，请配置个人 API Key 或联系管理员授权")
+  return model
 }
 export function modelKey(model: ModelConfig) {
-  if(model.owner_user_id)fail(410,"个人密钥已改为仅本机保存，请刷新页面后重新配置");
+  if (model.owner_user_id)
+    fail(410, "个人密钥已改为仅本机保存，请刷新页面后重新配置")
   const key = model.env_key
     ? environmentModelKey(process.env, model.id)
     : model.encrypted_key
       ? decryptKey(model.encrypted_key)
-      : "";
-  if (!key) fail(503, "该模型未配置可用密钥");
-  return key;
+      : ""
+  if (!key) fail(503, "该模型未配置可用密钥")
+  return key
 }
-export async function modelsAdmin(request: Request, personal=false) {
-  if(personal)fail(410,"个人密钥已改为仅本机保存，请刷新页面后重新配置");
-  const actor = requireUser(request, !personal);
-  const scope=personal?"owner_user_id=?":"owner_user_id IS NULL";
-  const scopeArgs=personal?[actor.id]:[];
+export async function modelsAdmin(request: Request, personal = false) {
+  if (personal) fail(410, "个人密钥已改为仅本机保存，请刷新页面后重新配置")
+  const actor = requireUser(request, !personal)
+  const scope = personal ? "owner_user_id=?" : "owner_user_id IS NULL"
+  const scopeArgs = personal ? [actor.id] : []
   if (request.method === "GET") {
     return Response.json({
       models: db
         .prepare(
-          "SELECT id,label,provider,base_url,model,env_key,enabled,is_default,created_at,max_output_tokens,output_token_parameter,(encrypted_key IS NOT NULL OR env_key=1) AS has_key FROM models WHERE "+scope+" ORDER BY created_at",
+          "SELECT id,label,provider,base_url,model,env_key,enabled,is_default,created_at,max_output_tokens,output_token_parameter,(encrypted_key IS NOT NULL OR env_key=1) AS has_key FROM models WHERE " +
+            scope +
+            " ORDER BY created_at",
         )
         .all(...scopeArgs),
-    });
+    })
   }
-  checkOrigin(request);
-  const body = (await request.json()) as any;
-  if(personal){throttle("personal-model-write:"+actor.id,60,3600000);if(request.method==="POST"&&(db.prepare("SELECT COUNT(*) AS n FROM models WHERE owner_user_id=?").get(actor.id) as {n:number}).n>=20)fail(400,"个人模型最多保存 20 个");}
+  checkOrigin(request)
+  const body = (await request.json()) as Omit<
+    Partial<ModelConfig>,
+    "max_output_tokens"
+  > & {
+    key?: string
+    is_default?: boolean | number
+    enabled?: boolean | number
+    max_output_tokens?: number | string | null
+  }
+  if (personal) {
+    throttle("personal-model-write:" + actor.id, 60, 3600000)
+    if (
+      request.method === "POST" &&
+      (
+        db
+          .prepare("SELECT COUNT(*) AS n FROM models WHERE owner_user_id=?")
+          .get(actor.id) as { n: number }
+      ).n >= 20
+    )
+      fail(400, "个人模型最多保存 20 个")
+  }
   if (request.method === "DELETE") {
     const old = db
-      .prepare("SELECT * FROM models WHERE id=? AND "+scope)
-      .get(String(body.id),...scopeArgs) as ModelConfig;
-    if (!old) fail(404, "模型不存在");
-    if (old.is_default) fail(400, "请先将其他模型设为默认，再删除此模型");
-    db.prepare("DELETE FROM models WHERE id=?").run(old.id);
-    audit(actor.id, "model-delete", old.id);
-    return Response.json({ ok: true });
+      .prepare("SELECT * FROM models WHERE id=? AND " + scope)
+      .get(String(body.id), ...scopeArgs) as ModelConfig
+    if (!old) fail(404, "模型不存在")
+    if (old.is_default) fail(400, "请先将其他模型设为默认，再删除此模型")
+    db.prepare("DELETE FROM models WHERE id=?").run(old.id)
+    audit(actor.id, "model-delete", old.id)
+    return Response.json({ ok: true })
   }
-  if (!["POST", "PATCH"].includes(request.method)) fail(405, "不支持的操作");
+  if (!["POST", "PATCH"].includes(request.method)) fail(405, "不支持的操作")
   const old =
     request.method === "PATCH"
       ? (db
-          .prepare("SELECT * FROM models WHERE id=? AND "+scope)
-          .get(String(body.id),...scopeArgs) as ModelConfig)
-      : undefined;
-  if (request.method === "PATCH" && !old) fail(404, "模型不存在");
+          .prepare("SELECT * FROM models WHERE id=? AND " + scope)
+          .get(String(body.id), ...scopeArgs) as ModelConfig)
+      : undefined
+  if (request.method === "PATCH" && !old) fail(404, "模型不存在")
   const label = String(body.label ?? old?.label ?? "").trim(),
-    model = String(body.model ?? old?.model ?? "").trim();
+    model = String(body.model ?? old?.model ?? "").trim()
   if (!label || label.length > 80 || !model || model.length > 120)
-    fail(400, "名称与模型 ID 必须填写");
+    fail(400, "名称与模型 ID 必须填写")
   const base = await validateEndpoint(
     String(body.base_url ?? old?.base_url ?? ""),
-  );
-  const key = String(body.key || "").trim();
-  if (key.length > 4096) fail(400, "密钥过长");
-  if (!old && !key) fail(400, "添加模型时需要填写密钥");
-  if (old && old.base_url.replace(/\/+$/,"")!==base && !key)
-    fail(400,"更换模型接口地址时需要重新填写密钥");
-  const rawLimit=body.max_output_tokens===undefined?old?.max_output_tokens:body.max_output_tokens;
-  const outputLimit=rawLimit==null||rawLimit===""?null:Number(rawLimit);
-  if(outputLimit!==null&&((typeof rawLimit!=="number"&&typeof rawLimit!=="string")||!Number.isSafeInteger(outputLimit)||outputLimit<1||outputLimit>1048576))fail(400,"输出 Token 上限必须是 1 到 1048576 的整数");
-  const outputParameter=body.output_token_parameter??old?.output_token_parameter??"max_tokens";
-  if(!["max_tokens","max_completion_tokens"].includes(outputParameter))fail(400,"输出 Token 参数无效");
+  )
+  const key = String(body.key || "").trim()
+  if (key.length > 4096) fail(400, "密钥过长")
+  if (!old && !key) fail(400, "添加模型时需要填写密钥")
+  if (old && old.base_url.replace(/\/+$/, "") !== base && !key)
+    fail(400, "更换模型接口地址时需要重新填写密钥")
+  const rawLimit: number | string | null | undefined =
+    body.max_output_tokens === undefined
+      ? old?.max_output_tokens
+      : body.max_output_tokens
+  const outputLimit =
+    rawLimit === null || rawLimit === undefined || rawLimit === ""
+      ? null
+      : Number(rawLimit)
+  if (
+    outputLimit !== null &&
+    ((typeof rawLimit !== "number" && typeof rawLimit !== "string") ||
+      !Number.isSafeInteger(outputLimit) ||
+      outputLimit < 1 ||
+      outputLimit > 1048576)
+  )
+    fail(400, "输出 Token 上限必须是 1 到 1048576 的整数")
+  const outputParameter =
+    body.output_token_parameter ?? old?.output_token_parameter ?? "max_tokens"
+  if (!["max_tokens", "max_completion_tokens"].includes(outputParameter))
+    fail(400, "输出 Token 参数无效")
   const id = old?.id || randomUUID(),
     encrypted = key ? encryptKey(key) : old?.encrypted_key || null,
-    envKey = key ? 0 : old?.env_key || 0;
+    envKey = key ? 0 : old?.env_key || 0
   const enabled =
     body.enabled === undefined
       ? (old?.enabled ?? 1)
-      : Number(Boolean(body.enabled));
-  const isDefault = personal ? 0 :
-    body.is_default === undefined
+      : Number(Boolean(body.enabled))
+  const isDefault = personal
+    ? 0
+    : body.is_default === undefined
       ? (old?.is_default ?? 0)
-      : Number(Boolean(body.is_default));
-  if (isDefault && !enabled) fail(400, "默认模型不能停用，请先切换默认模型");
+      : Number(Boolean(body.is_default))
+  if (isDefault && !enabled) fail(400, "默认模型不能停用，请先切换默认模型")
   transaction(() => {
     if (isDefault)
-      db.prepare("UPDATE models SET is_default=0 WHERE is_default=1 AND owner_user_id IS NULL").run();
+      db.prepare(
+        "UPDATE models SET is_default=0 WHERE is_default=1 AND owner_user_id IS NULL",
+      ).run()
     db.prepare(
       "INSERT INTO models(id,label,provider,base_url,model,encrypted_key,env_key,enabled,is_default,created_at,max_output_tokens,output_token_parameter,owner_user_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET label=excluded.label,provider=excluded.provider,base_url=excluded.base_url,model=excluded.model,encrypted_key=excluded.encrypted_key,env_key=excluded.env_key,enabled=excluded.enabled,is_default=excluded.is_default,max_output_tokens=excluded.max_output_tokens,output_token_parameter=excluded.output_token_parameter",
     ).run(
@@ -196,9 +275,9 @@ export async function modelsAdmin(request: Request, personal=false) {
       new Date().toISOString(),
       outputLimit,
       outputParameter,
-      personal?actor.id:null,
-    );
-  });
-  audit(actor.id, old ? "model-update" : "model-create", id);
-  return Response.json({ ok: true });
+      personal ? actor.id : null,
+    )
+  })
+  audit(actor.id, old ? "model-update" : "model-create", id)
+  return Response.json({ ok: true })
 }

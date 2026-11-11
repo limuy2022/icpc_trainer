@@ -50,7 +50,7 @@ node --env-file=../.env.local server.mjs
 pnpm run dev:standalone
 ```
 
-访问 <http://127.0.0.1:5174>。前端热更新，`/api` 代理到后端；修改后端需重新构建并重启。`pnpm run dev` / `build` 及 Cloudflare/Sites 文件是早期脚手架入口，不是当前账号版的部署方式。
+访问 <http://127.0.0.1:5174>。前端热更新，`/api` 代理到后端；修改后端需重新构建并重启。类型检查、Lint 与测试分别用 `pnpm run typecheck`、`pnpm run lint`、`pnpm test`（测试前先 `pnpm run build:standalone`）。
 
 ## 配置模型
 
@@ -142,7 +142,7 @@ bash deploy/update.sh user@your-server
 bash deploy/update.sh user@your-server /srv/icpc-trainer 18461
 ```
 
-脚本构建、上传并验证临时包，先备份数据库，再短暂停止应用、替换 `current/` 并检查健康状态。不保留旧构建，失败时从 Git 重新构建所需提交。更新不会修改 Nginx、证书或模型环境文件。
+脚本构建、上传并验证临时包，先备份数据库，再短暂停止应用、替换 `current/` 并检查健康状态。上一版构建保留在 `previous/`：健康检查失败会自动回滚，也可手动执行 `bash deploy/rollback.sh user@your-server` 恢复。更新不会修改 Nginx、证书或模型环境文件。
 
 ## 数据与统计口径
 

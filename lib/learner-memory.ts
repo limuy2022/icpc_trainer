@@ -2,11 +2,11 @@ export type Mastery="learning"|"explain"|"implement";
 export type LearnerMemory={enabled:boolean;background:string;goal:string;algorithms:{name:string;level:Mastery;note:string}[]};
 export const memoryDefaults=():LearnerMemory=>({enabled:true,background:"",goal:"",algorithms:[]});
 export function validateLearnerMemory(value:unknown):LearnerMemory {
- const v=value as any;
+ const v=value as Record<string,unknown> & {algorithms?:unknown[]};
  if(!v||typeof v.enabled!=="boolean"||typeof v.background!=="string"||v.background.length>1500||typeof v.goal!=="string"||v.goal.length>1500||!Array.isArray(v.algorithms)||v.algorithms.length>40)throw Error("学习记忆格式无效，最多保存 40 个算法");
  const names=new Set<string>();
- const algorithms=v.algorithms.map((item:any)=>{
-  if(!item||typeof item.name!=="string"||!item.name.trim()||item.name.length>80||!["learning","explain","implement"].includes(item.level)||typeof item.note!=="string"||item.note.length>300)throw Error("算法记忆格式无效");
+ const algorithms=(v.algorithms as {name?:string;level?:string;note?:string}[]).map((item)=>{
+  if(!item||typeof item.name!=="string"||!item.name.trim()||item.name.length>80||!["learning","explain","implement"].includes(item.level||"")||typeof item.note!=="string"||item.note.length>300)throw Error("算法记忆格式无效");
   const name=item.name.trim(),key=name.toLowerCase();if(names.has(key))throw Error("算法记忆名称不能重复");names.add(key);
   return {name,level:item.level as Mastery,note:item.note};
  });

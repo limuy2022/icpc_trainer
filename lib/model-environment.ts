@@ -1,3 +1,5 @@
+import { GLM_CODING_BASE_URL } from "./model-presets";
+
 export type ModelEnvironment = Record<string, string | undefined>;
 
 /** Generic Chat Completions configuration, with legacy GLM deployments preserved. */
@@ -13,7 +15,7 @@ export function environmentModel(env: ModelEnvironment) {
   }
   if (env.GLM_API_KEY?.trim()) return {
     id:"builtin-glm",label:"GLM 思维陪练",provider:"glm",
-    base_url:"https://open.bigmodel.cn/api/coding/paas/v4",
+    base_url:GLM_CODING_BASE_URL,
     model:env.GLM_MODEL?.trim() || "GLM-5.3",key:env.GLM_API_KEY.trim(),
   };
   return undefined;

@@ -1,4 +1,5 @@
 "use client";
+import {OI_WIKI_ORIGIN} from "@/lib/constants";
 import {useState} from "react";
 import LessonWiki from "./lesson-wiki";
 import {t as ui,useLocale} from "@/lib/locale";
@@ -26,7 +27,7 @@ export function LessonLibrary({sessions,ready,onStart,onMasteryChange}:{
   return <main className="main-content lesson-library">
     <div className="section-title">
       <div><h1>{ui("专题学习")}</h1><p>{ui("按 OI Wiki 目录学习，随时标记已掌握的专题。")}</p></div>
-      <a className="secondary" href="https://oi-wiki.org/" target="_blank" rel="noreferrer">OI Wiki ↗</a>
+      <a className="secondary" href={OI_WIKI_ORIGIN+"/"} target="_blank" rel="noreferrer">OI Wiki ↗</a>
     </div>
     <div className="lesson-library-controls">
       <div className="lesson-status-filter" role="group" aria-label={ui("掌握状态")}>

@@ -1,28 +1,24 @@
-import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
+import js from "@eslint/js"
+import globals from "globals"
+import tseslint from "typescript-eslint"
+import reactHooks from "eslint-plugin-react-hooks"
 
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
-  globalIgnores([
-    "dist/**",
-    ".vinext/**",
-    ".wrangler/**",
-    ".sites-runtime/**",
-    "outputs/**",
-    "work/**",
-  ]),
+export default tseslint.config(
+  { ignores: ["dist/**", "release/**", "outputs/**", "work/**"] },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
   {
-    files: ["components/ui/**/*.{ts,tsx}", "hooks/use-mobile.ts"],
-    rules: {
-      // These files are vendored verbatim from shadcn@4.17.0. Keep the
-      // registry source intact while applying the stricter rules to Site code.
-      "@typescript-eslint/no-unused-vars": "off",
-      "react-hooks/purity": "off",
-      "react-hooks/set-state-in-effect": "off",
-    },
+    files: ["**/*.{ts,tsx}"],
+    ...reactHooks.configs.flat.recommended,
   },
-]);
-
-export default eslintConfig;
+  {
+    files: ["**/*.{js,mjs}"],
+    languageOptions: { globals: globals.node },
+  },
+  {
+    // Test bundles reference identifiers that esbuild plugin stubs inject
+    // only at load time (e.g. __calls placeholders in server/*.test.mjs).
+    files: ["server/*.test.mjs"],
+    rules: { "no-undef": "off" },
+  },
+)

@@ -1,4 +1,13 @@
+import {CODEFORCES_ORIGIN} from "./constants";
 import type { StatementMetadata } from "./statement-header";
+export type Account = {
+  id: string;
+  username: string;
+  role: "admin" | "member";
+  must_change_password: number;
+  cf_rating: number | null;
+  site_model_access: number;
+};
 export type Problem = {
   id: string;
   contestId: number;
@@ -75,4 +84,4 @@ export const tagLabels: Record<string, string> = {
   interactive: "交互题",
 };
 export const problemUrl = (p: Problem) =>
-  `https://codeforces.com/problemset/problem/${p.contestId}/${p.index}`;
+  `${CODEFORCES_ORIGIN}/problemset/problem/${p.contestId}/${p.index}`;

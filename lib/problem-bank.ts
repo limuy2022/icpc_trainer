@@ -1,3 +1,4 @@
+import {CODEFORCES_API_PROBLEMS,FETCH_TIMEOUT_MS} from "./constants";
 import snapshot from "./cf-snapshot.json";
 import type { Problem } from "./types";
 let cached:
@@ -18,15 +19,15 @@ export async function getBank() {
   pending = (async () => {
     try {
       const res = await fetch(
-        "https://codeforces.com/api/problemset.problems",
-        { signal: AbortSignal.timeout(12000) },
+        CODEFORCES_API_PROBLEMS,
+        { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
       );
       if (!res.ok) throw new Error("Codeforces unavailable");
-      const data = (await res.json()) as any;
+      const data = (await res.json()) as {status?:string;result?:{problems?:{contestId:number;index:string;name:string;rating:number;tags:string[]}[];problemStatistics?:{contestId:number;index:string;solvedCount:number}[]}};
       if (data.status !== "OK" || !Array.isArray(data.result?.problems))
         throw new Error("Invalid response");
       const counts = new Map(
-        data.result.problemStatistics.map((p: any) => [
+        (data.result.problemStatistics ?? []).map((p: {contestId:number;index:string;solvedCount:number}) => [
           `${p.contestId}${p.index}`,
           p.solvedCount,
         ]),
@@ -35,8 +36,8 @@ export async function getBank() {
         source: "live",
         updatedAt: new Date().toISOString(),
         problems: data.result.problems
-          .filter((p: any) => p.contestId && p.rating)
-          .map((p: any) => ({
+          .filter((p) => p.contestId && p.rating)
+          .map((p) => ({
             id: `${p.contestId}${p.index}`,
             contestId: p.contestId,
             index: p.index,

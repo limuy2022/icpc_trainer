@@ -1,9 +1,9 @@
 import {createHash} from 'node:crypto';
 import {DatabaseSync} from 'node:sqlite';
 import {spawn,spawnSync} from 'node:child_process';
-import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
-import {tmpdir} from 'node:os';
+import {mkdtempSync,rmSync} from 'node:fs';
 import {join,resolve} from 'node:path';
+import {tmpdir} from 'node:os';
 import assert from 'node:assert/strict';
 const temp=mkdtempSync(join(tmpdir(),'icpc-auth-test-'));
 const port=18549,base=`http://127.0.0.1:${port}`;
@@ -14,7 +14,7 @@ const server=spawn(process.execPath,['server.mjs'],{cwd:resolve('release'),env,s
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function call(path,{body,method=body?'POST':'GET',cookie='',origin=base}={}){const r=await fetch(base+path,{method,headers:{'Content-Type':'application/json',Cookie:cookie,Origin:origin},body:body?JSON.stringify(body):undefined});return {status:r.status,data:r.headers.get('content-type')?.includes('json')?await r.json():await r.arrayBuffer(),cookie:r.headers.get('set-cookie')?.split(';')[0]};}
 try{
- for(let i=0;i<40;i++){try{if((await call('/api/health')).status===200)break;}catch{}await sleep(100);}
+ for(let i=0;i<40;i++){try{if((await call('/api/health')).status===200)break;}catch{/* intentionally ignored */}await sleep(100);}
  assert.equal((await call('/api/coach-jobs')).status,401);
  assert.equal((await call('/api/profile')).status,401);assert.equal((await call('/api/stats')).status,401);assert.equal((await call('/api/problems')).status,401);assert.equal((await call('/api/admin/users')).status,401);
  assert.equal((await call('/api/auth',{body:{username:'admin',password:'wrong'}})).status,401);

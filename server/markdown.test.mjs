@@ -10,7 +10,7 @@ const bracketFixture=String.raw`\[
 \]`;
 const dir=await mkdtemp(join(tmpdir(),'icpc-markdown-'));
 try {
- const result=await build({stdin:{contents:`
+ await build({stdin:{contents:`
  import {createElement} from 'react';
  import {renderToStaticMarkup} from 'react-dom/server';
  import {parse} from 'parse5';

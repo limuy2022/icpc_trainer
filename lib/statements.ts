@@ -1,3 +1,4 @@
+import {CODEFORCES_ORIGIN,FETCH_TIMEOUT_MS,MAX_RESPONSE_SIZE} from "./constants";
 import type { StatementMetadata } from "./statement-header";
 import { parse, type DefaultTreeAdapterMap } from "parse5";
 type Node = DefaultTreeAdapterMap["node"];
@@ -26,7 +27,7 @@ function plain(node: Node): string {
 }
 function safeUrl(value: string) {
   try {
-    const url = new URL(value, "https://codeforces.com");
+    const url = new URL(value, CODEFORCES_ORIGIN);
     return ["https:", "http:"].includes(url.protocol) ? url.href : "";
   } catch {
     return "";
@@ -161,7 +162,7 @@ export async function fetchStatement(
     if (source.official && Date.now() < directBlockedUntil) continue;
     try {
       const response = await fetch(source.url, {
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         redirect: "error",
         headers: { Accept: "text/html" },
       });
@@ -169,11 +170,11 @@ export async function fetchStatement(
         directBlockedUntil = Date.now() + 600000;
       if (
         !response.ok ||
-        Number(response.headers.get("content-length") || 0) > 2000000
+        Number(response.headers.get("content-length") || 0) > MAX_RESPONSE_SIZE
       )
         continue;
       const html = await response.text();
-      if (html.length > 2000000) continue;
+      if (html.length > MAX_RESPONSE_SIZE) continue;
       const result = parseStatement(html);
       // Verify the statement index against the requested identity before caching it.
       if (!result.title.toUpperCase().startsWith(index.toUpperCase() + "."))

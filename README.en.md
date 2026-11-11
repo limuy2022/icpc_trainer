@@ -50,7 +50,7 @@ The supported account-based application uses the standalone Node.js backend. Set
 pnpm run dev:standalone
 ```
 
-Visit <http://127.0.0.1:5174>. Vite provides frontend hot reload and proxies `/api` to the backend. Rebuild and restart for backend changes. The generic `dev` / `build` commands and Cloudflare/Sites files are legacy scaffolding, not the supported deployment for the account-based application.
+Visit <http://127.0.0.1:5174>. Vite provides frontend hot reload and proxies `/api` to the backend. Rebuild and restart for backend changes. Use `pnpm run typecheck`, `pnpm run lint` and `pnpm test` (build the standalone release first) for verification.
 
 ## Model configuration
 
@@ -142,7 +142,7 @@ bash deploy/update.sh user@your-server
 bash deploy/update.sh user@your-server /srv/icpc-trainer 18461
 ```
 
-The script builds, uploads, and validates a temporary bundle, backs up the database, briefly stops the application, replaces `current/`, and checks health. It retains no old build directories; rebuild a desired Git revision to recover. Updates do not change Nginx, certificates, or model environment files.
+The script builds, uploads, and validates a temporary bundle, backs up the database, briefly stops the application, replaces `current/`, and checks health. The previous build is retained in `previous/`: a failed health check rolls back automatically, and you can also restore manually with `bash deploy/rollback.sh user@your-server`. Updates do not change Nginx, certificates, or model environment files.
 
 ## Data and statistics
 

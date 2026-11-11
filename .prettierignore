@@ -1,0 +1,10 @@
+node_modules/
+release/
+dist/
+.next/
+.wrangler/
+.vinext/
+pnpm-lock.yaml
+lib/cf-snapshot.json
+lib/locales/*.json
+*.mjs.bundle

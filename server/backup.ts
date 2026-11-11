@@ -1,9 +1,10 @@
+import {envDatabasePath} from "./env";
 import { backup } from "node:sqlite";
 import { mkdir, readdir, unlink, chmod } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { db } from "./database";
 const directory = join(
-  dirname(process.env.DATABASE_PATH || "data/icpc.sqlite"),
+  dirname(envDatabasePath()),
   "backups",
 );
 await mkdir(directory, { recursive: true, mode: 0o700 });

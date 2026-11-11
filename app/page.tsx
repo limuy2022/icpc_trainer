@@ -14,9 +14,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {assistantSessionTitle,newAssistantSession} from "@/lib/assistant";
 import {LessonLibrary,LessonProgress} from "@/components/lesson-learning";
 import {newLessonSession,lessonDefinition,setLessonMastered} from "@/lib/lessons";
-import AssistantSessions from "@/components/assistant-sessions";
+import AssistantTools from "@/components/assistant-tools";
 import LearnerMemoryEditor from "@/components/learner-memory-editor";
-import AssistantPreferences from "@/components/assistant-preferences";
 import BrowserModelManager from "@/components/browser-model-manager";
 import {readBrowserModels,browserModelMetadata,browserCompletion,browserModelPayload} from "@/lib/browser-models";
 import {protectStatement,restoreStatement} from "@/lib/translation-format";
@@ -1331,7 +1330,7 @@ function Workspace({
           </main>
         )}
         {(view === "training"||view === "assistant"||isLesson) && session && (
-          <main className="training-content">
+          <main className={view==="assistant"?"training-content assistant-workspace":"training-content"}>
             <div className="training-heading">
               <div>
                 <button
@@ -1360,6 +1359,14 @@ function Workspace({
                   <span>{ui(outcomes[session.outcome])}</span>
                 </div>}
               </div>
+              {view==="assistant"&&<AssistantTools
+                sessions={assistantChats}
+                current={session}
+                onOpen={openAssistantConversation}
+                onNew={newAssistantConversation}
+                onChange={updateAssistantConversation}
+                onMemory={()=>setMemoryOpen(true)}
+              />}
               {!isAssistant&&<div className="training-actions">
                 <button
                   className="timer"
@@ -1384,9 +1391,9 @@ function Workspace({
                   {ui("结束并记录")}</button>
               </div>}
             </div>
-            <nav className="mobile-training-jump" aria-label={ui("训练区域")}><a href="#problem-reader" onClick={e=>{e.preventDefault();document.getElementById("problem-reader")?.scrollIntoView({block:"start"});}}>{ui(isLesson?"学习阶段":isAssistant?"学习偏好":"阅读题目")}</a><a href="#ai-coach" onClick={e=>{e.preventDefault();document.getElementById("ai-coach")?.scrollIntoView({block:"start"});}}>{ui("与 AI 讨论")}</a></nav>
-            <div className="training-grid">
-              {isLesson?<LessonProgress session={session} busy={busy} onChange={change=>patch(session.id,change)} onExplain={()=>void send("lesson")} onRemember={()=>void rememberLesson()}/>:isAssistant?<AssistantPreferences session={session} onChange={change=>patch(session.id,change)} navigation={<AssistantSessions sessions={sessions} current={session} onOpen={openAssistantConversation} onNew={newAssistantConversation} onChange={updateAssistantConversation} onMemory={()=>setMemoryOpen(true)}/>}/>:<section id="problem-reader" className="statement-panel">
+            {view!=="assistant"&&<nav className="mobile-training-jump" aria-label={ui("训练区域")}><a href="#problem-reader" onClick={e=>{e.preventDefault();document.getElementById("problem-reader")?.scrollIntoView({block:"start"});}}>{ui(isLesson?"学习阶段":"阅读题目")}</a><a href="#ai-coach" onClick={e=>{e.preventDefault();document.getElementById("ai-coach")?.scrollIntoView({block:"start"});}}>{ui("与 AI 讨论")}</a></nav>}
+            <div className={view==="assistant"?"training-grid assistant-chat-grid":"training-grid"}>
+              {isLesson?<LessonProgress session={session} busy={busy} onChange={change=>patch(session.id,change)} onExplain={()=>void send("lesson")} onRemember={()=>void rememberLesson()}/>:isAssistant?null:<section id="problem-reader" className="statement-panel">
                 <div className="panel-heading">
                   <h2>
                     <BookOpen size={17} />

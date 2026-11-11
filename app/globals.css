@@ -3563,9 +3563,19 @@ html[lang="en"] .stat-label,html[lang="en"] .stat-value { overflow-wrap:anywhere
 .lesson-stages button > span { min-width:24px; }
 .lesson-progress > .primary,.lesson-progress > .secondary { display:block; margin:14px 0; width:100%; }
 .lesson-progress > small { display:block; color:var(--muted); line-height:1.7; }
-.assistant-sessions { padding-bottom:20px; margin-bottom:24px; border-bottom:1px solid var(--line); }
+.assistant-workspace { max-width:1120px; }
+.assistant-chat-grid { grid-template-columns:minmax(0,1fr); }
+.assistant-workspace .training-heading { flex-wrap:wrap; gap:10px 20px; }
+.assistant-workspace .training-heading h1 { overflow-wrap:anywhere; }
+.assistant-tools { display:flex; flex-wrap:wrap; gap:8px; }
+.assistant-tools > button { min-height:44px; }
+.assistant-dialog-overlay { padding:12px; }
+.assistant-dialog { width:min(520px,100%); max-height:calc(100dvh - 24px); }
+.assistant-dialog h2 { margin:0 40px 16px 0; }
+.assistant-dialog .assistant-preferences { padding:0; }
+.assistant-dialog .assistant-memory-toggle input { padding:0; }
 .assistant-session-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
-.assistant-sessions .model-options { max-height:240px; margin:12px 0; }
+.assistant-sessions .model-options { max-height:min(40dvh,320px); margin:12px 0; }
 .assistant-memory-toggle { display:flex !important; flex-direction:row !important; align-items:center; gap:10px; }
 .assistant-memory-toggle input { width:auto !important; }
 .learner-memory-modal { width:min(660px,100%); }

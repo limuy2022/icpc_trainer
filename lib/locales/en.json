@@ -813,6 +813,8 @@
   "理解路径复制与历史版本，推导两版本差分查询区间第 k 小，并核算节点空间。": "Understand path copying and versions, derive range order-statistic queries from version differences, and account for node memory.",
   "新对话": "New conversation",
   "新建对话": "New conversation",
+  "对话列表": "Conversations",
+  "会话设置": "Conversation settings",
   "学习记忆": "Learning memory",
   "助教会话": "Tutor conversations",
   "次提问": "questions",

@@ -764,18 +764,20 @@ function Workspace({
           setDraft={setDraft}
           onFinish={() => { if (session) { setTakeaway(session.takeaway); setFinish(true); } }}
         />
-        <HistoryView
-          sessions={sessions}
-          trainingSessions={trainingSessions}
-          completed={completed}
-          now={now}
-          syncState={syncState}
-          resume={resume}
-          navigate={navigate}
-          exportData={exportData}
-          setSessions={setSessions}
-          setToast={setToast}
-        />
+        {view === "history" && (
+          <HistoryView
+            sessions={sessions}
+            trainingSessions={trainingSessions}
+            completed={completed}
+            now={now}
+            syncState={syncState}
+            resume={resume}
+            navigate={navigate}
+            exportData={exportData}
+            setSessions={setSessions}
+            setToast={setToast}
+          />
+        )}
       </div>
 
       {ratingModal && <Modal label={ui("等级分设置")} closeLabel={ui("关闭等级分设置")} onClose={()=>setRatingModal(false)}><RatingForm rating={cfRating} onSaved={rating=>{setCfRating(rating);const next=ratingRange(rating);setMin(next.min);setMax(next.max);setPage(1);setRatingModal(false);setToast("个人等级分已保存，选题难度已更新");}}/><XcpcProfileForm/></Modal>}

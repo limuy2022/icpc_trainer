@@ -1391,7 +1391,7 @@ function Workspace({
                   {ui("结束并记录")}</button>
               </div>}
             </div>
-            {view!=="assistant"&&<nav className="mobile-training-jump" aria-label={ui("训练区域")}><a href="#problem-reader" onClick={e=>{e.preventDefault();document.getElementById("problem-reader")?.scrollIntoView({block:"start"});}}>{ui(isLesson?"学习阶段":"阅读题目")}</a><a href="#ai-coach" onClick={e=>{e.preventDefault();document.getElementById("ai-coach")?.scrollIntoView({block:"start"});}}>{ui("与 AI 讨论")}</a></nav>}
+            {view!=="assistant"&&<nav className="mobile-training-jump" aria-label={ui("训练区域")}><a href="#problem-reader" onClick={e=>{e.preventDefault();document.getElementById("problem-reader")?.scrollIntoView({block:"start"});}}>{ui(isLesson?"专题内容":"阅读题目")}</a><a href="#ai-coach" onClick={e=>{e.preventDefault();document.getElementById("ai-coach")?.scrollIntoView({block:"start"});}}>{ui("与 AI 讨论")}</a></nav>}
             <div className={view==="assistant"?"training-grid assistant-chat-grid":"training-grid"}>
               {isLesson?<LessonProgress session={session} busy={busy} onChange={change=>patch(session.id,change)} onExplain={()=>void send("lesson")} onRemember={()=>void rememberLesson()}/>:isAssistant?null:<section id="problem-reader" className="statement-panel">
                 <div className="panel-heading">

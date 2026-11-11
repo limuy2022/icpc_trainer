@@ -29,6 +29,7 @@ import { GET as problems } from "../app/api/problems/route";
 import { statement } from "./statements";
 import { POST as coach } from "./coach";
 import { translate } from "./translate";
+import { wikiArticle } from "./wiki-article";
 initModels();
 initCoachJobs();
 const root = resolve("public");
@@ -126,6 +127,11 @@ const server = createServer(async (req, res) => {
         case "/api/statement":
           if (req.method !== "GET") fail(405, "不支持的操作");
           response = await statement(request);
+          break;
+        case "/api/wiki-article":
+          if (req.method !== "GET") fail(405, "不支持的操作");
+          throttle("wiki-article:" + user.id, 120, 60000);
+          response = await wikiArticle(request);
           break;
         case "/api/translate":
           if (req.method !== "POST") fail(405, "不支持的操作");

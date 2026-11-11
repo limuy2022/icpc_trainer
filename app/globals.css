@@ -3582,3 +3582,19 @@ html[lang="en"] .stat-label,html[lang="en"] .stat-value { overflow-wrap:anywhere
 .learner-memory-modal fieldset { border:0; padding:0; margin:0; min-width:0; }
 .algorithm-memory-entry { border:1px solid var(--line); border-radius:10px; padding:16px; margin:16px 0; }
 .learner-memory-modal textarea { min-height:90px; }
+
+.lesson-reader-toolbar { justify-content:flex-start; flex-wrap:wrap; }
+.lesson-reader-toolbar button[aria-pressed="true"] { color:var(--green); border-color:var(--green); }
+.lesson-wiki-scroll { max-height:72dvh; overflow:auto; padding:20px; }
+.lesson-wiki-header { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px 16px; margin-bottom:20px; }
+.lesson-wiki-header h2 { margin:0; font-size:1.25rem; }
+.lesson-wiki-header a { display:inline-flex; align-items:center; gap:5px; color:var(--green); text-decoration:underline; }
+.lesson-wiki-body { font-size:1rem; line-height:1.8; overflow-wrap:anywhere; }
+.lesson-wiki-body img { max-width:100%; height:auto; }
+.lesson-wiki-body table { display:block; max-width:100%; overflow-x:auto; }
+.lesson-wiki-body pre { overflow:auto; padding:12px; background:var(--paper); }
+.lesson-wiki-body details,.lesson-wiki-body .wiki-admonition { border:1px solid var(--line); border-radius:8px; padding:8px 12px; margin:12px 0; }
+.lesson-wiki-body summary { cursor:pointer; font-weight:600; }
+.lesson-wiki-body pre :is(.wiki-code-k,.wiki-code-kt,.wiki-code-kc,.wiki-code-kn,.wiki-code-cp) { color:var(--green); font-weight:600; }
+.lesson-wiki-body pre :is(.wiki-code-c,.wiki-code-c1,.wiki-code-cm) { color:var(--muted); font-style:italic; }
+.lesson-wiki-body pre :is(.wiki-code-s,.wiki-code-s1,.wiki-code-s2,.wiki-code-sc,.wiki-code-mi) { color:var(--palette-7a5c31,var(--green)); }

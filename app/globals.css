@@ -3585,6 +3585,7 @@ html[lang="en"] .stat-label,html[lang="en"] .stat-value { overflow-wrap:anywhere
 
 .lesson-reader-toolbar { justify-content:flex-start; flex-wrap:wrap; }
 .lesson-reader-toolbar button[aria-pressed="true"] { color:var(--green); border-color:var(--green); }
+.lesson-quote-button { margin-inline-start:auto; }
 .lesson-wiki-scroll { max-height:72dvh; overflow:auto; padding:20px; }
 .lesson-wiki-header { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px 16px; margin-bottom:20px; }
 .lesson-wiki-header h2 { margin:0; font-size:1.25rem; }

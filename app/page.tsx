@@ -189,6 +189,7 @@ function Workspace({
       Record<string, string>
     >({});
   const translationRequests=useRef(new Set<string>());
+  const composerInput=useRef<HTMLTextAreaElement>(null);
   const chatEnd = useRef<HTMLDivElement>(null),
     requestId = useRef(0),
     sessionsRef = useRef(sessions);
@@ -405,6 +406,15 @@ function Workspace({
       const entry={name,level:session.lesson.mastery,note:index>=0?algorithms[index].note:""};if(index>=0)algorithms[index]=entry;else algorithms.push(entry);
       const saved=await fetch("/api/learner-memory",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({memory:{...currentMemory.memory,algorithms},revision:currentMemory.revision})});const data=await saved.json() as any;if(!saved.ok)throw Error(data.error||"保存失败");setToast("专题自评已存入学习记忆");
     }catch(error){setToast((error as Error).message);}
+  }
+  function quoteLesson(quote:string){
+    setDraft(previous=>[previous.trimEnd(),quote].filter(Boolean).join("\n\n")+"\n\n");
+    const input=composerInput.current;
+    input?.focus({preventScroll:true});
+    input?.scrollIntoView({block:"nearest"});
+    requestAnimationFrame(()=>{
+      if(input&&document.activeElement===input)input.setSelectionRange(input.value.length,input.value.length);
+    });
   }
   function startLesson(topicId:string){
     const existing=sessionsRef.current.find(s=>s.lesson?.topicId===topicId);
@@ -1393,7 +1403,7 @@ function Workspace({
             </div>
             {view!=="assistant"&&<nav className="mobile-training-jump" aria-label={ui("训练区域")}><a href="#problem-reader" onClick={e=>{e.preventDefault();document.getElementById("problem-reader")?.scrollIntoView({block:"start"});}}>{ui(isLesson?"专题内容":"阅读题目")}</a><a href="#ai-coach" onClick={e=>{e.preventDefault();document.getElementById("ai-coach")?.scrollIntoView({block:"start"});}}>{ui("与 AI 讨论")}</a></nav>}
             <div className={view==="assistant"?"training-grid assistant-chat-grid":"training-grid"}>
-              {isLesson?<LessonProgress session={session} busy={busy} onChange={change=>patch(session.id,change)} onExplain={()=>void send("lesson")} onRemember={()=>void rememberLesson()}/>:isAssistant?null:<section id="problem-reader" className="statement-panel">
+              {isLesson?<LessonProgress session={session} busy={busy} onChange={change=>patch(session.id,change)} onExplain={()=>void send("lesson")} onRemember={()=>void rememberLesson()} onQuote={quoteLesson}/>:isAssistant?null:<section id="problem-reader" className="statement-panel">
                 <div className="panel-heading">
                   <h2>
                     <BookOpen size={17} />
@@ -1702,6 +1712,7 @@ function Workspace({
                     }}
                   >
                     <textarea
+                      ref={composerInput}
                       aria-label={ui(isAssistant?"你的算法问题":"你的解题思路")}
                       placeholder={ui(isAssistant?"输入算法问题、证明或代码…":"写下你的想法，点击发送…")}
                       value={draft}

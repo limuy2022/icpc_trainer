@@ -25,6 +25,11 @@ export default function LessonWiki({
     () => (article && "html" in article ? { __html: article.html } : undefined),
     [article],
   )
+  // Wiki HTML ships server-rendered KaTeX whose `.katex-mathml` copy is only
+  // hidden by katex.min.css — load it with the article instead of the first paint.
+  useEffect(() => {
+    if (article && "html" in article) void import("katex/dist/katex.min.css")
+  }, [article])
   const [attempt, setAttempt] = useState(0)
   const articleRef = useRef<HTMLElement>(null)
   const selectionRef = useRef<Range | null>(null)

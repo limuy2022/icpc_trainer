@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { fmt } from "@/lib/training-labels";
+import { t as ui } from "@/lib/locale";
 
 /**
  * Self-ticking elapsed display. Isolates the once-per-second state update in
@@ -29,12 +30,18 @@ export default function ElapsedClock({
   return <span>{fmt(seconds)}</span>;
 }
 
-/** Seconds since a generation started; ticks once per second in place. */
-export function ThinkingSeconds({ startedAt }: { startedAt: number }) {
+/** Full "checking… waited Ns" line; ticks once per second in this leaf. */
+export function ThinkingWait({ startedAt }: { startedAt: number }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-  return <>{Math.max(0, Math.floor((now - startedAt) / 1000))}</>;
+  return (
+    <>
+      {ui("正在检验思路… 已等待 {0} 秒", [
+        Math.max(0, Math.floor((now - startedAt) / 1000)),
+      ])}
+    </>
+  );
 }

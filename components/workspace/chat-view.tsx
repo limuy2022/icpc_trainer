@@ -32,7 +32,7 @@ import {
 } from "lucide-react"
 import type { Dispatch, RefObject, SetStateAction } from "react"
 import { lazy, Suspense, useEffect, useRef, useState } from "react"
-import ElapsedClock, { ThinkingSeconds } from "@/components/workspace/elapsed-clock"
+import ElapsedClock, { ThinkingWait } from "@/components/workspace/elapsed-clock"
 import type { StatementMetadata } from "@/lib/statement-header"
 
 const renderMarkdown = (text: string) => <Text text={text} />
@@ -852,9 +852,7 @@ export default function ChatView({
                 {busy && generationSessionId.current === session.id && (
                   <div className="thinking">
                     <LoaderCircle size={15} className="spin" />
-                    {ui("正在检验思路… 已等待 {0} 秒", [
-                      <ThinkingSeconds key="s" startedAt={sendStartedAt.current} />,
-                    ])}
+                    <ThinkingWait startedAt={sendStartedAt.current} />
                     <button
                       type="button"
                       className="text-button"

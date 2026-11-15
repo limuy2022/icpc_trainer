@@ -21,6 +21,26 @@ export default function LessonWiki({
   const [article, setArticle] = useState<
     { html: string } | { failed: true } | null
   >(null)
+  useEffect(()=>{
+    if(!showWiki||!article||!("html" in article))return;
+    function scrollToSection(){
+      const fragment=window.location.hash.split("#")[2];
+      if(!fragment)return;
+      try{
+        const section=decodeURIComponent(fragment);
+        const anchors=articleRef.current?.querySelectorAll<HTMLElement>("[data-wiki-anchor]");
+        const target=anchors&&Array.from(anchors).find(element=>element.dataset.wikiAnchor===section);
+        target?.scrollIntoView({block:"start"});
+      }catch{/* Ignore invalid anchors. */}
+    }
+    scrollToSection();
+    window.addEventListener("hashchange",scrollToSection);
+    window.addEventListener("popstate",scrollToSection);
+    return ()=>{
+      window.removeEventListener("hashchange",scrollToSection);
+      window.removeEventListener("popstate",scrollToSection);
+    };
+  },[showWiki,article]);
   const markup = useMemo(
     () => (article && "html" in article ? { __html: article.html } : undefined),
     [article],

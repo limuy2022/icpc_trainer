@@ -13,7 +13,7 @@ import {translationSource} from "@/lib/translation-source";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {newAssistantSession} from "@/lib/assistant";
 import {LessonLibrary} from "@/components/lesson-learning";
-import {newLessonSession,lessonDefinition,setLessonMastered} from "@/lib/lessons";
+import {newLessonSession,lessonDefinition,lessonCatalog,setLessonMastered} from "@/lib/lessons";
 import LearnerMemoryEditor from "@/components/learner-memory-editor";
 import BrowserModelManager from "@/components/browser-model-manager";
 import {readBrowserModels,browserModelMetadata,browserCompletion,browserModelPayload,readBrowserPreferences} from "@/lib/browser-models";
@@ -328,6 +328,16 @@ function Workspace({
     if(!existing)setSessions(prev=>[next,...prev]);
     setDraft("");setChatError("");setMessageEdit(null);openRoute("lesson",next.id);
   }
+  useEffect(()=>{
+    if(!loaded||!isLesson||!current||selectedSession)return;
+    const topic=lessonCatalog.find(item=>"lesson-"+item.id===current);
+    if(!topic)return;
+    const next=newLessonSession(topic.id,sessionsRef.current.find(s=>s.kind==="assistant"&&!s.lesson)?.assistantProfile);
+    setSessions(previous=>previous.some(s=>s.id===next.id)?previous:[next,...previous]);
+  },[loaded,isLesson,current,selectedSession,setSessions]);
+  useEffect(()=>{
+    if(isLesson){setDraft("");setChatError("");}
+  },[isLesson,current]);
   function navigate(next: typeof view) {
     if (next !== "training") pauseAll();
     openRoute(next,next==="training"&&selectedSession&&sessionView(selectedSession)!=="training"?null:undefined);

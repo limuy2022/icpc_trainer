@@ -1,8 +1,21 @@
+import {workspaceHash} from "../lib/workspace-route";
 import {FETCH_TIMEOUT_MS} from "../lib/constants";
 import katex from "katex";
 import {parse,type DefaultTreeAdapterMap} from "parse5";
 import {lessonCatalog,lessonWikiUrl} from "../lib/lessons";
 import {fail} from "./security";
+
+const wikiTopicsByUrl=new Map(lessonCatalog.map(topic=>[lessonWikiUrl(topic.path),topic.id]));
+
+function internalWikiHref(href:string){
+  const url=new URL(href);
+  const path=url.pathname.replace(/(?:\/index\.html)?\/$/,"").replace(/\/index\.html$/,"");
+  const topic=wikiTopicsByUrl.get(url.origin+path+"/");
+  if(!topic||url.search)return;
+  let section:string|undefined;
+  try{section=decodeURIComponent(url.hash.slice(1));}catch{/* Ignore invalid anchors. */}
+  return workspaceHash({view:"lesson",current:"lesson-"+topic,section});
+}
 
 type Node=DefaultTreeAdapterMap["childNode"];
 type Element=DefaultTreeAdapterMap["element"];
@@ -69,6 +82,8 @@ export function renderWikiArticle(document:string,source:string){
     if(!tags.has(tag)||tag==="h1")return tag==="h1"?"":children;
     if(tag==="a"){
       const href=httpsUrl(attribute(node,"href"),source);
+      const internal=href&&internalWikiHref(href);
+      if(internal)return `<a href="${escape(internal)}">${children}</a>`;
       return href?`<a href="${escape(href)}" target="_blank" rel="noopener noreferrer">${children}</a>`:children;
     }
     if(tag==="img"){
@@ -76,6 +91,8 @@ export function renderWikiArticle(document:string,source:string){
       return src?`<img src="${escape(src)}" alt="${escape(attribute(node,"alt")??"")}" loading="lazy" referrerpolicy="no-referrer">`:"";
     }
     const attrs=[];
+    const anchor=attribute(node,"id");
+    if(anchor)attrs.push(`data-wiki-anchor="${escape(anchor)}"`);
     if(tag==="details"&&attribute(node,"open")!==undefined)attrs.push("open");
     if(tag==="span"){
       const syntax=names.find(name=>codeClasses.test(name));

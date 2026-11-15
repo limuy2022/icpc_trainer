@@ -23,7 +23,7 @@ try{
     <mjx-container display="true"><mjx-math data-latex="x^2"></mjx-math></mjx-container>
     <span class="arithmatex">\\(y^2\\)</span>
     <table class="highlighttable"><tr><td class="linenos">lineno</td><td class="code"><pre><code><span class="kt">int</span> x;</code></pre></td></tr></table>
-    <a href="../fenwick/">Tree</a><img src="../images/disjoint-set.svg" onerror="attack()">
+    <a href="../fenwick/#例题">Tree</a><a href="#合并">Jump</a><h2 id="合并">Merge</h2><a href="https://example.com/">Outside</a><img src="../images/disjoint-set.svg" onerror="attack()">
     <a href="javascript:attack()">Unsafe URL</a><script>attack()</script><iframe src="https://example.com"></iframe>
     <details open><summary>Proof</summary><p>By induction.</p></details>
     </article>`;
@@ -32,14 +32,17 @@ try{
   assert.match(html,/katex-display/);
   assert.match(html,/application\/x-tex">y\^2/);
   assert.match(html,/<pre><code><span class="wiki-code-kt">int<\/span> x;<\/code><\/pre>/);
-  assert.match(html,/https:\/\/oi-wiki.org\/ds\/fenwick\//);
+  assert.match(html, /href="#\/lesson\/lesson-fenwick#%E4%BE%8B%E9%A2%98">Tree/);
+  assert.match(html, /href="#\/lesson\/lesson-dsu#%E5%90%88%E5%B9%B6">Jump/);
+  assert.match(html, /data-wiki-anchor="合并"/);
+  assert.match(html, /href="https:\/\/example.com\/" target="_blank"/);
   assert.match(html,/https:\/\/oi-wiki.org\/ds\/images\/disjoint-set.svg/);
   assert.match(html,/<details open><summary>Proof<\/summary>/);
   assert.doesNotMatch(html,/navigation|Repeated title|lineno|javascript:|attack\(\)|<iframe|onerror=/);
   assert.throws(()=>renderWikiArticle("<article>unrelated page</article>",source));
   if(process.env.ICPC_WIKI_TEST_FIXTURE){
     const real=renderWikiArticle(await readFile(process.env.ICPC_WIKI_TEST_FIXTURE,"utf8"),source);
-    assert.match(real,/<h2>合并<\/h2>/);
+    assert.match(real,/<h2[^>]*>合并<\/h2>/);
     assert.match(real,/katex/);
     assert.match(real,/disjoint-set\.svg/);
     assert.match(real,/CC BY-SA 4\.0/);

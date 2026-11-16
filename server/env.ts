@@ -18,7 +18,7 @@ export function envDatabasePath(): string {
   return process.env.DATABASE_PATH || resolve("data/icpc.sqlite")
 }
 export function envCookieSecure(): boolean {
-  return process.env.COOKIE_SECURE === "true"
+  return process.env.COOKIE_SECURE === "true" || envAppOrigin().startsWith("https://")
 }
 /** 64-char hex key for encrypting stored provider keys (see security.ts). */
 export function envModelEncryptionKey(): string | undefined {

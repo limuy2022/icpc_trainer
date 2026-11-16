@@ -78,9 +78,23 @@ async function readPage(link: string) {
   return { title: title || url.hostname, url: link, text: text.slice(0, 8000), truncated: truncated || text.length > 8000 }
 }
 
+const maxActivePageFetches = 6
+let activePageFetches = 0
+
+async function readPageWithLimit(link: string) {
+  if (activePageFetches >= maxActivePageFetches)
+    throw Error("Web reference capacity reached")
+  activePageFetches++
+  try {
+    return await readPage(link)
+  } finally {
+    activePageFetches--
+  }
+}
+
 export async function webReferences(message: string) {
   const links = requestedLinks(message)
-  const results = await Promise.allSettled(links.map(readPage))
+  const results = await Promise.allSettled(links.map(readPageWithLimit))
   return {
     sources: results.flatMap(result => result.status === "fulfilled" ? [{ title: result.value.title, url: result.value.url }] : []),
     context: links.length ? JSON.stringify(results.map((result, index) => result.status === "fulfilled"

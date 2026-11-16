@@ -42,7 +42,19 @@ const mime: Record<string, string> = {
 function expectMethod(req: { method?: string | null }, method: string) {
   if (req.method !== method) fail(405, "不支持的操作")
 }
+const baselineCsp = "base-uri 'none'; object-src 'none'; frame-ancestors 'none'"
+const candidateCsp = baselineCsp +
+  "; default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; font-src 'self' data:; connect-src 'self' https:; frame-src 'self' about:; form-action 'self'; manifest-src 'self'"
+
 const server = createServer(async (req, res) => {
+  res.setHeader("X-Content-Type-Options", "nosniff")
+  res.setHeader("Referrer-Policy", "same-origin")
+  res.setHeader("X-Frame-Options", "DENY")
+  res.setHeader("Content-Security-Policy", baselineCsp)
+  res.setHeader("Content-Security-Policy-Report-Only", candidateCsp)
+  if (envAppOrigin().startsWith("https://"))
+    res.setHeader("Strict-Transport-Security", "max-age=31536000")
+
   try {
     const host = req.headers.host || "localhost"
     const configuredOrigin = envAppOrigin()
@@ -207,9 +219,6 @@ const server = createServer(async (req, res) => {
     }
     res.statusCode = response.status
     response.headers.forEach((v, k) => res.setHeader(k, v))
-    res.setHeader("X-Content-Type-Options", "nosniff")
-    res.setHeader("Referrer-Policy", "same-origin")
-    res.setHeader("X-Frame-Options", "DENY")
     if (url.pathname.startsWith("/api/"))
       res.setHeader("Cache-Control", "no-store")
     const contentType = response.headers.get("content-type") || ""

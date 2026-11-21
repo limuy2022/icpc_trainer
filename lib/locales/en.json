@@ -1,4 +1,6 @@
 {
+  "工作台加载遇到问题": "The workspace could not load",
+  "请重新加载页面后再试。": "Reload the page and try again.",
   "独立解出": "Solved independently",
   "请求失败": "Request failed",
   "随机选题失败，请稍后重试。": "Failed to pick a random problem. Please try again later.",

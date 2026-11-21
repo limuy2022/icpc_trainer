@@ -26,6 +26,7 @@ import Modal from "@/components/workspace/modal";
 import ModelSettingsModal from "@/components/workspace/model-settings-modal";
 import FinishModal from "@/components/workspace/finish-modal";
 import HistoryView from "@/components/workspace/history-view";
+import WorkspaceErrorBoundary from "@/components/workspace-error-boundary";
 import BankView from "@/components/workspace/bank-view";
 import ChatView from "@/components/workspace/chat-view";
 import { useTrainingSync } from "@/hooks/use-training-sync";
@@ -57,7 +58,9 @@ export default function Home() {
     <>
       <AccountGate>
         {(user, logout) => (
-          <Workspace key={user.id} user={user} logout={logout} />
+          <WorkspaceErrorBoundary key={user.id}>
+            <Workspace user={user} logout={logout} />
+          </WorkspaceErrorBoundary>
         )}
       </AccountGate>
     </>
@@ -221,10 +224,12 @@ function Workspace({
       });
       api<Bank>("/api/problems?" + params, { signal: controller.signal })
         .then((d) => {
-          setBank(d);
+          if (!d || !Array.isArray(d.items) || !Number.isFinite(d.total) || !Number.isFinite(d.bankTotal))
+            throw Error(ui("题库加载失败，请重试"));
+          if (!controller.signal.aborted) setBank(d);
         })
         .catch((e) => {
-          if (e.name !== "AbortError")
+          if (!controller.signal.aborted && e.name !== "AbortError")
             setBankError(e.message || ui("题库加载失败，请重试"));
         })
         .finally(() => {
